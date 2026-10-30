@@ -254,7 +254,7 @@ describe('contrast', () => {
     ['--sw-warning', '--sw-bg'],
     ['--sw-info', '--sw-bg'],
     ['--sw-focus', '--sw-bg', 3],
-    ['--sw-border', '--sw-bg', 3],
+    ['--sw-control-border', '--sw-bg', 3],
   ];
   for (const [name, theme] of [['light', light], ['dark', dark]] as const) {
     for (const [fg, bg, min = 4.5] of pairs) {

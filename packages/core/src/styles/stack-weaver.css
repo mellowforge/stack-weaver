@@ -4,7 +4,8 @@
   --sw-bg: #ffffff;
   --sw-fg: #1f2328;
   --sw-muted: #59636e;
-  --sw-border: #848d97;
+  --sw-border: #d1d9e0;
+  --sw-control-border: #848d97;
   --sw-accent: #0969da;
   --sw-on-accent: #ffffff;
   --sw-error: #cf222e;
@@ -21,7 +22,8 @@
   --sw-bg: #0d1117;
   --sw-fg: #e6edf3;
   --sw-muted: #9198a1;
-  --sw-border: #6e7681;
+  --sw-border: #3d444d;
+  --sw-control-border: #6e7681;
   --sw-accent: #4493f8;
   --sw-on-accent: #0d1117;
   --sw-error: #ff7b72;
@@ -78,7 +80,7 @@
 
 .sw-mode-switch {
   display: inline-flex;
-  border: 1px solid var(--sw-border);
+  border: 1px solid var(--sw-control-border);
   border-radius: var(--sw-radius);
   overflow: hidden;
 }
@@ -94,7 +96,7 @@
 }
 
 .sw-btn {
-  border: 1px solid var(--sw-border);
+  border: 1px solid var(--sw-control-border);
   border-radius: var(--sw-radius);
 }
 
@@ -265,7 +267,7 @@
 .sw-recipes-blank {
   color: var(--sw-fg);
   background: transparent;
-  border: 1px solid var(--sw-border);
+  border: 1px solid var(--sw-control-border);
   border-radius: var(--sw-radius);
   font: inherit;
   cursor: pointer;
@@ -484,7 +486,7 @@
   padding: 4px 6px;
   color: var(--sw-fg);
   background: var(--sw-bg);
-  border: 1px solid var(--sw-border);
+  border: 1px solid var(--sw-control-border);
   border-radius: var(--sw-radius);
   font: inherit;
 }
@@ -726,7 +728,7 @@
   padding: var(--sw-gap);
   color: var(--sw-fg);
   background: transparent;
-  border: 1px solid var(--sw-border);
+  border: 1px solid var(--sw-control-border);
   border-radius: var(--sw-radius);
   font: inherit;
   text-align: start;
