@@ -21,9 +21,9 @@ export interface StoreEvent {
 
 /** Options for {@link DocumentStore}. */
 export interface StoreOptions {
-  /** Clock used for grouping code changes. Defaults to `Date.now`. */
+  /** Clock used for grouping changes. Defaults to `Date.now`. */
   now?: () => number;
-  /** Max gap in ms between consecutive `'code'` changes that still merge into one undo step. Default 500. */
+  /** Max gap in ms between consecutive `'code'` changes, or grouped `'visual'` edits, that still merge into one undo step. Default 500. */
   groupMs?: number;
   /** Max number of undo steps kept. Default 200. */
   historyLimit?: number;
@@ -52,6 +52,7 @@ export class DocumentStore {
   #limit: number;
   #lastOrigin: ChangeOrigin | null = null;
   #lastTime = 0;
+  #lastGroup: string | undefined;
 
   /** Creates a store holding `text`, with empty history. */
   constructor(text: string, opts: StoreOptions = {}) {
@@ -104,13 +105,18 @@ export class DocumentStore {
 
   /**
    * Applies a structural edit to the current parse (never `lastGood`); the change is tagged
-   * `'visual'` and is its own undo step. Returns the refusal, changing nothing and emitting
-   * nothing, when the edit cannot be made. Returns the ok result without emitting or recording
-   * history when the edit leaves the text unchanged (for example, setting a value it already has).
+   * `'visual'`. Returns the refusal, changing nothing and emitting nothing, when the edit cannot
+   * be made. Returns the ok result without emitting or recording history when the edit leaves the
+   * text unchanged (for example, setting a value it already has).
+   *
+   * Without `opts.group` the edit is its own undo step. With a group, it joins the previous undo
+   * step when that step's last change was a `'visual'` edit with the same group within `groupMs`
+   * (for example, each keystroke of one field). The first change after an undo or redo never
+   * merges.
    */
-  edit(op: EditOp): EditResult {
+  edit(op: EditOp, opts?: { group?: string }): EditResult {
     const r = applyEdit(this.#parsed, op);
-    if (r.ok && r.text !== this.#text) this.#commit(r.text, r.change, 'visual');
+    if (r.ok && r.text !== this.#text) this.#commit(r.text, r.change, 'visual', opts?.group);
     return r;
   }
 
@@ -140,11 +146,17 @@ export class DocumentStore {
     };
   }
 
-  #commit(text: string, change: TextChange, origin: Exclude<ChangeOrigin, 'history'>): void {
+  #commit(
+    text: string,
+    change: TextChange,
+    origin: Exclude<ChangeOrigin, 'history'>,
+    group?: string,
+  ): void {
     const now = this.#now();
     const top = this.#undo[this.#undo.length - 1];
+    const close = top !== undefined && this.#lastOrigin === origin && now - this.#lastTime <= this.#groupMs;
     const merge =
-      origin === 'code' && top !== undefined && this.#lastOrigin === 'code' && now - this.#lastTime <= this.#groupMs;
+      close && (origin === 'code' || (origin === 'visual' && group !== undefined && group === this.#lastGroup));
     if (merge) {
       top.after = text;
     } else {
@@ -153,6 +165,7 @@ export class DocumentStore {
     }
     this.#redo = [];
     this.#lastOrigin = origin;
+    this.#lastGroup = group;
     this.#lastTime = now;
     this.#set(text, change, origin);
   }
@@ -160,6 +173,7 @@ export class DocumentStore {
   #apply(text: string): void {
     const change = diffText(this.#text, text);
     this.#lastOrigin = 'history';
+    this.#lastGroup = undefined;
     this.#set(text, change, 'history');
   }
 

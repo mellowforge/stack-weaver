@@ -165,3 +165,86 @@ describe('DocumentStore', () => {
     expect(store.text).toBe('1');
   });
 });
+
+describe('DocumentStore: grouped visual edits', () => {
+  it('visual edits with the same group merge into one undo step', () => {
+    const { store, clock } = setup();
+    expect(store.edit(setA(5), { group: 'g' }).ok).toBe(true);
+    clock.advance(100);
+    expect(store.edit(setA(6), { group: 'g' }).ok).toBe(true);
+    expect(store.text).toBe('a: 6\nb: 2\n');
+    expect(store.undo()).toBe(true);
+    expect(store.text).toBe('a: 1\nb: 2\n');
+    expect(store.canUndo).toBe(false);
+    store.redo();
+    expect(store.text).toBe('a: 6\nb: 2\n');
+  });
+
+  it('keeps tagging grouped edits visual and emits each change', () => {
+    const { store, events, clock } = setup();
+    store.edit(setA(5), { group: 'g' });
+    clock.advance(10);
+    store.edit(setA(6), { group: 'g' });
+    expect(events.map((e) => e.origin)).toEqual(['visual', 'visual']);
+  });
+
+  it('different groups do not merge', () => {
+    const { store, clock } = setup();
+    store.edit(setA(5), { group: 'g' });
+    clock.advance(100);
+    store.edit(setA(6), { group: 'h' });
+    store.undo();
+    expect(store.text).toBe('a: 5\nb: 2\n');
+  });
+
+  it('ungrouped visual edits never merge', () => {
+    const { store, clock } = setup();
+    store.edit(setA(5));
+    clock.advance(100);
+    store.edit(setA(6));
+    store.undo();
+    expect(store.text).toBe('a: 5\nb: 2\n');
+    const g = setup();
+    g.store.edit(setA(5), { group: 'g' });
+    g.store.edit(setA(6));
+    g.store.undo();
+    expect(g.store.text).toBe('a: 5\nb: 2\n');
+  });
+
+  it('does not merge beyond groupMs', () => {
+    const { store, clock } = setup();
+    store.edit(setA(5), { group: 'g' });
+    clock.advance(501);
+    store.edit(setA(6), { group: 'g' });
+    store.undo();
+    expect(store.text).toBe('a: 5\nb: 2\n');
+  });
+
+  it('does not merge into a code step', () => {
+    const { store, clock } = setup();
+    store.setText('a: 1\nb: 3\n', 'code');
+    clock.advance(10);
+    store.edit(setA(5), { group: 'g' });
+    store.undo();
+    expect(store.text).toBe('a: 1\nb: 3\n');
+  });
+
+  it('the first grouped edit after an undo or redo never merges', () => {
+    const { store, clock } = setup();
+    store.edit(setA(5), { group: 'g' });
+    clock.advance(10);
+    store.edit(setA(6), { group: 'g' });
+    store.undo();
+    clock.advance(10);
+    store.edit(setA(7), { group: 'g' });
+    clock.advance(10);
+    store.edit(setA(8), { group: 'g' });
+    store.undo();
+    expect(store.text).toBe('a: 1\nb: 2\n');
+    store.redo();
+    clock.advance(10);
+    store.edit(setA(9), { group: 'g' });
+    store.undo();
+    expect(store.text).toBe('a: 8\nb: 2\n');
+  });
+});

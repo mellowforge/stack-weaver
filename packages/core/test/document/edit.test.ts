@@ -645,3 +645,71 @@ describe('addDocument adds exactly one document (A12)', () => {
     expect(edit('a: 1\n', { op: 'addDocument', yaml: '' })).toBe('a: 1\n---\n\n');
   });
 });
+
+describe('applyEdit: deleteDocument', () => {
+  const del = (text: string, doc: number) => edit(text, { op: 'deleteDocument', doc });
+
+  it('removes the document and its marker', () => {
+    const text = 'a: 1\n---\nb: 2\n---\nc: 3\n';
+    expect(del(text, 1)).toBe('a: 1\n---\nc: 3\n');
+    expect(del(text, 0)).toBe('b: 2\n---\nc: 3\n');
+    expect(del(text, 2)).toBe('a: 1\n---\nb: 2\n');
+  });
+
+  it('keeps comments of other documents', () => {
+    const text = '# head\na: 1\n# tail of a\n---\n# about b\nb: 2\n---\n# about c\nc: 3 # keep\n';
+    expect(del(text, 1)).toBe('# head\na: 1\n# tail of a\n---\n# about c\nc: 3 # keep\n');
+    expect(del(text, 0)).toBe('# about b\nb: 2\n---\n# about c\nc: 3 # keep\n');
+  });
+
+  it('keeps CRLF line endings and untouched bytes', () => {
+    const text = 'a: 1\r\n---\r\nb: 2\r\n---\r\nc: 3\r\n';
+    expect(del(text, 1)).toBe('a: 1\r\n---\r\nc: 3\r\n');
+  });
+
+  it('handles a leading marker and a document end marker', () => {
+    expect(del('---\na: 1\n---\nb: 2\n', 0)).toBe('b: 2\n');
+    expect(del('a: 1\n...\n---\nb: 2\n', 1)).toBe('a: 1\n...\n');
+  });
+
+  it('of the only document leaves an empty text', () => {
+    expect(del('a: 1\n', 0)).toBe('');
+  });
+
+  it('refuses an out-of-range doc with not-found', () => {
+    expect(refusal('a: 1\n---\nb: 2\n', { op: 'deleteDocument', doc: 2 })).toBe('not-found');
+    expect(refusal('a: 1\n', { op: 'deleteDocument', doc: -1 })).toBe('not-found');
+    expect(refusal('a: 1\n', { op: 'deleteDocument', doc: 0.5 })).toBe('not-found');
+  });
+
+  it('refuses text with parse errors', () => {
+    expect(refusal('a: [1\n---\nb: 2\n', { op: 'deleteDocument', doc: 1 })).toBe('parse-error');
+  });
+});
+
+describe('applyEdit: created refs (at)', () => {
+  const ok = (text: string, op: EditOp) => {
+    const r = applyEdit(parseText(text), op);
+    if (!r.ok) throw new Error(`refused: ${r.reason}`);
+    return r;
+  };
+
+  it('add returns at', () => {
+    const r = ok('m:\n  a: 1\n', { op: 'add', at: at('m'), key: 'b', value: 2 });
+    expect(r.at).toEqual({ doc: 0, path: ['m', 'b'] });
+  });
+
+  it('push returns at', () => {
+    expect(ok('s:\n  - x\n  - y\n', { op: 'push', at: at('s'), value: 'z' }).at).toEqual({ doc: 0, path: ['s', 2] });
+    expect(ok('s: []\n', { op: 'push', at: at('s'), value: 'z' }).at).toEqual({ doc: 0, path: ['s', 0] });
+    expect(ok('s:\n', { op: 'push', at: at('s'), value: 'z' }).at).toEqual({ doc: 0, path: ['s', 0] });
+  });
+
+  it('addDocument returns at', () => {
+    expect(ok('a: 1\n---\nb: 2\n', { op: 'addDocument', yaml: 'c: 3\n' }).at).toEqual({ doc: 2, path: [] });
+  });
+
+  it('set and delete return no at', () => {
+    expect(ok('a: 1\n', { op: 'set', at: at('a'), value: 2 }).at).toBeUndefined();
+  });
+});

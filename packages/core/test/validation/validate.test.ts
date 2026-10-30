@@ -358,7 +358,7 @@ data:
     expect(getNode(p, { doc: 0, path: bad.path })).toBeDefined();
 
     const bundle = (await kubernetesFormat.loadSchema(p, 0))!;
-    const data = toData(p.docs[0]!);
+    const data = toData(p, 0);
     expect(resolveAt(bundle, ref!.path, data)?.schema['type']).toBe('string');
     expect(resolveAt(bundle, bad.path, data)?.schema['type']).toBe('string');
   });
@@ -370,7 +370,7 @@ describe('toData', () => {
     const doc = p.docs[0]!;
     const before = doc.toString();
     const rawBefore = JSON.stringify(doc.toJS());
-    const data = toData(doc) as { services: { api: Record<string, unknown> } };
+    const data = toData(p, 0) as { services: { api: Record<string, unknown> } };
     expect(data.services.api.restart).toBe('unless-stopped');
     expect(doc.toString()).toBe(before);
     expect(JSON.stringify(doc.toJS())).toBe(rawBefore);

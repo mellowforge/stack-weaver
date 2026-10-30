@@ -2,7 +2,7 @@
 export { VERSION } from './version.js';
 
 // Document model
-export type { YamlPath, NodeRef, TextChange, YamlProblem, ParsedText, ScalarValue, YamlValue } from './document/types.js';
+export type { YamlPath, NodeRef, TextRange, TextChange, YamlProblem, ParsedText, ScalarValue, YamlValue } from './document/types.js';
 export { parseText } from './document/parse.js';
 export { getNode, refAtOffset, toLineCol } from './document/paths.js';
 export { applyEdit, canEdit } from './document/edit.js';
@@ -11,6 +11,8 @@ export { diffText } from './document/diff.js';
 export { DocumentStore } from './document/store.js';
 export type { ChangeOrigin, StoreEvent, StoreOptions } from './document/store.js';
 export { toData } from './document/data.js';
+export { describeNode } from './document/describe.js';
+export type { NodeView } from './document/describe.js';
 
 // Formats
 export type {

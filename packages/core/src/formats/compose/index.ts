@@ -23,7 +23,7 @@ export const composeFormat: FormatDefinition = {
    * `include`).
    */
   detect(p: ParsedText): boolean {
-    const docs = p.docs.filter((d) => !isEmptyDocument(d));
+    const docs = p.docs.filter((_, i) => !isEmptyDocument(p, i));
     if (!p.ok || docs.length !== 1) return false;
     const root = docs[0]?.contents;
     if (!isMap(root)) return false;

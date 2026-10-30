@@ -14,13 +14,15 @@ export type { ScalarValue, YamlValue } from './types.js';
  * - `push`: append to a block sequence (or turn an empty `[]` / null value into one).
  * - `delete`: remove a map pair (addressed by its value) or a sequence item.
  * - `addDocument`: append `---` and exactly one new document.
+ * - `deleteDocument`: remove a whole document together with its `---` marker.
  */
 export type EditOp =
   | { op: 'set'; at: NodeRef; value: ScalarValue }
   | { op: 'add'; at: NodeRef; key: string; value: YamlValue }
   | { op: 'push'; at: NodeRef; value: YamlValue }
   | { op: 'delete'; at: NodeRef }
-  | { op: 'addDocument'; yaml: string };
+  | { op: 'addDocument'; yaml: string }
+  | { op: 'deleteDocument'; doc: number };
 
 /**
  * Why an edit cannot be made by splicing text. This union may grow in later versions, so treat an
@@ -46,9 +48,14 @@ export type EditRefusal =
   | 'duplicate-key'
   | 'unsupported';
 
-/** The new text plus the single splice that produced it, or the reason the edit was refused. */
+/**
+ * The new text plus the single splice that produced it, or the reason the edit was refused. For
+ * the ops that create a node, `at` addresses it in the new text: `add` gives `[...path, key]`,
+ * `push` gives `[...path, index]` and `addDocument` gives `{ doc: <new index>, path: [] }`. Other
+ * ops leave `at` out.
+ */
 export type EditResult =
-  | { ok: true; text: string; change: TextChange }
+  | { ok: true; text: string; change: TextChange; at?: NodeRef }
   | { ok: false; reason: EditRefusal };
 
 type Coll = YAMLMap | YAMLSeq;
@@ -280,10 +287,16 @@ function itemInfo(t: string, parent: Coll, idx: number): Item | undefined {
 // ---- operations ----
 
 /** Splices `change`, re-parses, and accepts the result only when it parses and `check` passes. */
-function finish(p: ParsedText, change: TextChange, check: (q: ParsedText) => boolean): EditResult {
+function finish(
+  p: ParsedText,
+  change: TextChange,
+  check: (q: ParsedText) => boolean,
+  at?: NodeRef,
+): EditResult {
   const text = p.text.slice(0, change.from) + change.insert + p.text.slice(change.to);
   const q = parseText(text);
-  return q.ok && check(q) ? { ok: true, text, change } : refuse('unsupported');
+  if (!q.ok || !check(q)) return refuse('unsupported');
+  return at ? { ok: true, text, change, at } : { ok: true, text, change };
 }
 
 function setScalar(p: ParsedText, ref: NodeRef, tg: Target, value: ScalarValue): EditResult {
@@ -405,7 +418,7 @@ function addPair(p: ParsedText, ref: NodeRef, tg: Target, key: string, value: Ya
     }
     return old === null ? replaceAt(data, ref.path, { [key]: value }) : undefined;
   });
-  return finish(p, change, check);
+  return finish(p, change, check, { doc: ref.doc, path: [...ref.path, key] });
 }
 
 function pushItem(p: ParsedText, ref: NodeRef, tg: Target, value: YamlValue): EditResult {
@@ -433,7 +446,8 @@ function pushItem(p: ParsedText, ref: NodeRef, tg: Target, value: YamlValue): Ed
     }
     return old === null ? replaceAt(data, ref.path, [value]) : undefined;
   });
-  return finish(p, change, check);
+  const index = isSeq(n) ? n.items.length : 0;
+  return finish(p, change, check, { doc: ref.doc, path: [...ref.path, index] });
 }
 
 /** Splits the text after a key's `:` into its props (anchor, tag) and its comment. */
@@ -531,9 +545,63 @@ function addDocument(p: ParsedText, yaml: string): EditResult {
   const lead = t.length > 0 && !t.endsWith('\n') ? p.eol : '';
   const insert = `${lead}---${p.eol}${body}`;
   const before = p.docs.map((d) => d.toJS() as unknown);
-  return finish(p, { from: t.length, to: t.length, insert }, (q) =>
-    q.docs.length === before.length + 1 &&
-    sameData(before, q.docs.slice(0, before.length).map((d) => d.toJS() as unknown)),
+  return finish(
+    p,
+    { from: t.length, to: t.length, insert },
+    (q) =>
+      q.docs.length === before.length + 1 &&
+      sameData(before, q.docs.slice(0, before.length).map((d) => d.toJS() as unknown)),
+    { doc: before.length, path: [] },
+  );
+}
+
+/** True when an alias in a document other than `doc` names an anchor defined in `doc`. */
+function anchorsReferencedElsewhere(p: ParsedText, doc: number): boolean {
+  const anchors = new Set<string>();
+  visit(p.docs[doc]!, {
+    Node(_, n) {
+      if (n.anchor) anchors.add(n.anchor);
+    },
+  });
+  if (anchors.size === 0) return false;
+  let used = false;
+  p.docs.forEach((d, i) => {
+    if (i === doc || used) return;
+    visit(d, {
+      Alias(_, a) {
+        used = anchors.has(a.source);
+        return used ? visit.BREAK : undefined;
+      },
+    });
+  });
+  return used;
+}
+
+/**
+ * Removes document `doc`. A document owns everything from its own `---` line up to the next `---`
+ * (or the end of the text), so removing it also removes its marker and the comments in between;
+ * the first document owns the text from the start. When the first document goes, the marker that
+ * follows it goes too, so the next document becomes the first. Bytes outside the removed range are
+ * unchanged. The result must hold one document fewer, with the other documents' data unchanged.
+ */
+function deleteDocument(p: ParsedText, doc: number): EditResult {
+  const n = p.docs.length;
+  if (!Number.isInteger(doc) || doc < 0 || doc >= n) return refuse('not-found');
+  if (anchorsReferencedElsewhere(p, doc)) return refuse('alias');
+  const t = p.text;
+  const start = (i: number): number => (i === 0 ? 0 : p.docs[i]!.range[0]);
+  const from = start(doc);
+  let to: number;
+  if (n === 1) to = t.length;
+  else if (doc === n - 1) to = t.length;
+  else if (doc === 0) to = nextLineStart(t, start(1));
+  else to = start(doc + 1);
+  const before = p.docs.map((d) => d.toJS() as unknown);
+  before.splice(doc, 1);
+  return finish(p, { from, to, insert: '' }, (q) =>
+    n === 1
+      ? q.text === ''
+      : q.docs.length === n - 1 && sameData(before, q.docs.map((d) => d.toJS() as unknown)),
   );
 }
 
@@ -542,6 +610,8 @@ function dispatch(p: ParsedText, op: EditOp): EditResult {
   switch (op.op) {
     case 'addDocument':
       return addDocument(p, op.yaml);
+    case 'deleteDocument':
+      return deleteDocument(p, op.doc);
     case 'set': {
       if (!isScalarValue(op.value)) return refuse('unsupported');
       const tg = locate(p, op.at);
@@ -587,6 +657,10 @@ function dispatch(p: ParsedText, op: EditOp): EditResult {
  * - `addDocument` appends `---` and the YAML (line endings normalized, a final line break
  *   ensured). The snippet must parse (`parse-error` otherwise), and the result must hold exactly
  *   one more document with the earlier documents' data unchanged (`unsupported` otherwise).
+ * - `deleteDocument` removes the document from its own `---` line up to the next `---` (for the
+ *   first document, up to and including the next marker). An out-of-range `doc` is `not-found`;
+ *   the result must hold one document fewer with the others' data unchanged (`unsupported`
+ *   otherwise).
  *
  * Every result is re-parsed and checked: it must parse with every alias resolving, and for `add`,
  * `push` and `delete` every document's data must equal the old data with only the intended

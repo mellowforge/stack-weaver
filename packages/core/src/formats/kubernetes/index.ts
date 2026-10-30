@@ -22,7 +22,7 @@ export const kubernetesFormat: FormatDefinition = {
   rootModel: 'documents',
   /** True when the text parses, has a non-empty document, and every non-empty document is a mapping with string `apiVersion` and `kind`. */
   detect(p: ParsedText): boolean {
-    const docs = p.docs.filter((d) => !isEmptyDocument(d));
+    const docs = p.docs.filter((_, i) => !isEmptyDocument(p, i));
     return (
       p.ok &&
       docs.length > 0 &&

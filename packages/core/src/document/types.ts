@@ -65,3 +65,6 @@ export interface ParsedText {
   /** The first line ending found in the text, defaulting to `\n`. */
   eol: '\n' | '\r\n';
 }
+
+/** A range of the source text: `[from, to)` as UTF-16 indexes. */
+export type TextRange = { readonly from: number; readonly to: number };

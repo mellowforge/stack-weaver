@@ -1,5 +1,5 @@
 import { isScalar } from 'yaml';
-import type { Document } from 'yaml';
+import type { ParsedText } from './types.js';
 
 /**
  * Converts a parsed document to plain data for schema validation, with YAML merge keys (`<<`)
@@ -7,14 +7,18 @@ import type { Document } from 'yaml';
  * enables merge semantics on a clone, so the original document, its nodes and their source
  * ranges are never touched.
  *
- * @param doc - A document from `parseText`.
+ * @param p - The parsed text.
+ * @param doc - Zero-based index of the document within `p`.
  * @returns The document as plain JS data, with `<<` merges applied.
- * @throws When the data cannot be built: a merge source that is not a map (such as `<<: 5`), or
- *   more alias expansions than `yaml`'s limit of 100 allows (a guard against alias bombs).
- *   `validateText` reports these as `yaml.data` problems.
+ * @throws A `RangeError` when `doc` is not a document of `p`. Also throws when the data cannot be
+ *   built: a merge source that is not a map (such as `<<: 5`), or more alias expansions than
+ *   `yaml`'s limit of 100 allows (a guard against alias bombs). `validateText` reports these as
+ *   `yaml.data` problems.
  */
-export function toData(doc: Document.Parsed): unknown {
-  const copy = doc.clone();
+export function toData(p: ParsedText, doc: number): unknown {
+  const d = p.docs[doc];
+  if (!d) throw new RangeError(`No document at index ${doc}`);
+  const copy = d.clone();
   // The YAML 1.2 core schema with merge enabled: scalars already carry their parsed values, and
   // 1.2 keeps `yes`/`no` and leading-zero numbers as the parser read them.
   copy.setSchema('1.2', { merge: true });
@@ -23,11 +27,14 @@ export function toData(doc: Document.Parsed): unknown {
 
 /**
  * True when a document has no content: nothing at all (comments only), or the empty null scalar
- * that a bare `---` produces. An explicit `null` or `~` is content.
+ * that a bare `---` produces. An explicit `null` or `~` is content. A `doc` that is not a document
+ * of `p` counts as empty.
  * @internal Shared by validation and the format detectors; not part of the public API.
  */
-export function isEmptyDocument(doc: Document.Parsed): boolean {
-  const c = doc.contents;
+export function isEmptyDocument(p: ParsedText, doc: number): boolean {
+  const d = p.docs[doc];
+  if (!d) return true;
+  const c = d.contents;
   if (c === null) return true;
   return isScalar(c) && c.value === null && !!c.range && c.range[0] === c.range[1];
 }

@@ -72,7 +72,7 @@ export async function validateText(
 
   let seen = false;
   for (let doc = 0; doc < p.docs.length; doc++) {
-    if (isEmptyDocument(p.docs[doc]!)) continue;
+    if (isEmptyDocument(p, doc)) continue;
     if (format.rootModel === 'mapping' && seen) {
       const [from, to] = rootRange(p, doc);
       out.push(problem(p, doc, 'error', 'schema', 'format.extraDocument', messages, {}, [], [from, to]));
@@ -98,7 +98,7 @@ async function validateDocument(
 ): Promise<Problem[]> {
   let data: unknown;
   try {
-    data = toData(p.docs[doc]!);
+    data = toData(p, doc);
   } catch (err) {
     const merge = findMergeKey(p.docs[doc]!.contents, []);
     const range = (merge && rangeOf(merge.key)) ?? rootRange(p, doc);
