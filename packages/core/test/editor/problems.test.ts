@@ -1,7 +1,11 @@
 // @vitest-environment happy-dom
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { breadcrumbAt } from '../../src/assist/hover.js';
+import { DocumentStore } from '../../src/document/store.js';
+import type { EditorContext } from '../../src/editor/context.js';
 import { createEditorWithContext } from '../../src/editor/editor.js';
+import { defaultUiMessages } from '../../src/editor/messages.js';
+import { createProblemScheduler } from '../../src/editor/problems.js';
 import type { ManifestEditorOptions } from '../../src/editor/editor.js';
 import type { FormatDefinition, SchemaBundle } from '../../src/formats/types.js';
 import type { Problem } from '../../src/validation/problems.js';
@@ -178,6 +182,76 @@ describe('validation scheduling', () => {
     fake.type('a: 2\n');
     await vi.advanceTimersByTimeAsync(150);
     expect(fn).toHaveBeenCalledTimes(1);
+  });
+
+  it('a format change validates now, not after the debounce (A10)', async () => {
+    const detected: FormatDefinition = { ...twoErrors, detect: (p) => p.text.trim() !== '' };
+    const onProblemsChange = vi.fn();
+    const { editor } = await mount({ format: 'auto', formats: [detected], value: '', onProblemsChange });
+    vi.useFakeTimers();
+    editor.setValue('a: 1\nb: 2\n'); // detects the format, which validates at once
+    await vi.advanceTimersByTimeAsync(1);
+    expect(editor.getProblems()).toHaveLength(2);
+    expect(onProblemsChange).toHaveBeenCalledTimes(1);
+    await vi.advanceTimersByTimeAsync(200);
+    expect(onProblemsChange).toHaveBeenCalledTimes(1); // and no second run publishes the same thing
+  });
+});
+
+describe('the problem scheduler', () => {
+  /** A scheduler over `store` whose schema loads wait until the test resolves them, in any order. */
+  function setup(text: string) {
+    const store = new DocumentStore(text);
+    const loads: ((b: SchemaBundle) => void)[] = [];
+    const ctx = {
+      store,
+      messages: { ui: defaultUiMessages, schema: {} },
+      format: () => twoErrors,
+      loadBundle: () => new Promise<SchemaBundle | undefined>((r) => loads.push(r)),
+      bundleError: () => undefined,
+    } as unknown as EditorContext;
+    const publish = vi.fn<(p: readonly Problem[]) => void>();
+    return { store, loads, publish, scheduler: createProblemScheduler(ctx, publish) };
+  }
+  const paths = (fn: ReturnType<typeof vi.fn>) => (fn.mock.calls.at(-1)![0] as Problem[]).map((p) => p.path);
+
+  it('of two overlapping runs for the same text, an older one that resolves last is not published (B8)', async () => {
+    const { loads, publish, scheduler } = setup('a: 1\nb: 2\n');
+    const older = scheduler.run();
+    const newer = scheduler.run();
+    loads[1]!(bundle('new', ['b']));
+    await newer;
+    expect(publish).toHaveBeenCalledTimes(1);
+    expect(paths(publish)).toEqual([['b']]);
+    loads[0]!(bundle('old', ['a']));
+    await older;
+    expect(publish).toHaveBeenCalledTimes(1);
+  });
+
+  it('schedule() right after run() for the same text keeps that run (A10)', async () => {
+    const { loads, publish, scheduler } = setup('a: 1\n');
+    const run = scheduler.run();
+    scheduler.schedule();
+    loads[0]!(bundle('x', ['a']));
+    await run;
+    expect(publish).toHaveBeenCalledTimes(1);
+    scheduler.destroy();
+  });
+
+  it('schedule() after the text changed still drops the run in flight', async () => {
+    const { store, loads, publish, scheduler } = setup('a: 1\n');
+    vi.useFakeTimers();
+    const run = scheduler.run();
+    store.setText('a: 2\n', 'code');
+    scheduler.schedule();
+    loads[0]!(bundle('x', ['a']));
+    await run;
+    expect(publish).not.toHaveBeenCalled();
+    await vi.advanceTimersByTimeAsync(150);
+    loads[1]!(bundle('y', ['b']));
+    await vi.advanceTimersByTimeAsync(1);
+    expect(publish).toHaveBeenCalledTimes(1);
+    expect(paths(publish)).toEqual([['b']]);
   });
 });
 

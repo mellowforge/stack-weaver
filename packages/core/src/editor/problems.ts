@@ -51,15 +51,21 @@ async function validateCurrent(ctx: EditorContext): Promise<Problem[]> {
 }
 
 /**
- * Runs validation 150 ms after the last change and publishes the result. Every run takes a
- * sequence number; a result is published only if no later run started, so a slow older run can
- * never overwrite a newer one.
+ * Runs validation {@link VALIDATION_DELAY_MS} after the last change and publishes the result.
+ * Every run takes a sequence number; a result is published only if no later run started and the
+ * text is still the one it validated, so a slow older run can never overwrite a newer one.
  * @internal
  */
 export interface ProblemScheduler {
-  /** (Re)starts the 150 ms timer. */
+  /**
+   * (Re)starts the debounce timer, making any run in flight stale; except that a run already in
+   * flight for the current text is kept, and nothing is scheduled.
+   */
   schedule(): void;
-  /** Validates now; resolves once this run was published or dropped. */
+  /**
+   * Validates now. Resolves once this run is done: its problems published, or found unchanged
+   * (nothing to publish), or dropped because a later run started or the text changed.
+   */
   run(): Promise<void>;
   /** Cancels the timer and drops any run in flight. */
   destroy(): void;
@@ -71,12 +77,15 @@ export function createProblemScheduler(ctx: EditorContext, publish: (problems: r
   let seq = 0;
   let current = '[]';
   let destroyed = false;
+  /** The latest run while it is in flight, with the text it validates. */
+  let inFlight: { seq: number; text: string } | undefined;
 
   const run = async (): Promise<void> => {
     clearTimeout(timer);
     timer = undefined;
     const mine = ++seq;
     const text = ctx.store.text;
+    inFlight = { seq: mine, text };
     let result: Problem[];
     try {
       result = await validateCurrent(ctx);
@@ -84,6 +93,8 @@ export function createProblemScheduler(ctx: EditorContext, publish: (problems: r
       // validateText does not reject; this guards the cache wrapper around it.
       console.error('stack-weaver: validation failed', err);
       return;
+    } finally {
+      if (inFlight?.seq === mine) inFlight = undefined;
     }
     if (destroyed || mine !== seq || ctx.store.text !== text) return;
     const sig = signature(result);
@@ -95,6 +106,9 @@ export function createProblemScheduler(ctx: EditorContext, publish: (problems: r
   return {
     schedule() {
       if (destroyed) return;
+      // A run for this very text has just started (a format change validates at once, inside the
+      // same store change): it is current, so it stays, and no second run is needed.
+      if (inFlight !== undefined && inFlight.seq === seq && inFlight.text === ctx.store.text) return;
       clearTimeout(timer);
       seq++; // a run for the previous text, still in flight, is now stale
       timer = setTimeout(() => void run(), VALIDATION_DELAY_MS);
