@@ -185,6 +185,26 @@ describe('validateText never rejects (A4)', () => {
   });
 });
 
+describe('validateText never rejects: third-party code', () => {
+  it('a throwing ValidateFn gives schema.unavailable', async () => {
+    const format = {
+      ...composeFormat,
+      loadSchema: async () => ({ id: 'x', schema: {}, validate: () => { throw new Error('bad validator'); } }),
+    };
+    const probs = await validateText(parseText('services:\n  web:\n    image: x\n'), format);
+    expect(probs.map((x) => [x.code, x.message])).toEqual([
+      ['schema.unavailable', 'Could not load the schema for Docker Compose: bad validator'],
+    ]);
+  });
+
+  it('a throwing message override falls back to the default text', async () => {
+    const probs = await validateText(parseText(deployment('', '"x"')), kubernetesFormat, {
+      messages: { type: () => { throw new Error('oops'); } },
+    });
+    expect(probs.map((x) => x.message)).toEqual(['Must be an integer']);
+  });
+});
+
 describe('empty and comment-only documents (A5)', () => {
   const pod = 'apiVersion: v1\nkind: Pod\nmetadata:\n  name: x\nspec:\n  containers:\n    - name: a\n      image: nginx\n';
   const compose = 'services:\n  web:\n    image: nginx\n';

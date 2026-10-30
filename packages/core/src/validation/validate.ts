@@ -50,7 +50,17 @@ export async function validateText(
   opts: { messages?: Partial<SchemaMessages> } = {},
 ): Promise<Problem[]> {
   const messages: SchemaMessages = { ...defaultMessages };
-  for (const [k, fn] of Object.entries(opts.messages ?? {})) if (fn) messages[k] = fn;
+  for (const [k, fn] of Object.entries(opts.messages ?? {})) {
+    if (!fn) continue;
+    // A throwing override falls back to the default text instead of rejecting.
+    messages[k] = (e) => {
+      try {
+        return fn(e);
+      } catch {
+        return messageFor(e);
+      }
+    };
+  }
 
   const out: Problem[] = [];
   for (const w of p.warnings) out.push(yamlProblem(p, w, 'warning', 'yaml.warning'));
@@ -69,7 +79,13 @@ export async function validateText(
       continue;
     }
     seen = true;
-    out.push(...(await validateDocument(p, doc, format, messages)));
+    try {
+      out.push(...(await validateDocument(p, doc, format, messages)));
+    } catch (err) {
+      // Last resort (validateDocument handles the known failures itself): never reject.
+      const params = { kind: format.label, cause: causeOf(err) };
+      out.push(problem(p, doc, 'error', 'schema', 'schema.unavailable', defaultMessages, params, [], rootRange(p, doc)));
+    }
   }
   return sortProblems(out);
 }
