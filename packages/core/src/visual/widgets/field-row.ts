@@ -18,8 +18,8 @@ import type { WidgetInstance, WidgetRegistry } from './types.js';
 let nextId = 0;
 
 /** Built-in widgets that edit one scalar. The two list widgets edit a collection. */
-const LIST_WIDGETS: Readonly<Record<string, 'map' | 'seq'>> = { 'key-value': 'map', 'string-list': 'seq' };
-const SCALAR_WIDGETS = new Set(['string', 'number', 'integer', 'boolean', 'enum', 'int-or-string', 'quantity']);
+const LIST_WIDGETS: Readonly<Record<string, 'map' | 'seq'>> = { 'key-value': 'map', 'string-list': 'seq', 'secret-data': 'map' };
+const SCALAR_WIDGETS = new Set(['string', 'number', 'integer', 'boolean', 'enum', 'int-or-string', 'quantity', 'suggest', 'ref', 'ref-key']);
 
 /** What one render of a parse knows: its data, and the schema at any path (memoised per parse and bundle). */
 interface Env {
@@ -132,7 +132,7 @@ function createFieldRow(ctx: EditorContext, registry: WidgetRegistry, envFor: (p
     return (parsed ? describeNode(parsed, ref) : undefined) ?? init.view;
   }
 
-  function build(mode: Mode, picked: { name: string; param?: string } | undefined, child: ResolvedSchema | undefined, description: string, value: YamlValue, view: NodeView): void {
+  function build(mode: Mode, picked: { name: string; param?: string } | undefined, child: ResolvedSchema | undefined, description: string, value: YamlValue, view: NodeView, options: readonly string[] | undefined): void {
     dropBody();
     if (mode === 'widget' && picked && child) {
       const factory = registry[picked.name]!;
@@ -148,6 +148,7 @@ function createFieldRow(ctx: EditorContext, registry: WidgetRegistry, envFor: (p
           schema: child.schema,
           readOnly: readOnlyNow,
           ...(picked.param !== undefined && { param: picked.param }),
+          ...(options !== undefined && { options }),
           messages: ui,
         }, () => readOnlyNow);
         widget = factory(wctx);
@@ -213,7 +214,7 @@ function createFieldRow(ctx: EditorContext, registry: WidgetRegistry, envFor: (p
 
     if (nextKey !== modeKey) {
       modeKey = nextKey;
-      build(mode, picked, child, description, value, view);
+      build(mode, picked, child, description, value, view, gf?.options);
     }
 
     labelEl.textContent = label;

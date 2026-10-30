@@ -33,7 +33,7 @@ describe('completionsFor keys', () => {
     expect(resources.section).toEqual({ name: 'Recommended', rank: 0 });
     expect(resources.info).toBeTruthy();
     expect(out.find((c) => c.label === 'ports')!.section).toEqual({ name: 'Common', rank: 1 });
-    expect(out.find((c) => c.label === 'args')!.section).toEqual({ name: 'Advanced', rank: 2 });
+    expect(out.find((c) => c.label === 'tty')!.section).toEqual({ name: 'Advanced', rank: 2 });
   });
 
   it('apply inserts key and colon', () => {
@@ -88,6 +88,15 @@ describe('completionsFor values', () => {
     expect(out.map((c) => c.label)).toEqual(['Always', 'IfNotPresent', 'Never']);
     expect(out.map((c) => c.apply)).toEqual(['Always', 'IfNotPresent', 'Never']);
     expect(completionsFor(input({ bundle, ctx: ctx({ position: 'value', key: 'port' }), data: {} }))).toEqual([]);
+  });
+
+  it('imagePullPolicy completes Always/IfNotPresent/Never', () => {
+    // The schema has no enum for it: the values come from the guide's `options`.
+    const out = completionsFor(input({ ctx: ctx({ path: CONTAINER, position: 'value', key: 'imagePullPolicy', prefix: 'If' }), data: containerData }));
+    expect(out.map((c) => c.label)).toEqual(['Always', 'IfNotPresent', 'Never']);
+    expect(out.map((c) => c.apply)).toEqual(['Always', 'IfNotPresent', 'Never']);
+    // A free-form field with no options still offers nothing.
+    expect(completionsFor(input({ ctx: ctx({ path: CONTAINER, position: 'value', key: 'workingDir' }), data: containerData }))).toEqual([]);
   });
 
   it('boolean value completion', () => {

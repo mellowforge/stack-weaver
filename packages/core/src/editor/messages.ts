@@ -126,6 +126,8 @@ export interface UiMessages {
   confirmYes: string;
   /** Text of the button that cancels a removal. */
   confirmNo: string;
+  /** Warning on a Secret value that is not base64-encoded UTF-8 text; it is shown as stored and cannot be edited visually. */
+  secretInvalidBase64: string;
 }
 
 /** The English UI strings. */
@@ -193,4 +195,5 @@ export const defaultUiMessages: UiMessages = {
   confirmRemove: 'Remove {label}?',
   confirmYes: 'Remove',
   confirmNo: 'Cancel',
+  secretInvalidBase64: 'This value is not base64-encoded text, so it is shown as stored and cannot be edited here.',
 };

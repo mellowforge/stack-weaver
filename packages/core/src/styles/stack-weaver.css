@@ -718,3 +718,29 @@
   color: var(--sw-muted);
   font-size: 12px;
 }
+
+.sw-field-warning {
+  display: block;
+  color: var(--sw-warning);
+  font-size: 12px;
+}
+
+.sw-field-warning[hidden] {
+  display: none;
+}
+
+.sw-secret-entry {
+  margin-top: 4px;
+}
+
+.sw-secret-key {
+  flex: 0 0 30%;
+  align-self: center;
+  overflow-wrap: anywhere;
+  font-family: var(--sw-mono);
+}
+
+.sw-secret-value[readonly] {
+  background: transparent;
+  border-style: dashed;
+}

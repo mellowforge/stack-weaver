@@ -27,6 +27,55 @@ const STRING_ARRAY: JsonSchema = { type: 'array', items: { type: 'string' } };
 
 const resolved = (schema: JsonSchema): ResolvedSchema => ({ schema, required: [] });
 
+describe('pickWidget options', () => {
+  it('options give a suggestion widget', () => {
+    const opts = { options: ['Always', 'Never'] };
+    expect(pickWidget(resolved({ type: 'string' }), opts, defaultWidgets)).toEqual({ name: 'suggest' });
+    expect(pickWidget(resolved({ type: ['string', 'null'] }), opts, defaultWidgets)).toEqual({ name: 'suggest' });
+    // An explicit guide widget wins over options.
+    expect(pickWidget(resolved({ type: 'string' }), { ...opts, widget: 'quantity' }, defaultWidgets)).toEqual({ name: 'quantity' });
+    // Options win over the schema shape for strings, but do not change other shapes.
+    expect(pickWidget(resolved({ type: 'integer' }), opts, defaultWidgets)).toEqual({ name: 'integer' });
+    expect(pickWidget(resolved({ type: 'array', items: { type: 'string' } }), opts, defaultWidgets)).toEqual({ name: 'string-list' });
+    expect(pickWidget(resolved({ type: 'string' }), { options: [] }, defaultWidgets)).toEqual({ name: 'string' });
+  });
+
+  it('suggest keeps free text and offers the options in a datalist', () => {
+    const edits: unknown[] = [];
+    const ctx = {
+      id: 'f1', label: 'Pull policy', description: '', ref: { doc: 0, path: ['x'] }, value: 'Always', schema: { type: 'string' }, readOnly: false,
+      options: ['Always', 'IfNotPresent', 'Never'], messages: defaultUiMessages, parsed: () => undefined as never,
+      commit: (v: unknown) => (edits.push(v), undefined), edit: () => ({ ok: true }) as never,
+    };
+    const w = defaultWidgets['suggest']!(ctx as never);
+    host.append(w.el);
+    const input = w.el.querySelector<HTMLInputElement>('input')!;
+    const list = w.el.querySelector('datalist')!;
+    expect(input.id).toBe('f1');
+    expect(input.getAttribute('list')).toBe(list.id);
+    expect([...list.querySelectorAll('option')].map((o) => o.value)).toEqual(['Always', 'IfNotPresent', 'Never']);
+    expect(input.value).toBe('Always');
+    input.value = 'Custom';
+    input.dispatchEvent(new Event('input', { bubbles: true }));
+    expect(edits).toEqual(['Custom']);
+  });
+});
+
+describe('string-list suggestions', () => {
+  it('a string list offers the guide options on its item inputs', () => {
+    const store = new DocumentStore('a:\n  - ReadWriteOnce\n');
+    const ctx = createWidgetContext(store, {
+      id: 'w1', label: 'Modes', description: '', ref: { doc: 0, path: ['a'] }, value: ['ReadWriteOnce'], schema: STRING_ARRAY, readOnly: false,
+      options: ['ReadWriteOnce', 'ReadOnlyMany'], messages: defaultUiMessages,
+    });
+    const w = defaultWidgets['string-list']!(ctx);
+    host.append(w.el);
+    const list = w.el.querySelector('datalist')!;
+    expect([...list.querySelectorAll('option')].map((o) => o.value)).toEqual(['ReadWriteOnce', 'ReadOnlyMany']);
+    for (const input of w.el.querySelectorAll('input')) expect(input.getAttribute('list')).toBe(list.id);
+  });
+});
+
 describe('pickWidget', () => {
   it('pickWidget follows guide, then schema shape', async () => {
     const d = (await loadKubernetesKind('apps/v1', 'Deployment'))!;
@@ -394,6 +443,10 @@ describe('accessibility', () => {
       ['enum', 'a: x\n', ['a'], { enum: ['x', 'y'] }],
       ['string-list', 'a:\n  - x\n', ['a'], STRING_ARRAY],
       ['key-value', 'a:\n  k: v\n', ['a'], STRING_MAP],
+      ['suggest', 'a: x\n', ['a'], { type: 'string' }],
+      ['ref', 'a: x\n', ['a'], { type: 'string' }],
+      ['ref-key', 'a: x\n', ['a'], { type: 'string' }],
+      ['secret-data', 'a:\n  k: dg==\n', ['a'], STRING_MAP],
     ];
     expect(cases.map((c) => c[0]).sort()).toEqual(Object.keys(defaultWidgets).sort());
     for (const [name, text, path, schema] of cases) {

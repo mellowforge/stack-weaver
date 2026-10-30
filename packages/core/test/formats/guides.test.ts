@@ -2,7 +2,8 @@ import { describe, expect, it } from 'vitest';
 import { composeFormat } from '../../src/formats/compose/index.js';
 import { kubernetesFormat } from '../../src/formats/kubernetes/index.js';
 import { kubernetesKinds, loadKubernetesKind } from '../../src/formats/kubernetes/loader.js';
-import type { JsonSchema } from '../../src/formats/types.js';
+import type { Guide, JsonSchema } from '../../src/formats/types.js';
+import { defaultWidgets } from '../../src/visual/widgets/registry.js';
 
 interface Def {
   properties?: Record<string, unknown>;
@@ -86,5 +87,97 @@ describe('freezing', () => {
   it('subpaths export only the format', async () => {
     expect(Object.keys(await import('../../src/formats/kubernetes/index.js'))).toEqual(['kubernetesFormat']);
     expect(Object.keys(await import('../../src/formats/compose/index.js'))).toEqual(['composeFormat']);
+  });
+});
+
+const OPTIONS_KEYS: Record<string, readonly string[]> = {
+  'io.k8s.api.core.v1.Container#imagePullPolicy': ['Always', 'IfNotPresent', 'Never'],
+  'io.k8s.api.core.v1.PodSpec#restartPolicy': ['Always', 'OnFailure', 'Never'],
+  'io.k8s.api.core.v1.ServiceSpec#type': ['ClusterIP', 'NodePort', 'LoadBalancer', 'ExternalName'],
+  'io.k8s.api.core.v1.ContainerPort#protocol': ['TCP', 'UDP', 'SCTP'],
+  'io.k8s.api.core.v1.ServicePort#protocol': ['TCP', 'UDP', 'SCTP'],
+  'io.k8s.api.core.v1.PersistentVolumeClaimSpec#accessModes': ['ReadWriteOnce', 'ReadOnlyMany', 'ReadWriteMany', 'ReadWriteOncePod'],
+  'io.k8s.api.apps.v1.DeploymentStrategy#type': ['RollingUpdate', 'Recreate'],
+  'io.k8s.api.batch.v1.CronJobSpec#concurrencyPolicy': ['Allow', 'Forbid', 'Replace'],
+  'service#restart': ['no', 'always', 'on-failure', 'unless-stopped'],
+};
+
+async function allDefs(): Promise<{ k8s: Map<string, unknown>; compose: Record<string, unknown> }> {
+  const k8s = new Map<string, unknown>();
+  for (const k of kubernetesKinds()) {
+    const schema = (await loadKubernetesKind(k.apiVersion, k.kind))!.schema as JsonSchema;
+    for (const [n, d] of Object.entries((schema.$defs ?? {}) as Record<string, unknown>)) k8s.set(n, d);
+    if (!k8s.has(k.defName)) k8s.set(k.defName, schema);
+  }
+  const compose = ((await composeFormat.loadSchema(undefined as never, 0))?.schema.$defs ?? {}) as Record<string, unknown>;
+  return { k8s, compose };
+}
+
+const fieldsOf = (g: Guide): [string, string, string][] => Object.keys(g.fields).map((k) => [k, ...(k.split('#') as [string, string])]);
+
+describe('curated guide data', () => {
+  it('every curated field key exists in the schema', async () => {
+    const { k8s, compose } = await allDefs();
+    expect(Object.keys(kubernetesFormat.guide.fields).length).toBeGreaterThan(40);
+    expect(Object.keys(composeFormat.guide.fields).length).toBeGreaterThan(12);
+    for (const [key, def, prop] of fieldsOf(kubernetesFormat.guide)) expect(hasProp(k8s.get(def), prop), key).toBe(true);
+    for (const [key, def, prop] of fieldsOf(composeFormat.guide)) expect(hasProp(compose[def], prop, compose), key).toBe(true);
+  });
+
+  it('every v1 curated kind has at least one recommended field', async () => {
+    const { k8s, compose } = await allDefs();
+    const recommended = (def: string): boolean => Object.entries(kubernetesFormat.guide.fields).some(([k, f]) => k.startsWith(`${def}#`) && f.tier === 'recommended');
+    const specOf = (def: string): string | undefined => {
+      const ref = (k8s.get(def) as { properties?: { spec?: { $ref?: string; allOf?: { $ref?: string }[] } } }).properties?.spec;
+      return (ref?.$ref ?? ref?.allOf?.[0]?.$ref)?.replace('#/$defs/', '');
+    };
+    const kinds = kubernetesKinds().filter((k) => `${k.apiVersion}/${k.kind}` in kubernetesFormat.guide.kinds);
+    expect(kinds).toHaveLength(10);
+    for (const k of kinds) {
+      const spec = specOf(k.defName);
+      expect(recommended(k.defName) || (spec !== undefined && recommended(spec)), k.kind).toBe(true);
+    }
+    for (const def of ['service', 'network', 'volume', 'config', 'secret']) {
+      expect(compose[def], def).toBeDefined();
+      expect(Object.entries(composeFormat.guide.fields).some(([k, f]) => k.startsWith(`${def}#`) && f.tier === 'recommended'), def).toBe(true);
+    }
+  });
+
+  it('every guide widget name is in defaultWidgets', () => {
+    for (const g of [kubernetesFormat.guide, composeFormat.guide]) {
+      for (const [key, f] of Object.entries(g.fields)) {
+        if (f.widget === undefined) continue;
+        expect(Object.keys(defaultWidgets), key).toContain(f.widget.split(':')[0]);
+      }
+    }
+    for (const name of ['ref', 'ref-key', 'secret-data', 'suggest']) expect(Object.keys(defaultWidgets)).toContain(name);
+  });
+
+  it('reference and Secret data widgets are curated as the brief says', () => {
+    const f = kubernetesFormat.guide.fields;
+    const v1 = 'io.k8s.api.core.v1.';
+    expect(f[`${v1}SecretKeySelector#name`]?.widget).toBe('ref:Secret');
+    expect(f[`${v1}SecretEnvSource#name`]?.widget).toBe('ref:Secret');
+    expect(f[`${v1}SecretVolumeSource#secretName`]?.widget).toBe('ref:Secret');
+    expect(f[`${v1}ConfigMapKeySelector#name`]?.widget).toBe('ref:ConfigMap');
+    expect(f[`${v1}ConfigMapEnvSource#name`]?.widget).toBe('ref:ConfigMap');
+    expect(f[`${v1}ConfigMapVolumeSource#name`]?.widget).toBe('ref:ConfigMap');
+    expect(f[`${v1}SecretKeySelector#key`]?.widget).toBe('ref-key:Secret');
+    expect(f[`${v1}ConfigMapKeySelector#key`]?.widget).toBe('ref-key:ConfigMap');
+    expect(f[`${v1}Secret#data`]?.widget).toBe('secret-data');
+    expect(f[`${v1}Secret#stringData`]?.tier).toBe('recommended');
+  });
+
+  it('every options key is curated, exists in the schema, and lists the closed set', async () => {
+    const { k8s, compose } = await allDefs();
+    for (const [key, values] of Object.entries(OPTIONS_KEYS)) {
+      const field = key.startsWith('service#') ? composeFormat.guide.fields[key] : kubernetesFormat.guide.fields[key];
+      expect(field?.options, key).toEqual(values);
+      const [def, prop] = key.split('#') as [string, string];
+      expect(hasProp(def === 'service' ? compose[def] : k8s.get(def), prop, compose), key).toBe(true);
+    }
+    for (const g of [kubernetesFormat.guide, composeFormat.guide]) {
+      for (const [key, f] of Object.entries(g.fields)) if (f.options) expect(Object.keys(OPTIONS_KEYS), key).toContain(key);
+    }
   });
 });

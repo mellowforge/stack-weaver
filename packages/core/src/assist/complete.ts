@@ -1,5 +1,6 @@
 import { addableAt, type AddableItem } from '../engine/addable.js';
 import { resolveAt } from '../engine/resolve.js';
+import { guideField } from '../formats/guide.js';
 import type { Guide, KindEntry, SchemaBundle, Tier } from '../formats/types.js';
 import type { CursorContext } from './context.js';
 
@@ -107,6 +108,12 @@ function valueCompletions(input: CompletionInput): CodeCompletion[] {
   if (!schema) return [];
   const options = schema['enum'];
   if (Array.isArray(options)) return plain(options.filter((o) => o !== null && typeof o !== 'object').map(String));
+  const type = schema['type'];
+  if (type === 'string' || (Array.isArray(type) && type.includes('string'))) {
+    const parent = resolveAt(bundle, ctx.path, data);
+    const suggested = guideField(input.guide, parent?.declaredIn?.[key] ?? parent?.defName, key)?.options;
+    if (suggested && suggested.length > 0) return plain(suggested);
+  }
   if (schema['type'] === 'boolean') return plain(['true', 'false']);
   return [];
 }
@@ -120,9 +127,11 @@ function valueCompletions(input: CompletionInput): CodeCompletion[] {
  *   10), and its description as `info`. `apply` is `key: ` for scalars, `key:` plus a line
  *   indented two more columns for objects, and `key:` plus a `- ` line at the same column for
  *   arrays.
- * - **Values** are offered for plain `enum` and `boolean` schemas only; `anyOf` schemas such as
- *   int-or-string and quantity give none. At a document root `kind` lists the format's kinds and
- *   `apiVersion` lists the versions of the kind already written (all versions when there is none).
+ * - **Values** are offered for plain `enum` schemas, for fields whose guide entry has `options`
+ *   (suggested values for closed sets the schema only describes in prose, such as
+ *   `imagePullPolicy`), and for `boolean`; `anyOf` schemas such as int-or-string and quantity
+ *   give none. `options` are offered for string fields only: the items of a string list have no
+ *   key to look up. At a document root `kind` lists the format's kinds and `apiVersion` lists the versions of the kind already written (all versions when there is none).
  * - Without a `bundle` only `apiVersion` and `kind` keys are offered, and only at a root.
  *
  * @param input - Cursor context, schema, guide, data and labels.

@@ -6,7 +6,8 @@ import { h } from '../editor/dom.js';
 import { addableAt, valueTemplateAt } from '../engine/addable.js';
 import type { AddableItem } from '../engine/addable.js';
 import { resolveAt } from '../engine/resolve.js';
-import type { SchemaBundle } from '../formats/types.js';
+import { guideField } from '../formats/guide.js';
+import type { Guide, SchemaBundle } from '../formats/types.js';
 import { isRecord, safeData } from './util.js';
 
 /** What `update` and `destroy` need of a slot made by {@link renderAddSlot}. */
@@ -41,6 +42,22 @@ function isFreeForm(bundle: SchemaBundle, path: YamlPath, data: unknown): boolea
 }
 
 /**
+ * Whether the guide names a widget for the field at `path`. Such a field is edited by its own
+ * widget (a Secret's `data` shows decoded values and has no "Add key"), so its section must not
+ * offer to add free-form keys.
+ */
+function hasGuideWidget(bundle: SchemaBundle, guide: Guide, path: YamlPath, data: unknown): boolean {
+  const key = path[path.length - 1];
+  if (typeof key !== 'string') return false;
+  try {
+    const parent = resolveAt(bundle, path.slice(0, -1), data);
+    return guideField(guide, parent?.declaredIn?.[key] ?? parent?.defName, key)?.widget !== undefined;
+  } catch {
+    return false;
+  }
+}
+
+/**
  * Re-reads the document for a slot made by {@link renderAddSlot}: what is still missing, and whether
  * the node can be edited. Does nothing for an element that is not a slot.
  * @internal
@@ -63,7 +80,8 @@ export function destroyAddSlot(el: HTMLElement): void {
  *
  * - A mapping lists the schema's missing fields: required ones first, then recommended and common,
  *   with advanced ones behind a "Show advanced" disclosure.
- * - A mapping with free-form keys also gets a key input and an "Add key" button.
+ * - A mapping with free-form keys also gets a key input and an "Add key" button, unless the guide
+ *   names a widget for it (that widget manages the keys).
  * - A sequence gets an "Add item" button.
  *
  * The slot is stateful: call {@link updateAddSlot} after the document changes (the section does).
@@ -180,7 +198,7 @@ export function renderAddSlot(ctx: EditorContext, ref: NodeRef, doc: Document = 
       } catch {
         items = [];
       }
-      freeForm = view.type === 'map' && isFreeForm(bundle, ref.path, data);
+      freeForm = view.type === 'map' && isFreeForm(bundle, ref.path, data) && !hasGuideWidget(bundle, ctx.guide(), ref.path, data);
       seqMode = view.type === 'seq';
     }
     const next = JSON.stringify([editable, freeForm, seqMode, items.map((i) => [i.key, i.label, i.description, i.tier, i.required])]);

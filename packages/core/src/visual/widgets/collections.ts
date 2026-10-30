@@ -8,8 +8,11 @@ const isScalar = (v: unknown): v is string | number | boolean | null => v === nu
 const textOf = (v: unknown): string => (v === null || v === undefined || !isScalar(v) ? '' : String(v));
 const fill = (template: string, label: string): string => template.replace('{label}', label);
 
-/** Shared frame of the list widgets: the group, an error line and the add row. */
-function frame(ctx: WidgetContext, kind: string) {
+/**
+ * Shared frame of the list widgets: the group, an error line and the add row.
+ * @internal
+ */
+export function frame(ctx: WidgetContext, kind: string) {
   const doc = document;
   const errorId = `${ctx.id}-error`;
   const items = h(doc, 'div', { class: 'sw-list-items' });
@@ -27,8 +30,11 @@ function frame(ctx: WidgetContext, kind: string) {
   return { doc, el, items, adder, error, fail };
 }
 
-/** A reusable item row: an input (or more) and a remove button. */
-function removeButton(ctx: WidgetContext, name: string, onClick: () => void): HTMLButtonElement {
+/**
+ * A reusable item row's remove button.
+ * @internal
+ */
+export function removeButton(ctx: WidgetContext, name: string, onClick: () => void): HTMLButtonElement {
   const b = h(document, 'button', { type: 'button', class: 'sw-btn sw-list-remove', 'aria-label': fill(ctx.messages.removeField, name) }, ['×']);
   b.addEventListener('click', onClick);
   return b;
@@ -40,7 +46,7 @@ interface ListItem {
   readonly remove: HTMLButtonElement;
 }
 
-/** A list of strings: one input per item, with remove buttons and an add row. */
+/** A list of strings: one input per item, with remove buttons and an add row. Items get the guide's `options` as suggestions. */
 export const stringListWidget: WidgetFactory = (ctx) => {
   const ui = ctx.messages;
   const f = frame(ctx, 'string-list');
@@ -49,6 +55,13 @@ export const stringListWidget: WidgetFactory = (ctx) => {
   const input = h(f.doc, 'input', { type: 'text', class: 'sw-input', 'aria-label': `${ctx.label} ${ui.newItem}`, autocomplete: 'off' });
   const addBtn = h(f.doc, 'button', { type: 'button', class: 'sw-btn sw-list-add-btn', 'aria-label': `${ui.addItem} ${ctx.label}` }, [ui.addItem]);
   f.adder.append(input, addBtn);
+  // The guide's suggested values, offered on every input; any other text is still accepted.
+  const suggestions = ctx.options ?? [];
+  const listId = `${ctx.id}-list`;
+  if (suggestions.length > 0) {
+    f.el.append(h(f.doc, 'datalist', { id: listId }, suggestions.map((v) => h(f.doc, 'option', { value: v }))));
+    input.setAttribute('list', listId);
+  }
   const add = (): void => {
     if (input.value === '') return;
     if (f.fail(ctx.edit({ op: 'push', at: ctx.ref, value: input.value }))) input.value = '';
@@ -62,7 +75,7 @@ export const stringListWidget: WidgetFactory = (ctx) => {
   });
 
   const makeItem = (i: number): ListItem => {
-    const field = h(f.doc, 'input', { type: 'text', class: 'sw-input', autocomplete: 'off' });
+    const field = h(f.doc, 'input', { type: 'text', class: 'sw-input', autocomplete: 'off', list: suggestions.length > 0 ? listId : undefined });
     const at = (): { doc: number; path: (string | number)[] } => ({ doc: ctx.ref.doc, path: [...ctx.ref.path, i] });
     field.addEventListener('input', () => {
       f.fail(ctx.edit({ op: 'set', at: at(), value: field.value }));

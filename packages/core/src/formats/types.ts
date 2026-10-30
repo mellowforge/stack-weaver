@@ -68,6 +68,13 @@ export interface GuideField {
   readonly hidden?: boolean;
   /** Starting value used as the `valueTemplate` when the property is added. */
   readonly example?: YamlValue;
+  /**
+   * Suggested values for a string property (or the items of a string list) whose schema does not
+   * list them, for example `imagePullPolicy`. They are suggestions only, never validation: the
+   * visual editor offers them in a text input that still accepts any text, and the code editor
+   * offers them as value completions.
+   */
+  readonly options?: readonly string[];
 }
 
 /** An intent group of the "Add resource" picker. */

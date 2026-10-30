@@ -2,7 +2,9 @@ import type { ResolvedSchema } from '../../engine/resolve.js';
 import type { GuideField, JsonSchema } from '../../formats/types.js';
 import { booleanWidget, enumWidget } from './choice.js';
 import { keyValueWidget, stringListWidget } from './collections.js';
-import { integerWidget, intOrStringWidget, numberWidget, quantityWidget, stringWidget } from './text.js';
+import { refKeyWidget, refWidget } from './reference.js';
+import { secretDataWidget } from './secret.js';
+import { integerWidget, intOrStringWidget, numberWidget, quantityWidget, stringWidget, suggestWidget } from './text.js';
 import type { WidgetRegistry } from './types.js';
 
 /** The built-in widgets, by name. A host's `widgets` option is merged over these. */
@@ -16,6 +18,10 @@ export const defaultWidgets: WidgetRegistry = {
   quantity: quantityWidget,
   'string-list': stringListWidget,
   'key-value': keyValueWidget,
+  suggest: suggestWidget,
+  ref: refWidget,
+  'ref-key': refKeyWidget,
+  'secret-data': secretDataWidget,
 };
 
 const isObj = (v: unknown): v is JsonSchema => typeof v === 'object' && v !== null && !Array.isArray(v);
@@ -60,10 +66,14 @@ function byShape(s: JsonSchema): string | undefined {
 }
 
 /**
- * Chooses the widget for a field: the guide's `widget` (`name` or `name:param`) when the registry
- * has `name`, otherwise one by schema shape (quantity, int-or-string, enum, boolean, integer,
- * number, string, key-value, string-list). An unknown guide name falls through to the shape and
- * never throws.
+ * Chooses the widget for a field, in this order:
+ * 1. the guide's `widget` (`name` or `name:param`), when the registry has `name`;
+ * 2. `suggest` (a text input with a `<datalist>`, so free text is still accepted) for a string field
+ *    whose guide entry has non-empty `options` and whose schema has no `enum`;
+ * 3. the schema shape (quantity, int-or-string, enum, boolean, integer, number, string, key-value,
+ *    string-list). A list of strings keeps `string-list`, which offers the `options` itself.
+ *
+ * An unknown guide name falls through and never throws.
  * @param r - The field's resolved schema.
  * @param field - The field's guide entry, if any.
  * @param registry - The widgets available.
@@ -77,6 +87,7 @@ export function pickWidget(r: ResolvedSchema, field: GuideField | undefined, reg
     const param = colon < 0 ? '' : wanted.slice(colon + 1);
     if (name !== '' && has(registry, name)) return param === '' ? { name } : { name, param };
   }
+  if (field?.options && field.options.length > 0 && baseType(r.schema) === 'string' && r.schema['enum'] === undefined && has(registry, 'suggest')) return { name: 'suggest' };
   const shaped = byShape(r.schema);
   return shaped !== undefined && has(registry, shaped) ? { name: shaped } : undefined;
 }

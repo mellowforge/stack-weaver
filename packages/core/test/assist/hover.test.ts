@@ -45,8 +45,8 @@ describe('hoverAt', () => {
 
   it('falls back to the key name for keys without a guide label', () => {
     const p = parseText(TEXT);
-    const h = hoverAt(p, inside('template'), bundle, kubernetesGuide)!;
-    expect(h.title).toBe('template');
+    const h = hoverAt(p, inside('apiVersion'), bundle, kubernetesGuide)!;
+    expect(h.title).toBe('apiVersion');
     expect(h.description).toBeTruthy();
   });
 

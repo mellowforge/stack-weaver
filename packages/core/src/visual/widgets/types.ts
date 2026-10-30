@@ -21,6 +21,8 @@ export interface WidgetContext {
   readonly readOnly: boolean;
   /** The part after the colon of a guide widget such as `"name:param"`. */
   readonly param?: string;
+  /** The guide's suggested values for the field (`GuideField.options`), for widgets that offer them. */
+  readonly options?: readonly string[];
   /** The editor's UI strings. */
   readonly messages: UiMessages;
   /** The current parse, for widgets that suggest values from the document. */

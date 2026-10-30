@@ -20,8 +20,13 @@ const INTEGER = /^[+-]?\d+$/;
 
 const formatScalar = (v: YamlValue): string => (typeof v === 'string' ? v : typeof v === 'number' || typeof v === 'boolean' ? String(v) : '');
 
-/** A single-line text input that commits on every keystroke. */
-function textInput(ctx: WidgetContext, codec: Codec): WidgetInstance {
+/**
+ * A single-line text input that commits on every keystroke.
+ * @param suggest - When given, the input offers these values through a `<datalist>` while still
+ *   accepting any text. It is called again on focus and on every `update`, so the list follows the document.
+ * @internal
+ */
+export function textInput(ctx: WidgetContext, codec: Codec, suggest?: () => readonly string[]): WidgetInstance {
   const doc = document;
   const errorId = `${ctx.id}-error`;
   const input = h(doc, 'input', { type: 'text', id: ctx.id, class: 'sw-input', 'aria-describedby': errorId, autocomplete: 'off', spellcheck: 'false' });
@@ -29,6 +34,23 @@ function textInput(ctx: WidgetContext, codec: Codec): WidgetInstance {
   const error = h(doc, 'span', { class: 'sw-field-error', id: errorId });
   const el = h(doc, 'div', { class: 'sw-widget sw-widget-text' }, [input, error]);
   let last: YamlValue = ctx.value;
+
+  let listSig = '';
+  const refreshList = (): void => {
+    if (!suggest) return;
+    const values = [...new Set(suggest())];
+    const sig = JSON.stringify(values);
+    if (sig === listSig) return;
+    listSig = sig;
+    let list = el.querySelector('datalist');
+    if (!list) {
+      list = h(doc, 'datalist', { id: `${ctx.id}-list` });
+      el.append(list);
+      input.setAttribute('list', list.id);
+    }
+    list.replaceChildren(...values.map((v) => h(doc, 'option', { value: v })));
+  };
+  if (suggest) input.addEventListener('focus', refreshList);
 
   const setError = (message: string): void => {
     error.textContent = message;
@@ -49,11 +71,13 @@ function textInput(ctx: WidgetContext, codec: Codec): WidgetInstance {
   });
 
   show(ctx.value);
+  refreshList();
   input.disabled = ctx.readOnly;
   return {
     el,
     update(value, readOnly) {
       input.disabled = readOnly;
+      refreshList();
       const changed = value !== last && JSON.stringify(value) !== JSON.stringify(last);
       last = value;
       const parsed = codec.parse(input.value);
@@ -68,8 +92,16 @@ function textInput(ctx: WidgetContext, codec: Codec): WidgetInstance {
   };
 }
 
+const freeText: Codec = { parse: (t) => ({ value: t }), format: formatScalar };
+
 /** Free text. */
-export const stringWidget: WidgetFactory = (ctx) => textInput(ctx, { parse: (t) => ({ value: t }), format: formatScalar });
+export const stringWidget: WidgetFactory = (ctx) => textInput(ctx, freeText);
+
+/**
+ * Free text with suggestions: a text input whose `<datalist>` holds the guide's `options` (the
+ * context's `options`). Any other text is accepted, so the options are hints, not a closed list.
+ */
+export const suggestWidget: WidgetFactory = (ctx) => textInput(ctx, freeText, () => ctx.options ?? []);
 
 /** A number; typed text is parsed, so the document gets a number rather than a string. */
 export const numberWidget: WidgetFactory = (ctx) =>
