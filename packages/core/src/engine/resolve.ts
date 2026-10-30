@@ -112,7 +112,10 @@ function flatten(root: JsonSchema, node: JsonSchema, data: unknown, outer: strin
       out.schema[kw] = alts;
       continue;
     }
+    // Empty/null data (e.g. a bare `key:` while typing) still offers the structural branch's properties.
+    const structural = (b: Flat): boolean => isStructural(b.schema);
     const chosen =
+      (data === null || data === undefined ? branches.find(structural) : undefined) ??
       branches.find((b) => data !== undefined && matchesType(b.schema, data)) ??
       branches.find((b) => typesOf(b.schema).includes('object')) ??
       branches[0]!;

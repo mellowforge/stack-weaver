@@ -33,3 +33,74 @@ describe('resolveAt', () => {
     expect(resolveAt(bundle, ['spec', 'nope'], {})).toBeUndefined();
   });
 });
+
+const bundleOf = (schema: Record<string, unknown>) => ({ id: 't', schema, validate: () => [] });
+
+describe('resolveAt branches (inline schemas)', () => {
+  const objDefs = { obj: { type: 'object', properties: { a: { type: 'string' } } } };
+  const union = bundleOf({
+    type: 'object',
+    properties: { v: { anyOf: [{ type: 'string' }, { $ref: '#/$defs/obj' }] } },
+    $defs: objDefs,
+  });
+
+  it('picks the anyOf branch matching string data', () => {
+    const r = resolveAt(union, ['v'], { v: 'x' });
+    expect(r?.schema.type).toBe('string');
+    expect(r?.schema.properties).toBeUndefined();
+  });
+
+  it('picks the anyOf branch matching object data', () => {
+    const r = resolveAt(union, ['v'], { v: { a: 'x' } });
+    expect(r?.schema.type).toBe('object');
+    expect(r?.defName).toBe('obj');
+  });
+
+  it('prefers the first non-null object branch for null or missing data', () => {
+    const b = bundleOf({
+      type: 'object',
+      properties: { v: { anyOf: [{ type: 'null' }, { $ref: '#/$defs/obj' }] } },
+      $defs: objDefs,
+    });
+    for (const data of [{ v: null }, {}]) {
+      const r = resolveAt(b, ['v'], data);
+      expect(r?.defName).toBe('obj');
+      expect(Object.keys(r?.schema.properties as object)).toEqual(['a']);
+    }
+  });
+
+  it('uses properties, then patternProperties, then additionalProperties', () => {
+    const b = bundleOf({
+      type: 'object',
+      properties: { exact: { type: 'integer' } },
+      patternProperties: { '^x-': { type: 'boolean' }, '^exact$': { type: 'null' } },
+      additionalProperties: { type: 'string' },
+    });
+    expect(resolveAt(b, ['exact'], {})?.schema.type).toBe('integer');
+    expect(resolveAt(b, ['x-foo'], {})?.schema.type).toBe('boolean');
+    expect(resolveAt(b, ['other'], {})?.schema.type).toBe('string');
+  });
+
+  it('terminates on a directly self-referencing $ref', () => {
+    const b = bundleOf({ $ref: '#/$defs/a', $defs: { a: { $ref: '#/$defs/a' } } });
+    expect(resolveAt(b, [], {})).toBeUndefined();
+  });
+
+  it('terminates on a self-referencing $ref through allOf', () => {
+    const b = bundleOf({
+      $ref: '#/$defs/a',
+      $defs: { a: { type: 'object', allOf: [{ $ref: '#/$defs/a' }], properties: { p: { type: 'string' } } } },
+    });
+    const r = resolveAt(b, [], {});
+    expect(r === undefined || r.defName === 'a').toBe(true);
+    expect(resolveAt(b, ['p'], {})?.schema.type).toBe('string');
+  });
+
+  it('terminates on a recursive property type', () => {
+    const b = bundleOf({
+      $ref: '#/$defs/n',
+      $defs: { n: { type: 'object', properties: { next: { $ref: '#/$defs/n' } } } },
+    });
+    expect(resolveAt(b, ['next', 'next', 'next'], {})?.defName).toBe('n');
+  });
+});
