@@ -36,6 +36,10 @@ start of Plan 4, before the wrappers freeze the API:
 - The `Recipe.format` invariant, a typed `GuideField.widget` grammar, and a `Problem.code` template type.
 - Move field-name knowledge into guide data (CR-S8): the `name` item labels, the ref-key sibling `name`, and the
   Secret/ConfigMap data keys.
+- `TextRange`, `StoreEvent` and `ParsedText` fields are still mutable. Make them `readonly`, like `NodeRef` and `TextChange`.
+- `renameKey` (and likely `add`) accept the key `<<`, which turns an ordinary key into a YAML merge key. Refuse `<<` as a new key name.
+- Host widget `focus()` (reached through `focusField`) and `destroy()` (in the field row's `dropBody`) are unguarded. A throw there is not caught.
+- In the editor's store subscriber, `applyFormat` → `recipes.refresh()` runs before `onChange`. A throw there is logged but skips `onChange`.
 
 ## Plan 4 (wrappers and release)
 - **Changesets:** restore `.changeset/config.json` `fixed: [["@stack-weaver/core","@stack-weaver/angular","@stack-weaver/react"]]` when the wrappers are added. It is set to `[]` until then.
@@ -77,11 +81,14 @@ Each was found in a per-task review and judged not worth blocking the task. Grou
 - `completionSource` has no aborted check and an unhandled rejection of `complete()`; post-destroy calls are unguarded; `override: []` disables default completion (needs a comment).
 - The theme tokens `--sw-selection` and `--sw-active-line` are optional and undocumented beyond the spec.
 - Pack check should require the `.d.ts` files of the editors subpath, and the editors entry twin-regex skips type imports (confirm `verbatimModuleSyntax`).
+- A code pane with mixed line endings (CRLF first, then LF lines) shows the LF part as merged CodeMirror lines: wrong line numbers and arrow movement. The bytes stay exact. The separator is taken from the first line break.
+- A CRLF↔LF switch rebuilds the CodeMirror document, so lint markers disappear until the next validation publish, and fold or scroll state may reset.
 
 **Editor shell, sync and problems**
 - A pending-cleanup race after `clear()`; a validation wrapper that throws skips the publish; the sticky `auto` format is unpinned.
 - `onProblems` calls `section.update` and bypasses the debounce. A problem click with no outline node does nothing.
 - The `onProblemsChange`-after-destroy assertion is vacuous.
+- The editor recipe test waits a fixed 250 ms per recipe (about 1.8 s), a mild flake and slowness risk.
 
 **Visual pane and outline**
 - An unknown CRD flashes as editable before its schema load resolves.
@@ -96,6 +103,7 @@ Each was found in a per-task review and judged not worth blocking the task. Grou
 - The host-widget hooks `focus()` (reached from `focusField`'s `.then`, where a throw becomes an unhandled rejection) and `destroy()` in `dropBody()` are not guarded, unlike the factory and `update`. The editor-level pane guard has no test of its own (the field row catches a widget throw first).
 - Composite `aria-label`s are baked at build; widgets use the global `document`; the scalar check and the `{label}` helper are duplicated; `current()` duplicates the lookup in the section code.
 - References: `suggest*` ignore `metadata.namespace` (undocumented); `ref-key` hard-codes the sibling `name` (a guide param later); the datalist filters by the current value; `pickWidget` runs twice per field (row and slot).
+- A mapping or list widget whose `update` throws falls back to an empty value span (the "Edit in code" note still shows). A card fallback would be clearer.
 
 **Accessibility and styling**
 - The real CodeMirror content's accessible name is not checked by the a11y test (it uses the fake adapter), and the live-region text change is not asserted.
