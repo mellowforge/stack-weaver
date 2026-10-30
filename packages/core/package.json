@@ -47,11 +47,11 @@
     "CHANGELOG.md"
   ],
   "scripts": {
-    "prebuild": "node scripts/gen-kubernetes.mjs",
+    "prebuild": "node scripts/gen-kubernetes.mjs && node scripts/gen-compose.mjs",
     "build": "tsc -p tsconfig.build.json && node scripts/copy-generated.mjs",
-    "pretest": "node scripts/gen-kubernetes.mjs",
+    "pretest": "node scripts/gen-kubernetes.mjs && node scripts/gen-compose.mjs",
     "test": "vitest run",
-    "pretypecheck": "node scripts/gen-kubernetes.mjs",
+    "pretypecheck": "node scripts/gen-kubernetes.mjs && node scripts/gen-compose.mjs",
     "typecheck": "tsc --noEmit -p tsconfig.json"
   },
   "dependencies": {

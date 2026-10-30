@@ -1,10 +1,11 @@
-import type { KindEntry, SchemaBundle, SchemaError } from '../types.js';
+import type { KindEntry, SchemaBundle } from '../types.js';
+import { cachedLoad, wrapValidator } from '../validator.js';
 import kinds from './generated/kinds.json' with { type: 'json' };
-import { loaders, type SchemaModule, type ValidateModule } from './generated/loaders.js';
+import { loaders } from './generated/loaders.js';
 
 const entries: readonly KindEntry[] = Object.freeze(kinds as KindEntry[]);
 const idByApiVersionKind = new Map(entries.map((k) => [`${k.apiVersion}/${k.kind}`, k.id]));
-const cache = new Map<string, Promise<SchemaBundle | undefined>>();
+const cache = new Map<string, Promise<SchemaBundle>>();
 
 /**
  * Every Kubernetes kind with a generated schema (GA group-versions of the pinned Kubernetes
@@ -26,26 +27,5 @@ export function loadKubernetesKind(apiVersion: string, kind: string): Promise<Sc
   const id = idByApiVersionKind.get(`${apiVersion}/${kind}`);
   const load = id === undefined ? undefined : loaders[id];
   if (id === undefined || load === undefined) return Promise.resolve(undefined);
-  let bundle = cache.get(id);
-  if (!bundle) {
-    bundle = load().then(([s, v]) => toBundle(id, s, v));
-    bundle.catch(() => cache.delete(id)); // a failed chunk load may be retried
-    cache.set(id, bundle);
-  }
-  return bundle;
-}
-
-function toBundle(id: string, s: SchemaModule, v: ValidateModule): SchemaBundle {
-  const fn = v.validate;
-  return {
-    id,
-    schema: s.schema,
-    validate(data) {
-      if (fn(data)) return [];
-      // The standalone validator reuses `errors` per call: copy before returning.
-      return ((fn.errors ?? []) as SchemaError[]).map(({ instancePath, keyword, params, message }) =>
-        message === undefined ? { instancePath, keyword, params } : { instancePath, keyword, params, message },
-      );
-    },
-  };
+  return cachedLoad(cache, id, () => load().then(([s, v]) => wrapValidator(id, s, v)));
 }
