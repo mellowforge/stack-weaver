@@ -1,0 +1,127 @@
+import type { YamlPath } from '../document/types.js';
+import { guideField } from '../formats/guide.js';
+import type { Guide, GuideField, SchemaBundle } from '../formats/types.js';
+import { resolveAt, type ResolvedSchema } from './resolve.js';
+
+/** How prominently an addable item is offered. */
+export type Tier = 'recommended' | 'common' | 'advanced';
+
+/** One thing that may be added at a path. */
+export interface AddableItem {
+  /** Property name, or `null` for a new sequence item. */
+  key: string | null;
+  /** Display label; defaults to the property name. */
+  label: string;
+  /** Plain-language description; defaults to the first sentence of the schema description. */
+  description: string;
+  /** Presentation tier. */
+  tier: Tier;
+  /** True when the schema requires the property (it is missing, otherwise it would not be listed). */
+  required: boolean;
+  /** Starting value: the guide example, else an empty value by schema type. */
+  valueTemplate: unknown;
+}
+
+const TIER_RANK: Record<Tier, number> = { recommended: 0, common: 1, advanced: 2 };
+
+function isObj(v: unknown): v is Record<string, unknown> {
+  return typeof v === 'object' && v !== null && !Array.isArray(v);
+}
+
+function firstSentence(text: string | undefined): string {
+  if (!text) return '';
+  const flat = text.replace(/\s+/g, ' ').trim();
+  const m = /^.*?[.!?](?=\s|$)/.exec(flat);
+  return m ? m[0] : flat;
+}
+
+function template(r: ResolvedSchema | undefined): unknown {
+  if (!r) return null;
+  const s = r.schema;
+  const t = s['type'];
+  const types = (Array.isArray(t) ? t : typeof t === 'string' ? [t] : []).filter((x) => x !== 'null');
+  const type = types[0];
+  if (type === 'object') return {};
+  if (type === 'array') return [];
+  if (type === 'string') return '';
+  if (type === 'integer' || type === 'number') return 0;
+  if (type === 'boolean') return false;
+  const alts = (s['anyOf'] ?? s['oneOf']) as unknown;
+  if (Array.isArray(alts) && alts.some((a) => isObj(a) && a['type'] === 'string')) return '';
+  if (isObj(s['properties'])) return {};
+  if (s['items'] !== undefined) return [];
+  return null;
+}
+
+function tierOf(g: GuideField | undefined): Tier {
+  if (g?.recommended) return 'recommended';
+  if (g === undefined || g.advanced) return 'advanced';
+  return 'common';
+}
+
+/**
+ * Lists what may be added at `path`: missing properties of an object, or one new item for a sequence.
+ *
+ * Properties are ordered required-and-missing first, then by tier (recommended, common, advanced),
+ * then guide `order` ascending, then name. Present keys and guide-`hidden` keys are excluded.
+ * Properties without a guide entry count as advanced.
+ * @param bundle - Schema bundle for the document.
+ * @param guide - Guide overlay for labels, tiers and examples.
+ * @param path - Path of the node to add to.
+ * @param data - The document as plain data.
+ * @returns The addable items; empty when the path does not resolve or nothing can be added.
+ */
+export function addableAt(bundle: SchemaBundle, guide: Guide, path: YamlPath, data: unknown): AddableItem[] {
+  const resolved = resolveAt(bundle, path, data);
+  if (!resolved) return [];
+  const schema = resolved.schema;
+
+  const itemsSchema = schema['items'];
+  if (isObj(itemsSchema)) {
+    const itemResolved = resolveAt(bundle, [...path, 0], data);
+    return [
+      {
+        key: null,
+        label: 'Item',
+        description: firstSentence(itemResolved?.description ?? resolved.description),
+        tier: 'common',
+        required: false,
+        valueTemplate: template(itemResolved),
+      },
+    ];
+  }
+
+  const props = schema['properties'];
+  if (!isObj(props)) return [];
+  const node = path.reduce<unknown>((d, seg) => (isObj(d) ? d[seg] : Array.isArray(d) && typeof seg === 'number' ? d[seg] : undefined), data);
+  const present = isObj(node) ? node : {};
+
+  const entries: { item: AddableItem; order: number }[] = [];
+  for (const prop of Object.keys(props)) {
+    if (Object.prototype.hasOwnProperty.call(present, prop)) continue;
+    const declaring = resolved.declaredIn?.[prop];
+    const g = guideField(guide, resolved.defName, prop) ?? guideField(guide, declaring, prop);
+    if (g?.hidden) continue;
+    const child = resolveAt(bundle, [...path, prop], data);
+    entries.push({
+      order: g?.order ?? Number.POSITIVE_INFINITY,
+      item: {
+        key: prop,
+        label: g?.label ?? prop,
+        description: g?.description ?? firstSentence(child?.description),
+        tier: tierOf(g),
+        required: resolved.required.includes(prop),
+        valueTemplate: g?.example !== undefined ? g.example : template(child),
+      },
+    });
+  }
+
+  entries.sort((a, b) => {
+    if (a.item.required !== b.item.required) return a.item.required ? -1 : 1;
+    const t = TIER_RANK[a.item.tier] - TIER_RANK[b.item.tier];
+    if (t !== 0) return t;
+    if (a.order !== b.order) return a.order < b.order ? -1 : 1;
+    return a.item.key! < b.item.key! ? -1 : a.item.key! > b.item.key! ? 1 : 0;
+  });
+  return entries.map((e) => e.item);
+}
