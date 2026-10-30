@@ -68,3 +68,11 @@ export interface ParsedText {
 
 /** A range of the source text: `[from, to)` as UTF-16 indexes. */
 export type TextRange = { readonly from: number; readonly to: number };
+
+/** A 1-based line and column in the source text. */
+export interface Position {
+  /** 1-based line. */
+  readonly line: number;
+  /** 1-based column. */
+  readonly col: number;
+}

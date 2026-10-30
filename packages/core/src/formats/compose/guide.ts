@@ -1,7 +1,8 @@
+import { deepFreeze } from '../freeze.js';
 import type { Guide } from '../types.js';
 
 /** Curated compose guide: a single `services` group and hints for the service definition. */
-export const composeGuide: Guide = {
+export const composeGuide: Guide = deepFreeze<Guide>({
   groups: [{ id: 'services', label: 'Services', order: 1 }],
   kinds: {},
   fields: {
@@ -10,6 +11,6 @@ export const composeGuide: Guide = {
     'service#environment': { label: 'Environment variables', order: 3 },
     'service#depends_on': { label: 'Starts after', order: 4 },
     'service#volumes': { label: 'Volumes', order: 5 },
-    'service#healthcheck': { label: 'Health check', recommended: true, order: 6 },
+    'service#healthcheck': { label: 'Health check', tier: 'recommended', order: 6 },
   },
-};
+});

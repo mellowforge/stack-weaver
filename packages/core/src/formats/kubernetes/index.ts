@@ -1,12 +1,10 @@
 import { isMap, isScalar } from 'yaml';
 import { isEmptyDocument } from '../../document/data.js';
 import type { ParsedText } from '../../document/types.js';
+import { deepFreeze } from '../freeze.js';
 import type { FormatDefinition, SchemaBundle } from '../types.js';
 import { kubernetesGuide } from './guide.js';
 import { kubernetesKinds, loadKubernetesKind } from './loader.js';
-
-export { kubernetesKinds, loadKubernetesKind };
-export { kubernetesGuide };
 
 function str(doc: ParsedText['docs'][number] | undefined, key: string): string | undefined {
   const node = doc?.get(key, true);
@@ -14,7 +12,7 @@ function str(doc: ParsedText['docs'][number] | undefined, key: string): string |
 }
 
 /** The Kubernetes format: multi-document resources validated per `apiVersion`/`kind`. */
-export const kubernetesFormat: FormatDefinition = {
+export const kubernetesFormat: FormatDefinition = deepFreeze<FormatDefinition>({
   id: 'kubernetes',
   label: 'Kubernetes',
   // The Kubernetes release pinned in schema-sources.lock.json ("kubernetes"), without the `v`.
@@ -38,4 +36,4 @@ export const kubernetesFormat: FormatDefinition = {
     return loadKubernetesKind(apiVersion, kind);
   },
   guide: kubernetesGuide,
-};
+});

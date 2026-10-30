@@ -2,7 +2,7 @@
 export { VERSION } from './version.js';
 
 // Document model
-export type { YamlPath, NodeRef, TextRange, TextChange, YamlProblem, ParsedText, ScalarValue, YamlValue } from './document/types.js';
+export type { YamlPath, NodeRef, TextRange, Position, TextChange, YamlProblem, ParsedText, ScalarValue, YamlValue } from './document/types.js';
 export { parseText } from './document/parse.js';
 export { getNode, refAtOffset, toLineCol } from './document/paths.js';
 export { applyEdit, canEdit } from './document/edit.js';
@@ -23,21 +23,25 @@ export type {
   KindEntry,
   GuideField,
   Guide,
+  GuideGroup,
+  GuideKind,
+  GuideOverride,
+  Tier,
   FormatDefinition,
 } from './formats/types.js';
 export { registerFormat, getFormat, detectFormat } from './formats/registry.js';
-export { mergeGuide, guideField } from './formats/guide.js';
+export { mergeGuide, guideField, kindKey } from './formats/guide.js';
 
 // Engine
 export { resolveAt } from './engine/resolve.js';
 export type { ResolvedSchema } from './engine/resolve.js';
-export { addableAt } from './engine/addable.js';
-export type { Tier, AddableItem } from './engine/addable.js';
+export { addableAt, valueTemplateAt } from './engine/addable.js';
+export type { AddableItem } from './engine/addable.js';
 export { kindCatalog } from './engine/catalog.js';
-export type { CatalogGroup } from './engine/catalog.js';
+export type { CatalogGroup, KindCatalog } from './engine/catalog.js';
 
 // Validation
 export { validateText } from './validation/validate.js';
-export type { Severity, Problem } from './validation/problems.js';
+export type { Severity, Problem, ProblemSource } from './validation/problems.js';
 export { defaultMessages } from './validation/messages.js';
 export type { SchemaMessages, MessageFn } from './validation/messages.js';

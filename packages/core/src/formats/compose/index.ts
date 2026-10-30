@@ -1,17 +1,15 @@
 import { isMap } from 'yaml';
 import { isEmptyDocument } from '../../document/data.js';
 import type { ParsedText } from '../../document/types.js';
+import { deepFreeze } from '../freeze.js';
 import type { FormatDefinition, SchemaBundle } from '../types.js';
 import { composeGuide } from './guide.js';
 import { loadComposeSchema } from './loader.js';
 
-export { loadComposeSchema };
-export { composeGuide };
-
 const TOP_LEVEL_KEYS = ['services', 'networks', 'volumes', 'configs', 'secrets', 'include'];
 
 /** The Docker Compose format: a single root mapping validated against the compose-spec schema. */
-export const composeFormat: FormatDefinition = {
+export const composeFormat: FormatDefinition = deepFreeze<FormatDefinition>({
   id: 'compose',
   label: 'Docker Compose',
   // First 7 characters of the compose-spec commit pinned in schema-sources.lock.json ("compose").
@@ -34,4 +32,4 @@ export const composeFormat: FormatDefinition = {
     return loadComposeSchema();
   },
   guide: composeGuide,
-};
+});

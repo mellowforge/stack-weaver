@@ -1,26 +1,25 @@
 import type { YamlPath, YamlValue } from '../document/types.js';
 import { guideField } from '../formats/guide.js';
-import type { Guide, GuideField, SchemaBundle } from '../formats/types.js';
+import type { Guide, GuideField, SchemaBundle, Tier } from '../formats/types.js';
 import { resolveAt, type ResolvedSchema } from './resolve.js';
-
-/** How prominently an addable item is offered. */
-export type Tier = 'recommended' | 'common' | 'advanced';
 
 /** One thing that may be added at a path. */
 export interface AddableItem {
   /** Property name, or `null` for a new sequence item. */
-  key: string | null;
+  readonly key: string | null;
   /** Display label; defaults to the property name. */
-  label: string;
+  readonly label: string;
   /** Plain-language description; defaults to the first sentence of the schema description. */
-  description: string;
+  readonly description: string;
   /** Presentation tier. */
-  tier: Tier;
+  readonly tier: Tier;
   /** True when the schema requires the property (it is missing, otherwise it would not be listed). */
-  required: boolean;
+  readonly required: boolean;
   /** Starting value: the guide example, else an empty value by schema type. */
-  valueTemplate: YamlValue;
+  readonly valueTemplate: YamlValue;
 }
+
+export type { Tier };
 
 const TIER_RANK: Record<Tier, number> = { recommended: 0, common: 1, advanced: 2 };
 
@@ -54,9 +53,35 @@ function template(r: ResolvedSchema | undefined): YamlValue {
 }
 
 function tierOf(g: GuideField | undefined): Tier {
-  if (g?.recommended) return 'recommended';
-  if (g === undefined || g.advanced) return 'advanced';
-  return 'common';
+  return g === undefined ? 'advanced' : (g.tier ?? 'common');
+}
+
+/** The guide entry for `prop`, found under the resolved definition first, then under the one that declared it. */
+function fieldHint(guide: Guide, parent: ResolvedSchema, prop: string): GuideField | undefined {
+  return guideField(guide, parent.defName, prop) ?? guideField(guide, parent.declaredIn?.[prop], prop);
+}
+
+function valueFor(g: GuideField | undefined, child: ResolvedSchema | undefined): YamlValue {
+  return g?.example !== undefined ? g.example : template(child);
+}
+
+/**
+ * The starting value for the node at `path`: the guide `example` of the property at the last path
+ * segment when there is one, otherwise an empty value for the schema's type (`{}` for objects,
+ * `[]` for arrays, `''` for strings, `0` for numbers, `false` for booleans, `null` when unknown).
+ * This is the `valueTemplate` that `addableAt` reports for the same property.
+ * @param bundle - Schema bundle for the document.
+ * @param guide - Guide overlay supplying examples.
+ * @param path - Path of the node to create.
+ * @param data - The document as plain data; used to pick `anyOf`/`oneOf` branches.
+ * @returns The starting value; `null` when the path does not resolve.
+ */
+export function valueTemplateAt(bundle: SchemaBundle, guide: Guide, path: YamlPath, data?: unknown): YamlValue {
+  const child = resolveAt(bundle, path, data);
+  const last = path[path.length - 1];
+  if (typeof last !== 'string') return template(child);
+  const parent = resolveAt(bundle, path.slice(0, -1), data);
+  return valueFor(parent && fieldHint(guide, parent, last), child);
 }
 
 /**
@@ -111,8 +136,7 @@ export function addableAt(bundle: SchemaBundle, guide: Guide, path: YamlPath, da
   const entries: { item: AddableItem; order: number }[] = [];
   for (const prop of Object.keys(props)) {
     if (Object.prototype.hasOwnProperty.call(present, prop)) continue;
-    const declaring = resolved.declaredIn?.[prop];
-    const g = guideField(guide, resolved.defName, prop) ?? guideField(guide, declaring, prop);
+    const g = fieldHint(guide, resolved, prop);
     if (g?.hidden) continue;
     const child = resolveAt(bundle, [...path, prop], data);
     entries.push({
@@ -123,7 +147,7 @@ export function addableAt(bundle: SchemaBundle, guide: Guide, path: YamlPath, da
         description: g?.description ?? firstSentence(child?.description),
         tier: tierOf(g),
         required: resolved.required.includes(prop),
-        valueTemplate: g?.example !== undefined ? g.example : template(child),
+        valueTemplate: valueFor(g, child),
       },
     });
   }

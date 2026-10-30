@@ -1,6 +1,6 @@
 import { isAlias, isMap, isNode, isPair, isScalar, isSeq } from 'yaml';
 import type { Node, Pair, Scalar } from 'yaml';
-import type { NodeRef, ParsedText, YamlPath } from './types.js';
+import type { NodeRef, ParsedText, Position, YamlPath } from './types.js';
 
 function keyOf(k: unknown): unknown {
   return isScalar(k) ? k.value : k;
@@ -119,6 +119,6 @@ export function refAtOffset(p: ParsedText, offset: number): NodeRef | undefined 
  * @param offset - UTF-16 offset into `p.text`.
  * @returns The 1-based position.
  */
-export function toLineCol(p: ParsedText, offset: number): { line: number; col: number } {
+export function toLineCol(p: ParsedText, offset: number): Position {
   return p.lineCounter.linePos(offset);
 }

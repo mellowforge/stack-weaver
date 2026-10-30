@@ -1,8 +1,9 @@
 import { describe, expect, it } from 'vitest';
-import { addableAt } from '../../src/engine/addable.js';
-import { composeGuide } from '../../src/formats/compose/index.js';
+import { addableAt, valueTemplateAt } from '../../src/engine/addable.js';
+import { composeGuide } from '../../src/formats/compose/guide.js';
 import { loadComposeSchema } from '../../src/formats/compose/loader.js';
-import { kubernetesGuide, loadKubernetesKind } from '../../src/formats/kubernetes/index.js';
+import { kubernetesGuide } from '../../src/formats/kubernetes/guide.js';
+import { loadKubernetesKind } from '../../src/formats/kubernetes/loader.js';
 import type { Guide, SchemaBundle } from '../../src/formats/types.js';
 
 const CONTAINER_PATH = ['spec', 'template', 'spec', 'containers', 0] as const;
@@ -131,10 +132,10 @@ describe('addableAt branches (inline schemas)', () => {
       ),
     });
     const g = guideOf({
-      'D#reqRec': { recommended: true },
-      'D#recB': { recommended: true },
-      'D#recA': { recommended: true },
-      'D#recOrd': { recommended: true, order: 1 },
+      'D#reqRec': { tier: 'recommended' },
+      'D#recB': { tier: 'recommended' },
+      'D#recA': { tier: 'recommended' },
+      'D#recOrd': { tier: 'recommended', order: 1 },
       'D#comB': {},
       'D#comA': {},
       'D#comOrd': { order: 2 },
@@ -145,5 +146,41 @@ describe('addableAt branches (inline schemas)', () => {
       'comOrd', 'comA', 'comB',
       'advA', 'advB',
     ]);
+  });
+});
+
+describe('tier drives ranking', () => {
+  const schema = {
+    $defs: { T: { type: 'object', properties: { a: { type: 'string' }, b: { type: 'string' }, c: { type: 'string' }, d: { type: 'string' }, e: { type: 'string' } } } },
+    $ref: '#/$defs/T',
+  };
+  const guide: Guide = {
+    groups: [],
+    kinds: {},
+    fields: {
+      'T#a': { tier: 'recommended' },
+      'T#b': {},
+      'T#c': { tier: 'advanced' },
+      'T#d': { hidden: true },
+    },
+  };
+  it('tier / no tier / no entry / hidden', () => {
+    const items = addableAt(bundleOf(schema), guide, [], {});
+    expect(items.map((i) => [i.key, i.tier])).toEqual([
+      ['a', 'recommended'],
+      ['b', 'common'],
+      ['c', 'advanced'],
+      ['e', 'advanced'],
+    ]);
+  });
+});
+
+describe('valueTemplateAt', () => {
+  it('gives {} for Container#resources and the guide example for image', async () => {
+    const bundle = (await loadKubernetesKind('apps/v1', 'Deployment'))!;
+    const data = { spec: { template: { spec: { containers: [{ name: 'a' }] } } } };
+    expect(valueTemplateAt(bundle, kubernetesGuide, [...CONTAINER_PATH, 'resources'], data)).toEqual({});
+    expect(valueTemplateAt(bundle, kubernetesGuide, [...CONTAINER_PATH, 'image'], data)).toBe('nginx:1.27');
+    expect(valueTemplateAt(bundle, kubernetesGuide, [...CONTAINER_PATH, 'name'], data)).toBe('');
   });
 });

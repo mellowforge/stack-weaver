@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { composeFormat } from '../../src/formats/compose/index.js';
-import { kubernetesFormat, kubernetesKinds, loadKubernetesKind } from '../../src/formats/kubernetes/index.js';
+import { kubernetesFormat } from '../../src/formats/kubernetes/index.js';
+import { kubernetesKinds, loadKubernetesKind } from '../../src/formats/kubernetes/loader.js';
 import type { JsonSchema } from '../../src/formats/types.js';
 
 interface Def {
@@ -62,5 +63,28 @@ describe('compose guide', () => {
       const [def, prop] = key.split('#') as [string, string];
       expect(hasProp(defs[def], prop, defs), key).toBe(true);
     }
+  });
+});
+
+describe('freezing', () => {
+  it('formats and guides are frozen', () => {
+    for (const f of [kubernetesFormat, composeFormat]) {
+      expect(Object.isFrozen(f)).toBe(true);
+      expect(Object.isFrozen(f.guide)).toBe(true);
+      expect(Object.isFrozen(f.guide.fields)).toBe(true);
+      expect(Object.isFrozen(Object.values(f.guide.fields)[0])).toBe(true);
+    }
+  });
+
+  it('bundle schema is frozen and validation still works', async () => {
+    const bundle = (await loadKubernetesKind('v1', 'Service'))!;
+    expect(Object.isFrozen(bundle.schema)).toBe(true);
+    expect(Object.isFrozen((bundle.schema as { $defs: object }).$defs)).toBe(true);
+    expect(Array.isArray(bundle.validate({ apiVersion: 'v1', kind: 'Service' }))).toBe(true);
+  });
+
+  it('subpaths export only the format', async () => {
+    expect(Object.keys(await import('../../src/formats/kubernetes/index.js'))).toEqual(['kubernetesFormat']);
+    expect(Object.keys(await import('../../src/formats/compose/index.js'))).toEqual(['composeFormat']);
   });
 });

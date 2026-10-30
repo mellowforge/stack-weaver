@@ -1,13 +1,22 @@
+import { kindKey } from '../formats/guide.js';
 import type { FormatDefinition, KindEntry } from '../formats/types.js';
 
 /** One intent group of the "Add resource" picker. */
 export interface CatalogGroup {
   /** The guide group's id, e.g. `'run'`. */
-  id: string;
+  readonly id: string;
   /** The guide group's display label, e.g. `'Run your app'`. */
-  label: string;
+  readonly label: string;
   /** Curated kinds in the group, with the guide's plain-language label and description. */
-  kinds: (KindEntry & { label: string; description: string })[];
+  readonly kinds: readonly (KindEntry & { readonly label: string; readonly description: string })[];
+}
+
+/** The "Add resource" catalog of a format. */
+export interface KindCatalog {
+  /** Guide groups in `order`, each with its guide-listed kinds (groups without a known kind are omitted). */
+  readonly curated: readonly CatalogGroup[];
+  /** Every kind the format knows, curated or not. */
+  readonly all: readonly KindEntry[];
 }
 
 /**
@@ -16,9 +25,9 @@ export interface CatalogGroup {
  * @returns `curated`: guide groups in `order`, each with its guide-listed kinds in `order` (groups
  * without any known kind are omitted); `all`: every kind the format knows, curated or not.
  */
-export function kindCatalog(format: FormatDefinition): { curated: CatalogGroup[]; all: KindEntry[] } {
+export function kindCatalog(format: FormatDefinition): KindCatalog {
   const all = [...format.kinds()];
-  const byKey = new Map(all.map((k) => [`${k.apiVersion}/${k.kind}`, k]));
+  const byKey = new Map(all.map((k) => [kindKey(k.apiVersion, k.kind), k]));
   const curated: CatalogGroup[] = [];
   for (const group of [...format.guide.groups].sort((a, b) => a.order - b.order)) {
     const kinds = Object.entries(format.guide.kinds)

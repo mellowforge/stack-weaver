@@ -1,3 +1,4 @@
+import { deepFreeze } from './freeze.js';
 import type { SchemaBundle, SchemaError } from './types.js';
 
 /** The generated schema chunk: the JSON Schema root. */
@@ -11,7 +12,8 @@ export interface ValidateModule {
 }
 
 /**
- * Wraps a generated schema and precompiled ajv validator pair into a {@link SchemaBundle}.
+ * Wraps a generated schema and precompiled ajv validator pair into a {@link SchemaBundle}. The
+ * schema is deep-frozen, so `ResolvedSchema` may alias it safely.
  * The validator returns a fresh array of plain {@link SchemaError} copies: the standalone function
  * reports through its shared `errors` property, which the next call overwrites, and the copies
  * keep only `instancePath`, `keyword`, `params` and `message` (ajv's other fields, such as
@@ -24,7 +26,7 @@ export function wrapValidator(id: string, s: SchemaModule, v: ValidateModule): S
   const fn = v.validate;
   return {
     id,
-    schema: s.schema,
+    schema: deepFreeze(s.schema),
     validate(data) {
       if (fn(data)) return [];
       return ((fn.errors ?? []) as SchemaError[]).map(({ instancePath, keyword, params, message }) =>

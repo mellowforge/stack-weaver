@@ -1,3 +1,4 @@
+import { deepFreeze } from '../freeze.js';
 import type { Guide } from '../types.js';
 
 const CONTAINER = 'io.k8s.api.core.v1.Container';
@@ -6,7 +7,7 @@ const CONTAINER = 'io.k8s.api.core.v1.Container';
  * Curated Kubernetes guide: intent groups, plain-language kind cards and container field hints.
  * Fields without an entry fall back to the schema's own descriptions and count as advanced.
  */
-export const kubernetesGuide: Guide = {
+export const kubernetesGuide: Guide = deepFreeze<Guide>({
   groups: [
     { id: 'run', label: 'Run your app', order: 1 },
     { id: 'expose', label: 'Expose it', order: 2 },
@@ -51,8 +52,8 @@ export const kubernetesGuide: Guide = {
     [`${CONTAINER}#image`]: { label: 'Image', order: 2, example: 'nginx:1.27' },
     [`${CONTAINER}#ports`]: { label: 'Ports', order: 3 },
     [`${CONTAINER}#env`]: { label: 'Environment variables', order: 4 },
-    [`${CONTAINER}#resources`]: { label: 'CPU & memory', recommended: true, order: 5 },
-    [`${CONTAINER}#readinessProbe`]: { label: 'Readiness check', recommended: true, order: 6 },
-    [`${CONTAINER}#livenessProbe`]: { label: 'Liveness check', recommended: true, order: 7 },
+    [`${CONTAINER}#resources`]: { label: 'CPU & memory', tier: 'recommended', order: 5 },
+    [`${CONTAINER}#readinessProbe`]: { label: 'Readiness check', tier: 'recommended', order: 6 },
+    [`${CONTAINER}#livenessProbe`]: { label: 'Liveness check', tier: 'recommended', order: 7 },
   },
-};
+});

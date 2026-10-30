@@ -2,7 +2,7 @@ import { readFileSync } from 'node:fs';
 import { describe, expect, it } from 'vitest';
 import { parseText } from '../../src/document/parse.js';
 import { resolveAt } from '../../src/engine/resolve.js';
-import { loadKubernetesKind } from '../../src/formats/kubernetes/index.js';
+import { loadKubernetesKind } from '../../src/formats/kubernetes/loader.js';
 
 const k8s = (name: string, doc = 0) =>
   parseText(readFileSync(new URL(`../fixtures/corpus/${name}`, import.meta.url), 'utf8')).docs[doc]!.toJS() as unknown;

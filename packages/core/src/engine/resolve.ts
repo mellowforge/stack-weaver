@@ -4,18 +4,18 @@ import type { JsonSchema, SchemaBundle } from '../formats/types.js';
 /** The schema found at a YAML path, with `$ref`s followed and `allOf` members merged. */
 export interface ResolvedSchema {
   /** The merged schema at the path. Scalar-only `anyOf`/`oneOf` (e.g. int-or-string) is kept as is. */
-  schema: JsonSchema;
+  readonly schema: JsonSchema;
   /** The outermost `$ref`'d definition reached at this path, if any. */
-  defName?: string;
+  readonly defName?: string;
   /** Required property names, merged from the `$ref` target, every `allOf` member, the chosen `anyOf`/`oneOf` branch and the node itself. */
-  required: readonly string[];
+  readonly required: readonly string[];
   /**
    * The description. The node's own wins; otherwise the chosen branch's, then the last `allOf`
    * member's that has one, then the `$ref` target's.
    */
-  description?: string;
+  readonly description?: string;
   /** For each property of `schema.properties`, the definition that declared it (when known). */
-  declaredIn?: Readonly<Record<string, string>>;
+  readonly declaredIn?: Readonly<Record<string, string>>;
 }
 
 const MAX_DEPTH = 64;
@@ -202,9 +202,12 @@ export function resolveAt(bundle: SchemaBundle, path: YamlPath, data: unknown): 
     flat = flatten(root, node, cur, undefined, undefined, 0);
   }
   if (!flat) return undefined;
-  const result: ResolvedSchema = { schema: flat.schema, required: flat.required, declaredIn: flat.declaredIn };
-  if (flat.defName !== undefined) result.defName = flat.defName;
   const description = flat.schema['description'];
-  if (typeof description === 'string') result.description = description;
-  return result;
+  return {
+    schema: flat.schema,
+    required: flat.required,
+    declaredIn: flat.declaredIn,
+    ...(flat.defName !== undefined && { defName: flat.defName }),
+    ...(typeof description === 'string' && { description }),
+  };
 }
