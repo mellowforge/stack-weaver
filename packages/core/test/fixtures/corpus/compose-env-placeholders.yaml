@@ -1,0 +1,14 @@
+services:
+  db:
+    image: postgres:${PG_VERSION:-16}
+    environment:
+      POSTGRES_PASSWORD: ${DB_PASSWORD}
+      POSTGRES_USER: ${DB_USER:-app}
+    volumes:
+      - db-data:/var/lib/postgresql/data
+  app:
+    image: ${REGISTRY}/app:${TAG:-latest}
+    env_file:
+      - .env
+volumes:
+  db-data:

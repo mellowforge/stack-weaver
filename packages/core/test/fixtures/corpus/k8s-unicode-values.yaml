@@ -1,0 +1,9 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: unicode
+data:
+  greeting: "Hello 🚀 world 🎉"
+  japanese: こんにちは世界
+  chinese: 你好，世界
+  mixed: café ☕ naïve

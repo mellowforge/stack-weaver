@@ -1,0 +1,15 @@
+services:
+  web:
+    image: nginx:1.27
+    ports:
+      - "8080:80"
+    depends_on:
+      - api
+  api:
+    build: ./api
+    environment:
+      NODE_ENV: production
+      PORT: 3000
+    restart: unless-stopped
+volumes:
+  data: {}

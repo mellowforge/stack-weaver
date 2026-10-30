@@ -1,0 +1,25 @@
+# Stack with networks and healthchecks
+services:
+  cache:
+    image: redis:7
+    networks:
+      - backend
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 3s
+      retries: 5
+  proxy:
+    image: traefik:v3.1
+    command:
+      - --providers.docker=true
+      - --entrypoints.web.address=:80
+    ports:
+      - "80:80"
+    networks:
+      - backend
+      - frontend
+networks:
+  backend:
+  frontend:
+    driver: bridge

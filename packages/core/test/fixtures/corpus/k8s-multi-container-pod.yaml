@@ -1,0 +1,29 @@
+apiVersion: v1
+kind: Pod
+metadata:
+  name: sidecar-demo
+  labels:
+    app: demo
+  annotations:
+    note: "has sidecar"
+spec:
+  initContainers:
+    - name: init
+      image: busybox:1.36
+      command: ["sh", "-c", "echo init"]
+  containers:
+    - name: app
+      image: example/app:3
+      livenessProbe:
+        httpGet:
+          path: /healthz
+          port: 8080
+        initialDelaySeconds: 5
+    - name: log-shipper
+      image: example/shipper:1
+      volumeMounts:
+        - name: logs
+          mountPath: /logs
+  volumes:
+    - name: logs
+      emptyDir: {}

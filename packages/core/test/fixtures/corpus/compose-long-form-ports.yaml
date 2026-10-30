@@ -1,0 +1,15 @@
+services:
+  web:
+    image: nginx
+    ports:
+      - target: 80
+        published: 8080
+        protocol: tcp
+        mode: host
+      - target: 443
+        published: "8443"
+    volumes:
+      - type: bind
+        source: ./html
+        target: /usr/share/nginx/html
+        read_only: true

@@ -1,0 +1,22 @@
+x-common: &common
+  restart: unless-stopped
+  logging:
+    driver: json-file
+    options:
+      max-size: "10m"
+
+x-env: &default-env
+  TZ: UTC
+  LOG_LEVEL: info
+
+services:
+  api:
+    <<: *common
+    image: example/api:1.0
+    environment:
+      <<: *default-env
+      PORT: 3000
+  worker:
+    <<: *common
+    image: example/worker:1.0
+    environment: *default-env
