@@ -93,7 +93,9 @@ export class DocumentStore {
 
   /**
    * Replaces the whole text. A no-op when the text is unchanged.
-   * Consecutive `'code'` changes within `groupMs` merge into one undo step; `'api'` never merges.
+   * Only `'code'` changes merge: a `'code'` change within `groupMs` of the previous change, which
+   * was also `'code'`, joins its undo step. `'api'` and `'visual'` changes, and the first change
+   * after an undo or redo, always start a new step.
    */
   setText(text: string, origin: Exclude<ChangeOrigin, 'history'>): void {
     if (text === this.#text) return;
@@ -101,8 +103,10 @@ export class DocumentStore {
   }
 
   /**
-   * Applies a structural edit to the current parse (never `lastGood`) with origin `'visual'`.
-   * Returns the refusal, changing nothing and emitting nothing, when the edit cannot be made.
+   * Applies a structural edit to the current parse (never `lastGood`); the change is tagged
+   * `'visual'` and is its own undo step. Returns the refusal, changing nothing and emitting
+   * nothing, when the edit cannot be made. Returns the ok result without emitting or recording
+   * history when the edit leaves the text unchanged (for example, setting a value it already has).
    */
   edit(op: EditOp): EditResult {
     const r = applyEdit(this.#parsed, op);

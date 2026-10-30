@@ -62,9 +62,21 @@ function tierOf(g: GuideField | undefined): Tier {
 /**
  * Lists what may be added at `path`: missing properties of an object, or one new item for a sequence.
  *
- * Properties are ordered required-and-missing first, then by tier (recommended, common, advanced),
- * then guide `order` ascending, then name. Present keys and guide-`hidden` keys are excluded.
- * Properties without a guide entry count as advanced.
+ * - A sequence (a schema with `items`) gives a single entry with `key: null`, label `'Item'`,
+ *   tier `'common'`, the item schema's first description sentence and a value template for one
+ *   item.
+ * - An object gives one entry per declared property that is not present yet. Entries are ordered
+ *   required-and-missing first, then by tier (recommended, common, advanced), then guide `order`
+ *   ascending, then name. Guide-`hidden` keys are excluded; properties without a guide entry count
+ *   as advanced.
+ * - An object whose keys are free-form (only `additionalProperties` / `patternProperties`, such as
+ *   labels or a ConfigMap's `data`) gives `[]`: there is no key to suggest, so callers offer their
+ *   own key input.
+ *
+ * `valueTemplate` is the guide `example` when there is one; otherwise an empty value for the
+ * schema's type: `{}` for objects, `[]` for arrays, `''` for strings (also for unions with a string
+ * branch, such as int-or-string), `0` for numbers, `false` for booleans, and `null` when the type
+ * is unknown.
  * @param bundle - Schema bundle for the document.
  * @param guide - Guide overlay for labels, tiers and examples.
  * @param path - Path of the node to add to.

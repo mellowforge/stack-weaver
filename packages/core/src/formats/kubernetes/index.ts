@@ -17,6 +17,7 @@ function str(doc: ParsedText['docs'][number] | undefined, key: string): string |
 export const kubernetesFormat: FormatDefinition = {
   id: 'kubernetes',
   label: 'Kubernetes',
+  // The Kubernetes release pinned in schema-sources.lock.json ("kubernetes"), without the `v`.
   version: '1.37.2',
   rootModel: 'documents',
   /** True when the text parses, has a non-empty document, and every non-empty document is a mapping with string `apiVersion` and `kind`. */

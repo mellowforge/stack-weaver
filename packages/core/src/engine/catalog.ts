@@ -2,7 +2,9 @@ import type { FormatDefinition, KindEntry } from '../formats/types.js';
 
 /** One intent group of the "Add resource" picker. */
 export interface CatalogGroup {
+  /** The guide group's id, e.g. `'run'`. */
   id: string;
+  /** The guide group's display label, e.g. `'Run your app'`. */
   label: string;
   /** Curated kinds in the group, with the guide's plain-language label and description. */
   kinds: (KindEntry & { label: string; description: string })[];

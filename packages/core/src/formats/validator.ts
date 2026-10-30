@@ -12,8 +12,10 @@ export interface ValidateModule {
 
 /**
  * Wraps a generated schema and precompiled ajv validator pair into a {@link SchemaBundle}.
- * The validator returns plain {@link SchemaError} copies, since the standalone function reuses its
- * `errors` array on every call.
+ * The validator returns a fresh array of plain {@link SchemaError} copies: the standalone function
+ * reports through its shared `errors` property, which the next call overwrites, and the copies
+ * keep only `instancePath`, `keyword`, `params` and `message` (ajv's other fields, such as
+ * `schemaPath`, are stripped).
  * @param id - Bundle identifier.
  * @param s - The generated schema module.
  * @param v - The generated validator module.

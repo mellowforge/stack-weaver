@@ -14,7 +14,7 @@ const TOP_LEVEL_KEYS = ['services', 'networks', 'volumes', 'configs', 'secrets',
 export const composeFormat: FormatDefinition = {
   id: 'compose',
   label: 'Docker Compose',
-  // First 7 characters of the pinned compose-spec commit 3a4a6995e4a971f6173dff9130cb3e38e6738651.
+  // First 7 characters of the compose-spec commit pinned in schema-sources.lock.json ("compose").
   version: '3a4a699',
   rootModel: 'mapping',
   /**

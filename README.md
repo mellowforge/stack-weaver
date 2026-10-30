@@ -1,6 +1,6 @@
 # stack-weaver
 
-A schema-driven visual and code editor for Kubernetes and docker-compose YAML: a framework-agnostic core with React and Angular wrappers.
+A schema-driven visual and code editor for Kubernetes and docker-compose YAML: a framework-agnostic core, with React and Angular wrappers planned.
 
 | Package | Status |
 | --- | --- |

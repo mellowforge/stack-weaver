@@ -4,7 +4,10 @@
 /** Name of the apimachinery Quantity definition, which rule 3 replaces wholesale. */
 export const QUANTITY_DEF = 'io.k8s.apimachinery.pkg.api.resource.Quantity';
 
-/** Quantity grammar (signed decimal number with an optional SI, binary-SI or exponent suffix). */
+/**
+ * An approximation of the Quantity grammar: a signed decimal number with an optional SI, binary-SI
+ * or exponent suffix. It is not a copy of the API server's parser, so edge cases may differ.
+ */
 export const QUANTITY_PATTERN = '^[+-]?([0-9]+(\\.[0-9]*)?|\\.[0-9]+)([eE][+-]?[0-9]+|[numkMGTPE]i?|[KMGTPE]i)?$';
 
 /** Name of the apimachinery Time definition, which rule 4b makes nullable. */

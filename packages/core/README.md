@@ -10,7 +10,30 @@ pnpm add @stack-weaver/core
 
 The package is ESM-only (`"type": "module"`): use `import`, not `require`.
 
+## Formats are opt-in
+
+The main entry has no schemas. Import a format from its subpath and register it, so only the
+formats you use are bundled (each Kubernetes kind's schema is a lazy chunk on top of that):
+
+```ts
+import { detectFormat, parseText, registerFormat, validateText } from '@stack-weaver/core';
+import { kubernetesFormat } from '@stack-weaver/core/formats/kubernetes';
+import { composeFormat } from '@stack-weaver/core/formats/compose';
+
+registerFormat(kubernetesFormat);
+registerFormat(composeFormat);
+
+const parsed = parseText(text);
+const format = detectFormat(parsed);
+const problems = format ? await validateText(parsed, format) : [];
+```
+
 ## Development
+
+The first `test`, `build` or `typecheck` downloads the pinned upstream schemas (cached in
+`.cache/` afterwards), so it needs network access to `raw.githubusercontent.com`. Re-pinning with
+`--update-lock` also lists files through the GitHub API: with the `gh` CLI when it is installed,
+otherwise with `fetch`, authenticated by `GITHUB_TOKEN` when set.
 
 ### Updating the pinned schemas
 

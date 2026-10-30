@@ -7,9 +7,12 @@ export interface ResolvedSchema {
   schema: JsonSchema;
   /** The outermost `$ref`'d definition reached at this path, if any. */
   defName?: string;
-  /** Required property names, merged across `allOf` members. */
+  /** Required property names, merged from the `$ref` target, every `allOf` member, the chosen `anyOf`/`oneOf` branch and the node itself. */
   required: readonly string[];
-  /** The description, preferring the outermost one. */
+  /**
+   * The description. The node's own wins; otherwise the chosen branch's, then the last `allOf`
+   * member's that has one, then the `$ref` target's.
+   */
   description?: string;
   /** For each property of `schema.properties`, the definition that declared it (when known). */
   declaredIn?: Readonly<Record<string, string>>;
@@ -166,14 +169,24 @@ function dataAt(data: unknown, seg: string | number): unknown {
 /**
  * Resolves the schema that applies at `path` inside the document `data`.
  *
- * Follows `$ref` into `$defs`, merges `allOf` members, picks an `anyOf`/`oneOf` branch by the data's
- * type (else the first object branch) unless all branches are scalars, takes `items` for numeric
- * segments, and `properties`, then matching `patternProperties`, then `additionalProperties` for keys.
+ * Follows `$ref` into `$defs`, merges `allOf` members, takes `items` for numeric segments, and
+ * `properties`, then matching `patternProperties`, then `additionalProperties` for keys.
+ *
+ * `anyOf`/`oneOf` are kept as they are when every branch is a scalar type. Otherwise one branch is
+ * merged in: when the data at that point is null or missing (a bare `key:` being typed), the first
+ * structural branch (object or array); else the first branch whose `type` matches the data; else
+ * the first object branch; else the first branch.
+ *
+ * `required` is merged from the `$ref` target, every `allOf` member and the chosen branch. When
+ * several `allOf` members carry a description, the last one wins (the node's own beats them all).
  * Pure: no caching.
  * @param bundle - Schema bundle whose root carries `$defs`.
  * @param path - Path from the document root.
  * @param data - The document as plain data, used to choose union branches.
- * @returns The resolved schema, or `undefined` when nothing resolves.
+ * @returns The resolved schema, or `undefined` when nothing resolves: a segment with no matching
+ *   child schema, a `$ref` that is not local to `#/$defs/` (or names a missing definition), or
+ *   nesting deeper than 64 levels (`MAX_DEPTH`, a guard against `$ref` cycles). An `allOf` member
+ *   or branch that does not resolve is skipped.
  */
 export function resolveAt(bundle: SchemaBundle, path: YamlPath, data: unknown): ResolvedSchema | undefined {
   const root = bundle.schema;

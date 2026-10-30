@@ -5,10 +5,22 @@ export type Severity = 'error' | 'warning' | 'info';
 
 /** One problem in a document, with the exact source range it applies to. */
 export interface Problem {
+  /**
+   * `error` for invalid content, `warning` for suspicious content (such as an unresolved tag),
+   * `info` for notes (such as an unknown kind).
+   */
   severity: Severity;
-  /** Where the problem comes from: the YAML parser, a JSON Schema, or a custom rule. */
+  /**
+   * Where the problem comes from: the YAML parser (`yaml.*` codes), the schema and document-shape
+   * checks (`schema.*`, `kind.*` and `format.*` codes), or a custom rule. `'rule'` is reserved for
+   * the rule engine of a later plan; nothing reports it yet.
+   */
   source: 'yaml' | 'schema' | 'rule';
-  /** Stable machine-readable code, e.g. `yaml.syntax`, `schema.required`, `kind.unknown`. */
+  /**
+   * Stable machine-readable code: `yaml.syntax`, `yaml.warning`, `yaml.data`, `schema.<ajv keyword>`
+   * (e.g. `schema.required`), `schema.unavailable`, `kind.unknown`, `kind.apiVersion` or
+   * `format.extraDocument`.
+   */
   code: string;
   /** Human-readable message. */
   message: string;

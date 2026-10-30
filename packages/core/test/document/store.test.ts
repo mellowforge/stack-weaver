@@ -32,6 +32,15 @@ describe('DocumentStore', () => {
     expect(events[0]!.parsed).toBe(store.parsed);
   });
 
+  it('edit that leaves the text unchanged returns ok without emitting or recording history', () => {
+    const { store, events } = setup();
+    const r = store.edit(setA(1));
+    expect(r.ok).toBe(true);
+    expect(store.text).toBe('a: 1\nb: 2\n');
+    expect(events).toHaveLength(0);
+    expect(store.canUndo).toBe(false);
+  });
+
   it('edit refuses while parse is broken', () => {
     const { store, events } = setup();
     store.setText('a: [1\n', 'code');

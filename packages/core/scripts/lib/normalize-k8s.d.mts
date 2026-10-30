@@ -9,6 +9,7 @@ export interface Gvk {
 
 export declare const QUANTITY_DEF: string;
 export declare const QUANTITY_PATTERN: string;
+export declare const TIME_DEF: string;
 export declare function kindGvk(name: string, def: Schema): Gvk | undefined;
 export declare function apiVersionOf(gvk: Pick<Gvk, 'group' | 'version'>): string;
 export declare function kindId(gvk: Gvk): string;

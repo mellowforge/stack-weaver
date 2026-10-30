@@ -5,7 +5,14 @@ import Ajv2020 from 'ajv/dist/2020.js';
 import standaloneCode from 'ajv/dist/standalone/index.js';
 import addFormats from 'ajv-formats';
 
-/** Formats Kubernetes uses that ajv-formats does not define; accepted without checks. */
+/**
+ * OpenAPI type-modifier formats that Kubernetes uses, deliberately replaced with no-ops (the plan's
+ * Global Constraints ask for this). ajv-formats does define all four: `int64` (any integer) and
+ * `double` (always valid) add nothing to the schema's own `type` check; `int32` adds a range check
+ * and `byte` a base64-shape check, which are left to the API server. A format registered as `true`
+ * compiles to no code at all (ajv's format keyword returns early), so the per-kind validator
+ * chunks carry no check for these hundreds of fields.
+ */
 export const NOOP_FORMATS = ['int32', 'int64', 'double', 'byte'];
 
 /** Creates the ajv instance used for one compiled module. Warnings (e.g. unknown formats) go to `warnings`. */
