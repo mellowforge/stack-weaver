@@ -32,7 +32,7 @@ function themeExtension(theme: 'light' | 'dark'): Extension {
   return EditorView.theme(
     {
       '&': { color: 'var(--sw-fg)', backgroundColor: 'var(--sw-bg)', height: '100%' },
-      '.cm-content': { caretColor: 'var(--sw-fg)', fontFamily: 'var(--sw-font-mono, monospace)' },
+      '.cm-content': { caretColor: 'var(--sw-fg)', fontFamily: 'var(--sw-mono, monospace)' },
       '.cm-cursor, .cm-dropCursor': { borderLeftColor: 'var(--sw-fg)' },
       '&.cm-focused': { outline: '2px solid var(--sw-focus, currentColor)', outlineOffset: '-2px' },
       '.cm-gutters': { color: 'var(--sw-muted)', backgroundColor: 'var(--sw-bg)', border: 'none' },

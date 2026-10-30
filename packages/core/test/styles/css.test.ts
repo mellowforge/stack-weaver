@@ -18,6 +18,15 @@ describe('stack-weaver.css', () => {
     expect(layout).toMatch(/min-height:\s*320px;/);
   });
 
+  it('defines every token the CodeMirror theme reads (bar the optional selection and active-line ones)', () => {
+    // Found in the browser: the theme read --sw-font-mono, which does not exist, so --sw-mono was ignored.
+    const theme = readFileSync(new URL('../../src/editors/codemirror/index.ts', import.meta.url), 'utf8');
+    const used = new Set([...theme.matchAll(/var\((--sw-[a-z-]+)/g)].map((m) => m[1]!));
+    const optional = new Set(['--sw-selection', '--sw-active-line']);
+    const missing = [...used].filter((t) => !optional.has(t) && !css.includes(`${t}:`));
+    expect(missing).toEqual([]);
+  });
+
   it('defines no top-level rule selector twice', () => {
     const body = css.replace(/\/\*[\s\S]*?\*\//g, '');
     const selectors: string[] = [];
