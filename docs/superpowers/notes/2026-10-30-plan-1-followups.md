@@ -93,6 +93,7 @@ Each was found in a per-task review and judged not worth blocking the task. Grou
 **Widgets**
 - Clearing a number or quantity box commits nothing and leaves an empty box. "Add key" with an empty name gives no feedback.
 - `createWidgetContext` defaults `isReadOnly` to the static `init.readOnly` (only `field-row` passes the live getter).
+- The host-widget hooks `focus()` (reached from `focusField`'s `.then`, where a throw becomes an unhandled rejection) and `destroy()` in `dropBody()` are not guarded, unlike the factory and `update`. The editor-level pane guard has no test of its own (the field row catches a widget throw first).
 - Composite `aria-label`s are baked at build; widgets use the global `document`; the scalar check and the `{label}` helper are duplicated; `current()` duplicates the lookup in the section code.
 - References: `suggest*` ignore `metadata.namespace` (undocumented); `ref-key` hard-codes the sibling `name` (a guide param later); the datalist filters by the current value; `pickWidget` runs twice per field (row and slot).
 
