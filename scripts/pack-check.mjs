@@ -15,10 +15,12 @@ import { join } from 'node:path';
 const PACKAGES = [
   {
     dir: 'packages/core',
-    attw: ['--profile', 'esm-only'],
+    // The stylesheet export has no types, so attw skips it.
+    attw: ['--profile', 'esm-only', '--exclude-entrypoints', './stack-weaver.css'],
     required: [
       'dist/index.js',
       'dist/index.d.ts',
+      'dist/stack-weaver.css',
       'dist/editors/codemirror/index.js',
       'dist/formats/kubernetes/index.js',
       'dist/formats/compose/index.js',

@@ -1,0 +1,140 @@
+import { describeNode } from '../document/describe.js';
+import { getNode } from '../document/paths.js';
+import type { DocumentStore, StoreEvent } from '../document/store.js';
+import type { NodeRef, ParsedText, TextRange } from '../document/types.js';
+import type { CodeEditorAdapter } from '../editors/adapter.js';
+import { kindKey } from '../formats/guide.js';
+import type { FormatDefinition, Guide, SchemaBundle } from '../formats/types.js';
+import type { SchemaMessages } from '../validation/messages.js';
+import type { Problem } from '../validation/problems.js';
+import type { UiMessages } from './messages.js';
+
+/**
+ * What every pane and feature of the editor shares.
+ * @internal
+ */
+export interface EditorContext {
+  /** The one document store. */
+  readonly store: DocumentStore;
+  /** Resolved UI and schema messages. */
+  readonly messages: { readonly ui: UiMessages; readonly schema: Partial<SchemaMessages> };
+  /** The resolved format; `undefined` while none is resolved. */
+  format(): FormatDefinition | undefined;
+  /** The format's guide with the host override merged in; empty without a format. */
+  guide(): Guide;
+  /** Whether the user is blocked from editing. */
+  readOnly(): boolean;
+  /** The current problems. */
+  problems(): readonly Problem[];
+  /** The loaded schema bundle for document `doc`, if already loaded. */
+  bundleFor(doc: number): SchemaBundle | undefined;
+  /** Loads (once) the schema bundle for document `doc`; `undefined` for an unknown kind or after destroy. */
+  loadBundle(doc: number): Promise<SchemaBundle | undefined>;
+  /** Scrolls the code editor to `r` and selects it. */
+  revealRange(r: TextRange): void;
+  /** Reveals `ref` in the panes. */
+  select(ref: NodeRef): void;
+  /** Subscribes to problem changes; returns an unsubscribe function. */
+  onProblems(fn: (problems: readonly Problem[]) => void): () => void;
+}
+
+/**
+ * One pane of the editor body (code, visual).
+ * @internal
+ */
+export interface Pane {
+  /** The pane's root element. */
+  readonly el: HTMLElement;
+  /** Called after every store change; `null` asks for a full re-sync (for example after the format changes). */
+  update(e: StoreEvent | null): void;
+  /** Reveals `ref`; false when the pane cannot. */
+  reveal(ref: NodeRef): boolean;
+  /** Blocks or allows user edits. */
+  setReadOnly(readOnly: boolean): void;
+  /** Releases the pane. */
+  destroy(): void;
+}
+
+/**
+ * Lazy loaders, replaceable in tests.
+ * @internal
+ */
+export const loaders = {
+  /** Loads the CodeMirror adapter on demand. */
+  async loadDefaultAdapter(): Promise<CodeEditorAdapter> {
+    const m = await import('../editors/codemirror/index.js');
+    return m.codemirrorAdapter();
+  },
+};
+
+/** The source range to reveal for `ref`: its key when it has one, else its value. */
+export function rangeForRef(parsed: ParsedText, ref: NodeRef): TextRange | undefined {
+  const v = describeNode(parsed, ref);
+  return v ? (v.keyRange ?? v.range) : undefined;
+}
+
+/** The cache key of document `doc`'s schema: the kind key for `documents` formats, the format id for `mapping` ones. */
+function bundleKey(format: FormatDefinition, parsed: ParsedText, doc: number): string | undefined {
+  if (format.rootModel === 'mapping') return format.id;
+  const str = (field: string): string | undefined => {
+    try {
+      const n = getNode(parsed, { doc, path: [field] }) as { value?: unknown } | undefined;
+      return typeof n?.value === 'string' ? n.value : undefined;
+    } catch {
+      return undefined;
+    }
+  };
+  const apiVersion = str('apiVersion');
+  const kind = str('kind');
+  return apiVersion !== undefined && kind !== undefined ? kindKey(apiVersion, kind) : undefined;
+}
+
+/**
+ * The schema bundle cache behind `bundleFor` and `loadBundle`. Entries are keyed by kind (or by
+ * format id); the cache is cleared when the format changes, and nothing is stored after `isDestroyed`.
+ * @internal
+ */
+export function createBundleCache(deps: {
+  store: DocumentStore;
+  format: () => FormatDefinition | undefined;
+  isDestroyed: () => boolean;
+}): Pick<EditorContext, 'bundleFor' | 'loadBundle'> & { clear(): void } {
+  const loaded = new Map<string, SchemaBundle | undefined>();
+  const pending = new Map<string, Promise<SchemaBundle | undefined>>();
+  const parsedNow = (): ParsedText => (deps.store.parsed.ok ? deps.store.parsed : (deps.store.lastGood ?? deps.store.parsed));
+  const keyOf = (doc: number): string | undefined => {
+    const f = deps.format();
+    return f ? bundleKey(f, parsedNow(), doc) : undefined;
+  };
+  return {
+    bundleFor(doc) {
+      const key = keyOf(doc);
+      return key === undefined ? undefined : loaded.get(key);
+    },
+    async loadBundle(doc) {
+      const format = deps.format();
+      const key = keyOf(doc);
+      if (!format || key === undefined || deps.isDestroyed()) return undefined;
+      if (loaded.has(key)) return loaded.get(key);
+      let p = pending.get(key);
+      if (!p) {
+        p = format.loadSchema(parsedNow(), doc).then(
+          (bundle) => {
+            // A load that finishes after destroy or a format change must not be cached.
+            if (!deps.isDestroyed() && deps.format() === format) loaded.set(key, bundle);
+            return bundle;
+          },
+          () => undefined,
+        );
+        pending.set(key, p);
+        void p.finally(() => pending.delete(key));
+      }
+      const bundle = await p;
+      return deps.isDestroyed() ? undefined : bundle;
+    },
+    clear() {
+      loaded.clear();
+      pending.clear();
+    },
+  };
+}

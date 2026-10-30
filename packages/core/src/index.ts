@@ -62,3 +62,9 @@ export type {
   CodeEditorInstance,
   CodeEditorAdapter,
 } from './editors/adapter.js';
+
+// Editor
+export { createManifestEditor } from './editor/editor.js';
+export type { ManifestEditor, ManifestEditorOptions, EditorMode } from './editor/editor.js';
+export { defaultUiMessages } from './editor/messages.js';
+export type { UiMessages } from './editor/messages.js';

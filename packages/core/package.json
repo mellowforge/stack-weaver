@@ -41,9 +41,12 @@
     "./editors/codemirror": {
       "types": "./dist/editors/codemirror/index.d.ts",
       "import": "./dist/editors/codemirror/index.js"
-    }
+    },
+    "./stack-weaver.css": "./dist/stack-weaver.css"
   },
-  "sideEffects": false,
+  "sideEffects": [
+    "*.css"
+  ],
   "files": [
     "dist",
     "README.md",
@@ -52,7 +55,7 @@
   ],
   "scripts": {
     "prebuild": "node scripts/gen-version.mjs && node scripts/gen-kubernetes.mjs && node scripts/gen-compose.mjs",
-    "build": "node scripts/copy-generated.mjs && tsc -p tsconfig.build.json",
+    "build": "node scripts/copy-generated.mjs && tsc -p tsconfig.build.json && node scripts/copy-css.mjs",
     "pretest": "node scripts/gen-version.mjs && node scripts/gen-kubernetes.mjs && node scripts/gen-compose.mjs",
     "test": "vitest run",
     "pretypecheck": "node scripts/gen-version.mjs && node scripts/gen-kubernetes.mjs && node scripts/gen-compose.mjs",
