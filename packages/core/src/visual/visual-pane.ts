@@ -187,7 +187,8 @@ export function createVisualPane(ctx: EditorContext, o: { el: HTMLElement; slots
   o.el.addEventListener('pointerdown', flushPending, true);
   o.el.addEventListener('focusin', flushPending, true);
   const offProblems = ctx.onProblems(() => {
-    if (!o.el.hidden) section?.handle.update();
+    if (o.el.hidden) stale = true; // the rows' problems are re-read when the pane is shown again
+    else section?.handle.update();
   });
 
   render();

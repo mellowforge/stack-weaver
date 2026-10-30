@@ -17,6 +17,9 @@ import { createProblemsPanel } from './problems-panel.js';
 import { createRecipeCards } from './recipes.js';
 import { createShell } from './shell.js';
 import { createVisualPane } from '../visual/visual-pane.js';
+import { defaultWidgets } from '../visual/widgets/registry.js';
+import { createFieldSlots } from '../visual/widgets/field-row.js';
+import type { WidgetRegistry } from '../visual/widgets/types.js';
 
 /** Which panes are shown: the form editor, both side by side, or the YAML code. */
 export type EditorMode = 'visual' | 'split' | 'code';
@@ -41,6 +44,8 @@ export interface ManifestEditorOptions {
   recipes?: readonly Recipe[];
   /** Guide overrides, keyed by format id. */
   guide?: Readonly<Record<string, GuideOverride>>;
+  /** Input widgets by name, merged over the built-in ones; a guide's `widget` names one of these. */
+  widgets?: WidgetRegistry;
   /** UI and schema message overrides. */
   messages?: { ui?: Partial<UiMessages>; schema?: Partial<SchemaMessages> };
   /** Called with the full text after every change, including undo and redo (`origin: 'history'`). */
@@ -153,7 +158,7 @@ export function createEditorWithContext(
     onRedo: () => redo(),
   });
 
-  const visualPane = createVisualPane(ctx, { el: shell.visualEl });
+  const visualPane = createVisualPane(ctx, { el: shell.visualEl, slots: createFieldSlots(ctx, { ...defaultWidgets, ...options.widgets }) });
   const adapter: Promise<CodeEditorAdapter> = options.codeEditor ? Promise.resolve(options.codeEditor) : loaders.loadDefaultAdapter();
   const codePane = createCodePane(ctx, { el: shell.codeEl, adapter, theme: themeNow, onUndo: () => undo(), onRedo: () => redo() });
   const panes: Pane[] = [visualPane, codePane];

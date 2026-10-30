@@ -64,6 +64,10 @@ export type {
   CodeEditorAdapter,
 } from './editors/adapter.js';
 
+// Widgets
+export type { WidgetContext, WidgetInstance, WidgetFactory, WidgetRegistry } from './visual/widgets/types.js';
+export { pickWidget, defaultWidgets } from './visual/widgets/registry.js';
+
 // Editor
 export { createManifestEditor } from './editor/editor.js';
 export type { ManifestEditor, ManifestEditorOptions, EditorMode } from './editor/editor.js';

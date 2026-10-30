@@ -1,6 +1,8 @@
 // @vitest-environment happy-dom
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { createEditorWithContext } from '../../src/editor/editor.js';
+import { kubernetesFormat } from '../../src/formats/kubernetes/index.js';
+import type { FormatDefinition } from '../../src/formats/types.js';
 import type { ManifestEditorOptions } from '../../src/editor/editor.js';
 import { mountSection } from '../../src/visual/section.js';
 import type { SectionSlots } from '../../src/visual/section.js';
@@ -32,11 +34,14 @@ const items = () => [...el.querySelectorAll<HTMLElement>('[role=treeitem]')];
 const item = (label: string) => items().find((i) => i.querySelector('.sw-outline-label')!.textContent === label)!;
 const click = (label: string) => item(label).querySelector<HTMLElement>('.sw-outline-label')!.click();
 const rows = () => [...el.querySelectorAll<HTMLElement>('.sw-section .sw-row')];
-const rowText = (key: string) => el.querySelector(`.sw-section .sw-row[data-sw-key="${key}"] .sw-row-value`)?.textContent;
+const rowText = (key: string) => {
+  const r = el.querySelector(`.sw-section .sw-row[data-sw-key="${key}"]`);
+  return r?.querySelector('.sw-row-value')?.textContent ?? r?.querySelector<HTMLInputElement>('input')?.value;
+};
 const title = () => el.querySelector('.sw-section-title')?.textContent;
 
 describe('visual pane', () => {
-  it('section shows heading, path breadcrumb and scalar rows as read text until Task 8 widgets exist', async () => {
+  it('section shows heading, path breadcrumb and scalar rows as inputs', async () => {
     await mount({ value: DEPLOY });
     expect(item('Deployment web')).toBeTruthy();
     click('metadata');
@@ -47,7 +52,7 @@ describe('visual pane', () => {
     expect(rows().map((r) => r.dataset['swKey'])).toEqual(['name', 'namespace']);
     expect(rowText('name')).toBe('web');
     expect(rowText('namespace')).toBe('prod');
-    expect(el.querySelector('.sw-section input, .sw-section select, .sw-section textarea')).toBeNull();
+    expect(el.querySelectorAll('.sw-section input.sw-input').length).toBe(2);
   });
 
   it('visual re-renders 100 ms after a code change', async () => {
@@ -121,9 +126,9 @@ describe('visual pane', () => {
     expect(banner.textContent).toContain('last valid version');
     expect(rowText('replicas')).toBe('2'); // lastGood
     expect(el.querySelector('.sw-pane-visual')!.hasAttribute('data-sw-readonly')).toBe(true);
-    // The visual pane has no editing controls yet; Task 8 widgets get readOnly=true (pinned in the mountSection test below).
+    // Every editing control is disabled; the cards that only navigate stay usable.
     const enabled = [...el.querySelectorAll<HTMLElement>('.sw-section input, .sw-section select, .sw-section textarea, .sw-section button')].filter(
-      (c) => !(c as HTMLButtonElement).disabled,
+      (c) => !(c as HTMLButtonElement).disabled && !c.classList.contains('sw-row-card'),
     );
     expect(enabled).toEqual([]);
     expect(banner.querySelector('button')!.disabled).toBe(false); // the way out stays usable
@@ -194,9 +199,29 @@ describe('visual pane', () => {
 
   it('row labels refresh once the schema has loaded', async () => {
     const guide = { kubernetes: { fields: { 'io.k8s.api.apps.v1.DeploymentSpec#replicas': { label: 'How many copies' } } } };
-    await mount({ value: DEPLOY, guide });
+    let release!: () => void;
+    const gate = new Promise<void>((r) => (release = r));
+    const slow: FormatDefinition = { ...kubernetesFormat, loadSchema: async (p, d) => (await gate, kubernetesFormat.loadSchema(p, d)) };
+    createEditorWithContext(el, { codeEditor: createFakeAdapter(), format: 'kubernetes', mode: 'split', value: DEPLOY, guide, formats: [slow] });
+    await vi.waitFor(() => expect(items().length).toBeGreaterThan(0)); // ready itself waits for the schema
+    click('spec'); // the row exists before the schema does
+    const label = () => el.querySelector('.sw-section .sw-row[data-sw-key="replicas"] .sw-row-label')?.textContent;
+    expect(label()).toBe('replicas');
+    release();
+    await vi.waitFor(() => expect(label()).toBe('How many copies'));
+  });
+
+  it('problems that arrive while the pane is hidden show when it is shown again', async () => {
+    const { editor, ctx } = await mount({ value: DEPLOY, mode: 'visual' });
     click('spec');
-    expect(el.querySelector('.sw-section .sw-row[data-sw-key="replicas"] .sw-row-label')?.textContent).toBe('How many copies');
+    vi.useFakeTimers();
+    ctx.store.setText(DEPLOY.replace('replicas: 2', 'replicas: x'), 'api'); // rendered now; validation is 150 ms away
+    editor.setMode('code'); // hides the visual pane before the problems arrive
+    await vi.advanceTimersByTimeAsync(400);
+    expect(editor.getProblems().some((p) => p.path.join('/') === 'spec/replicas')).toBe(true);
+    editor.setMode('visual');
+    expect(el.querySelector('.sw-section .sw-row[data-sw-key="replicas"] .sw-row-problems')?.textContent).not.toBe('');
+    expect(el.querySelector('.sw-section .sw-row[data-sw-key="replicas"] .sw-row-problems')).not.toBeNull();
   });
 
   it('a pending render then pointerdown then click on an outline item still selects it', async () => {
