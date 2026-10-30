@@ -3,6 +3,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { loaders } from '../../src/editor/context.js';
 import { createEditorWithContext, createManifestEditor } from '../../src/editor/editor.js';
 import type { ManifestEditorOptions } from '../../src/editor/editor.js';
+import type { CodeEditorAdapter } from '../../src/editors/adapter.js';
 import type { FormatDefinition, SchemaBundle } from '../../src/formats/types.js';
 import { createFakeAdapter } from '../helpers/fake-adapter.js';
 
@@ -27,6 +28,9 @@ async function mount(options: ManifestEditorOptions = {}) {
   return { ...made, adapter, fake: adapter.last! };
 }
 
+const isMac = /Mac|iP(hone|ad|od)/.test(navigator.platform);
+/** The platform's single "Mod" modifier: Meta on Apple platforms, Ctrl elsewhere. */
+const mod = isMac ? { metaKey: true } : { ctrlKey: true };
 const key = (target: Element, init: KeyboardEventInit): void => {
   target.dispatchEvent(new KeyboardEvent('keydown', { bubbles: true, cancelable: true, ...init }));
 };
@@ -105,17 +109,17 @@ describe('undo, read-only and theme', () => {
     const undo = vi.spyOn(ctx.store, 'undo');
     const input = document.createElement('input');
     el.querySelector('.sw-pane-visual')!.append(input);
-    const e = new KeyboardEvent('keydown', { key: 'z', metaKey: true, ctrlKey: true, bubbles: true, cancelable: true });
+    const e = new KeyboardEvent('keydown', { key: 'z', ...mod, bubbles: true, cancelable: true });
     input.dispatchEvent(e);
     expect(undo).toHaveBeenCalledTimes(1);
     expect(e.defaultPrevented).toBe(true);
     expect(editor.getValue()).toBe('a: 1\n');
     const redo = vi.spyOn(ctx.store, 'redo');
-    key(input, { key: 'z', shiftKey: true, metaKey: true, ctrlKey: true });
+    key(input, { key: 'z', shiftKey: true, ...mod });
     expect(redo).toHaveBeenCalledTimes(1);
     expect(editor.getValue()).toBe('a: 2\n');
-    key(input, { key: 'z', metaKey: true, ctrlKey: true });
-    key(input, { key: 'y', metaKey: true, ctrlKey: true });
+    key(input, { key: 'z', ...mod });
+    key(input, { key: 'y', ...mod });
     expect(redo).toHaveBeenCalledTimes(2);
   });
 
@@ -123,7 +127,7 @@ describe('undo, read-only and theme', () => {
     const { editor, ctx } = await mount({ value: 'a: 1\n' });
     editor.setValue('a: 2\n');
     const undo = vi.spyOn(ctx.store, 'undo');
-    key(el.querySelector('textarea')!, { key: 'z', metaKey: true, ctrlKey: true });
+    key(el.querySelector('textarea')!, { key: 'z', ...mod });
     expect(undo).toHaveBeenCalledTimes(1);
     expect(editor.getValue()).toBe('a: 1\n');
   });
@@ -203,6 +207,20 @@ describe('lifecycle', () => {
     expect(load).not.toHaveBeenCalled();
   });
 
+  it('destroy while the default adapter is still loading: nothing is mounted', async () => {
+    let resolve!: (a: CodeEditorAdapter) => void;
+    const adapter = createFakeAdapter();
+    const mountAdapter = vi.spyOn(adapter, 'mount');
+    vi.spyOn(loaders, 'loadDefaultAdapter').mockReturnValue(new Promise<CodeEditorAdapter>((r) => (resolve = r)));
+    const editor = createManifestEditor(el, { value: 'a: 1\n' });
+    editor.destroy();
+    resolve(adapter);
+    await editor.ready;
+    await new Promise((r) => setTimeout(r, 0));
+    expect(mountAdapter).not.toHaveBeenCalled();
+    expect(el.childNodes.length).toBe(0);
+  });
+
   it('no callbacks after destroy', async () => {
     let resolve!: (b: SchemaBundle | undefined) => void;
     const loadSchema = vi.fn(() => new Promise<SchemaBundle | undefined>((r) => (resolve = r)));
@@ -229,13 +247,16 @@ describe('lifecycle', () => {
     });
     await vi.waitFor(() => expect(loadSchema).toHaveBeenCalledTimes(1)); // the first validation is pending
     const pending = ctx.loadBundle(0);
+    const root = el.querySelector<HTMLElement>('.sw-editor')!; // detached by destroy, but still referenced here
     editor.destroy();
     expect(el.childNodes.length).toBe(0);
+    const snapshot = root.outerHTML;
     // Were the result not dropped, this schema would publish one error.
     resolve({ id: 'custom', schema: {}, validate: () => [{ instancePath: '/a', keyword: 'type', params: { type: 'string' } }] });
     await expect(pending).resolves.toBeUndefined();
     await expect(editor.ready).resolves.toBeUndefined();
     await new Promise((r) => setTimeout(r, 0));
+    expect(root.outerHTML).toBe(snapshot); // nothing was written into the released DOM
     expect(editor.getProblems()).toEqual([]);
     expect(ctx.bundleFor(0)).toBeUndefined();
     expect(onProblemsChange).not.toHaveBeenCalled();

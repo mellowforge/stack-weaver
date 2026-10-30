@@ -131,6 +131,13 @@ describe('visual pane', () => {
       (c) => !(c as HTMLButtonElement).disabled && !c.classList.contains('sw-row-card'),
     );
     expect(enabled).toEqual([]);
+    // Even an event that reaches a disabled field writes nothing against lastGood.
+    const replicas = el.querySelector<HTMLInputElement>('.sw-section .sw-row[data-sw-key="replicas"] input')!;
+    expect(replicas.disabled).toBe(true);
+    replicas.value = '9';
+    replicas.dispatchEvent(new Event('input', { bubbles: true }));
+    replicas.dispatchEvent(new Event('change', { bubbles: true }));
+    expect(ctx.store.text).toBe(DEPLOY + 'bad: [\n');
     expect(banner.querySelector('button')!.disabled).toBe(false); // the way out stays usable
     banner.querySelector<HTMLElement>('button')!.click();
     const first = ctx.store.parsed.errors[0]!;
@@ -278,5 +285,61 @@ describe('mountSection read-only contract', () => {
     expect(ctx.store.parsed.ok).toBe(false);
     expect(calls.at(-1)).toEqual([2, true, []]);
     section.destroy();
+  });
+});
+
+describe('visual pane destroy (B3)', () => {
+  it('a code change, then destroy, then the debounce: no throw, nothing rendered', async () => {
+    const { editor, fake } = await mount({ value: DEPLOY });
+    vi.useFakeTimers();
+    fake.type(`${DEPLOY}extra: 1\n`); // schedules the 100 ms visual re-render
+    editor.destroy();
+    expect(() => vi.advanceTimersByTime(500)).not.toThrow();
+    expect(el.childNodes.length).toBe(0);
+  });
+
+  it('destroy while a schema load is pending: its result writes nothing', async () => {
+    let release!: () => void;
+    const gate = new Promise<void>((r) => (release = r));
+    const slow: FormatDefinition = { ...kubernetesFormat, loadSchema: async (p, d) => (await gate, kubernetesFormat.loadSchema(p, d)) };
+    const { editor } = createEditorWithContext(el, { codeEditor: createFakeAdapter(), format: 'kubernetes', value: DEPLOY, formats: [slow] });
+    await vi.waitFor(() => expect(items().length).toBeGreaterThan(0));
+    const pane = el.querySelector<HTMLElement>('.sw-pane-visual')!;
+    editor.destroy();
+    const observer = new MutationObserver(() => {});
+    observer.observe(pane, { subtree: true, childList: true, attributes: true, characterData: true });
+    release();
+    await new Promise((r) => setTimeout(r, 10));
+    expect(observer.takeRecords()).toEqual([]);
+    observer.disconnect();
+    expect(el.childNodes.length).toBe(0);
+  });
+});
+
+describe('an unknown kind first, then editing the rest (B7)', () => {
+  it('a visual set on doc 1, undo, add resource and deleteDocument of doc 1 all work', async () => {
+    const { editor, ctx } = await mount({ value: `${CRD}---\n${DEPLOY}`, mode: 'visual' });
+    click('Deployment web');
+    click('spec');
+    const input = () => el.querySelector<HTMLInputElement>('.sw-section .sw-row[data-sw-key="replicas"] input')!;
+    input().value = '5';
+    input().dispatchEvent(new Event('input', { bubbles: true }));
+    expect(editor.getValue()).toBe(`${CRD}---\n${DEPLOY.replace('replicas: 2', 'replicas: 5')}`);
+
+    expect(editor.undo()).toBe(true);
+    expect(editor.getValue()).toBe(`${CRD}---\n${DEPLOY}`);
+    expect(input().value).toBe('2');
+
+    el.querySelector<HTMLButtonElement>('.sw-add-resource')!.click();
+    await Promise.resolve();
+    document.querySelector<HTMLElement>('[role=dialog] [data-sw-kind="v1/Service"]')!.click();
+    await vi.waitFor(() => expect(editor.getValue()).toContain('kind: Service'));
+    expect(ctx.store.parsed.docs).toHaveLength(3);
+
+    ctx.select({ doc: 1, path: [] });
+    el.querySelector<HTMLButtonElement>('.sw-section-remove')!.click();
+    el.querySelector<HTMLButtonElement>('.sw-section-confirm .sw-confirm-yes')!.click();
+    expect(editor.getValue().startsWith(`${CRD}---\napiVersion: v1\nkind: Service\n`)).toBe(true);
+    expect(editor.getValue()).not.toContain('Deployment');
   });
 });

@@ -105,7 +105,10 @@ describe('secret-data widget', () => {
 
   it('is disabled while read-only', () => {
     const { w } = mount(SECRET, true);
-    for (const i of w.el.querySelectorAll('input, button')) expect((i as HTMLTextAreaElement).disabled).toBe(true);
+    const controls = [...w.el.querySelectorAll<HTMLInputElement | HTMLTextAreaElement | HTMLButtonElement>('input, textarea, button')];
+    expect(controls.length).toBeGreaterThan(0);
+    expect(controls.some((c) => c instanceof HTMLTextAreaElement)).toBe(true);
+    for (const c of controls) expect(c.disabled).toBe(true);
   });
 });
 

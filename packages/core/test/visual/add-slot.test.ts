@@ -130,7 +130,9 @@ describe('add-here slot', () => {
   it('is disabled where the node cannot be edited visually', async () => {
     const { ctx } = await mount({ value: 'apiVersion: apps/v1\nkind: Deployment\nmetadata: {name: web}\n' });
     const slot = slotFor(ctx, ['metadata']);
-    expect([...slot.querySelectorAll<HTMLButtonElement>('[data-sw-add]')].every((b) => b.disabled)).toBe(true);
+    const buttons = [...slot.querySelectorAll<HTMLButtonElement>('[data-sw-add]')];
+    expect(buttons.length).toBeGreaterThan(0);
+    expect(buttons.every((b) => b.disabled)).toBe(true);
   });
 
   it('is shown at the end of the visual pane section', async () => {

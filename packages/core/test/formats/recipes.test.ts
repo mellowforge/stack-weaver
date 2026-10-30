@@ -47,3 +47,45 @@ describe('built-in recipes', () => {
     expect(new Set(ids).size).toBe(ids.length);
   });
 });
+
+describe('Kubernetes recipes refer to each other correctly', () => {
+  type Obj = Record<string, any>;
+  const docsOf = (r: Recipe): Obj[] => parseText(r.yaml).docs.map((d) => d.toJS() as Obj);
+  const isSubset = (small: Obj | undefined, big: Obj | undefined): boolean =>
+    small !== undefined && Object.keys(small).length > 0 && Object.entries(small).every(([k, v]) => big?.[k] === v);
+  const workloads = ['Deployment', 'StatefulSet', 'DaemonSet', 'ReplicaSet'];
+  const k8s = kubernetesFormat.recipes!;
+  const podLabels = (docs: Obj[]): Obj[] => docs.filter((d) => workloads.includes(d['kind'])).map((d) => d['spec']?.template?.metadata?.labels);
+
+  it('each workload selector matches its own pod template labels', () => {
+    const checked = k8s.flatMap((r) =>
+      docsOf(r)
+        .filter((d) => workloads.includes(d['kind']))
+        .map((d) => [r.id, d['metadata'].name, isSubset(d['spec'].selector?.matchLabels, d['spec'].template?.metadata?.labels)]),
+    );
+    expect(checked.length).toBeGreaterThan(0);
+    for (const [id, name, ok] of checked) expect(ok, `${id} ${name}`).toBe(true);
+  });
+
+  it('each Service selects the pods of a workload in the same recipe', () => {
+    const checked = k8s.flatMap((r) => {
+      const docs = docsOf(r);
+      return docs.filter((d) => d['kind'] === 'Service').map((s) => [r.id, s['metadata'].name, podLabels(docs).some((l) => isSubset(s['spec'].selector, l))]);
+    });
+    expect(checked.length).toBeGreaterThan(0);
+    for (const [id, name, ok] of checked) expect(ok, `${id} ${name}`).toBe(true);
+  });
+
+  it('each Ingress backend names a Service in the same recipe', () => {
+    const checked = k8s.flatMap((r) => {
+      const docs = docsOf(r);
+      const services = new Set(docs.filter((d) => d['kind'] === 'Service').map((d) => d['metadata'].name));
+      return docs
+        .filter((d) => d['kind'] === 'Ingress')
+        .flatMap((ing) => (ing['spec'].rules ?? []).flatMap((rule: Obj) => rule['http']?.paths ?? []))
+        .map((p: Obj) => [r.id, p['backend']?.service?.name, services.has(p['backend']?.service?.name)]);
+    });
+    expect(checked.length).toBeGreaterThan(0);
+    for (const [id, name, ok] of checked) expect(ok, `${id} ${name}`).toBe(true);
+  });
+});

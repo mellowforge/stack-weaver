@@ -72,7 +72,9 @@ describe('string-list suggestions', () => {
     host.append(w.el);
     const list = w.el.querySelector('datalist')!;
     expect([...list.querySelectorAll('option')].map((o) => o.value)).toEqual(['ReadWriteOnce', 'ReadOnlyMany']);
-    for (const input of w.el.querySelectorAll('input')) expect(input.getAttribute('list')).toBe(list.id);
+    const inputs = [...w.el.querySelectorAll('input')];
+    expect(inputs.length).toBe(2); // the item and the new-item input
+    for (const input of inputs) expect(input.getAttribute('list')).toBe(list.id);
   });
 });
 

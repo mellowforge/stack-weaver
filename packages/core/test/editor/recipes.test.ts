@@ -92,6 +92,17 @@ describe('recipe cards', () => {
     expect(root().hidden).toBe(true);
   });
 
+  it('choosing any built-in recipe in the editor leaves zero error problems', async () => {
+    for (const recipe of [...kubernetesFormat.recipes!, ...composeFormat.recipes!]) {
+      const { editor } = await mount({ format: 'auto' });
+      cards().find((b) => b.getAttribute('data-sw-recipe') === recipe.id)!.click();
+      await new Promise((r) => setTimeout(r, 250)); // past the validation debounce (the format change validates at once)
+      expect(editor.getProblems().filter((p) => p.severity === 'error'), recipe.id).toEqual([]);
+      expect(editor.getValue()).toBe(recipe.yaml);
+      editor.destroy();
+    }
+  });
+
   it('Start blank hides cards and focuses code', async () => {
     const { fake } = await mount({ format: 'kubernetes' });
     const focus = vi.spyOn(fake, 'focus');
