@@ -186,7 +186,8 @@ A widget for a mapping that adds and removes its own keys sets `managesKeys: tru
 ## Development
 
 Run the playground with `pnpm --filter @stack-weaver/core dev`. It serves `examples/playground.html`, which
-imports from `src` directly and needs no build.
+imports from `src` directly, so it needs no build (a `predev` step runs the generators for the version file and
+schemas, like `pretest`).
 
 The first `test`, `build` or `typecheck` downloads the pinned upstream schemas (cached in
 `.cache/` afterwards), so it needs network access to `raw.githubusercontent.com`. Re-pinning with
