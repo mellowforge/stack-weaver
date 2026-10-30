@@ -1,4 +1,5 @@
 import { isMap } from 'yaml';
+import { isEmptyDocument } from '../../document/data.js';
 import type { ParsedText } from '../../document/types.js';
 import type { FormatDefinition, SchemaBundle } from '../types.js';
 import { composeGuide } from './guide.js';
@@ -16,9 +17,15 @@ export const composeFormat: FormatDefinition = {
   // First 7 characters of the pinned compose-spec commit 3a4a6995e4a971f6173dff9130cb3e38e6738651.
   version: '3a4a699',
   rootModel: 'mapping',
+  /**
+   * True when the text parses into exactly one non-empty document: a mapping without `apiVersion`
+   * that has a compose top-level key (`services`, `networks`, `volumes`, `configs`, `secrets` or
+   * `include`).
+   */
   detect(p: ParsedText): boolean {
-    if (!p.ok || p.docs.length !== 1) return false;
-    const root = p.docs[0]?.contents;
+    const docs = p.docs.filter((d) => !isEmptyDocument(d));
+    if (!p.ok || docs.length !== 1) return false;
+    const root = docs[0]?.contents;
     if (!isMap(root)) return false;
     return !root.has('apiVersion') && TOP_LEVEL_KEYS.some((k) => root.has(k));
   },

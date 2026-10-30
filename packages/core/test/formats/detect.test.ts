@@ -34,6 +34,34 @@ describe('detect', () => {
     expect(both('name: x\n')[1]).toBe(false);
     expect(both('include: [a.yaml]\n')[1]).toBe(true);
   });
+  describe('empty and comment-only documents are ignored', () => {
+    const pod = 'apiVersion: v1\nkind: Pod\nmetadata:\n  name: x\n';
+    const compose = 'services:\n  web:\n    image: nginx\n';
+
+    it('a trailing ---', () => {
+      expect(both(`${pod}---\n`)).toEqual([true, false]);
+      expect(both(`${compose}---\n`)).toEqual([false, true]);
+    });
+
+    it('the Helm form ---, # Source comment, ---, manifest', () => {
+      expect(both(`---\n# Source: x.yaml\n---\n${pod}`)).toEqual([true, false]);
+      expect(both(`---\n# Source: x.yaml\n---\n${compose}`)).toEqual([false, true]);
+    });
+
+    it('---\\n--- alone is neither', () => {
+      expect(both('---\n---\n')).toEqual([false, false]);
+    });
+
+    it('the Helm fixture is kubernetes only', () => {
+      const p = fx('k8s-helm-empty-docs.yaml');
+      expect([kubernetesFormat.detect(p), composeFormat.detect(p)]).toEqual([true, false]);
+    });
+
+    it('compose still needs exactly one non-empty document', () => {
+      expect(both(`${compose}---\n${compose}`)[1]).toBe(false);
+    });
+  });
+
   it('loadSchema', async () => {
     const k = await kubernetesFormat.loadSchema(fx('k8s-web-app.yaml'), 0);
     expect(k?.id).toBe('apps_v1_Deployment');

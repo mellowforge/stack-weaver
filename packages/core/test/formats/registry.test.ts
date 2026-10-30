@@ -24,6 +24,23 @@ describe('format registry', () => {
     expect(getFormat('zzz')).toBeUndefined();
   });
 
+  it('re-registering the identical object is a no-op; another object with the same id throws', () => {
+    const a = make('a', true);
+    registerFormat(a);
+    expect(() => registerFormat(a)).not.toThrow();
+    expect(getFormat('a')).toBe(a);
+    expect(() => registerFormat({ ...a })).toThrow(/already registered/);
+  });
+
+  it('detectFormat uses an explicit list instead of the registry when given', () => {
+    const p = parseText('a: 1\n');
+    registerFormat(make('registered', true));
+    const listed = make('listed', true);
+    expect(detectFormat(p, [make('no', false), listed])).toBe(listed);
+    expect(detectFormat(p, [])).toBeUndefined();
+    expect(detectFormat(p)?.id).toBe('registered');
+  });
+
   it('detectFormat returns first matching', () => {
     const p = parseText('a: 1\n');
     expect(detectFormat(p)).toBeUndefined();

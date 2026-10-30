@@ -6,6 +6,7 @@ import { getNode, refAtOffset } from '../../src/document/paths.js';
 import { resolveAt } from '../../src/engine/resolve.js';
 import { composeFormat } from '../../src/formats/compose/index.js';
 import { kubernetesFormat } from '../../src/formats/kubernetes/index.js';
+import { defaultMessages } from '../../src/validation/messages.js';
 import { validateText } from '../../src/validation/validate.js';
 
 const fixture = (n: string) => readFileSync(new URL(`../fixtures/corpus/${n}`, import.meta.url), 'utf8');
@@ -33,7 +34,7 @@ describe('validateText', () => {
     const from = text.indexOf('"three"');
     const hit = probs.find((x) => x.path.join('.') === 'spec.replicas');
     expect(hit).toMatchObject({ severity: 'error', source: 'schema', from, to: from + 7, line: 6, col: 13, doc: 0 });
-    expect(hit!.message).toBe('Must be a integer');
+    expect(hit!.message).toBe('Must be an integer');
   });
 
   it('container without name gives Missing required field “name” on the containers[0] item', async () => {
@@ -101,12 +102,12 @@ describe('validateText', () => {
     expect(probs.every((x) => x.doc === 1)).toBe(true);
   });
 
-  it('int-or-string collapses to one “Must be a integer or string”', async () => {
+  it('int-or-string collapses to one “Must be an integer or string”', async () => {
     const text = deployment('', '3', '  strategy:\n    rollingUpdate:\n      maxSurge: [1]\n');
     const probs = await validateText(parseText(text), kubernetesFormat);
     const hit = probs.filter((x) => x.path.join('.') === 'spec.strategy.rollingUpdate.maxSurge');
     expect(hit).toHaveLength(1);
-    expect(hit[0]!.message).toBe('Must be a integer or string');
+    expect(hit[0]!.message).toBe('Must be an integer or string');
   });
 
   it('compose-anchors.yaml validates with zero schema problems (merge keys)', async () => {
@@ -136,6 +137,176 @@ describe('validateText', () => {
     const probs = await validateText(parseText(deployment('  labels: 5\n', '"x"')), kubernetesFormat);
     expect(probs.length).toBeGreaterThan(1);
     for (let i = 1; i < probs.length; i++) expect(probs[i]!.from).toBeGreaterThanOrEqual(probs[i - 1]!.from);
+  });
+});
+
+const brief = (probs: { code: string; path: readonly (string | number)[] }[]) => probs.map((x) => [x.code, x.path]);
+
+describe('validateText never rejects (A4)', () => {
+  it('a merge source that is not a map gives yaml.data at the << key and continues', async () => {
+    const bad = 'apiVersion: v1\nkind: ConfigMap\nmetadata:\n  <<: 5\n  name: x\n';
+    const text = `${bad}---\n${deployment('', '"x"')}`;
+    const probs = await validateText(parseText(text), kubernetesFormat);
+    expect(probs.map((x) => [x.code, x.severity, x.source, x.doc, x.path])).toEqual([
+      ['yaml.data', 'error', 'yaml', 0, ['metadata', '<<']],
+      ['schema.type', 'error', 'schema', 1, ['spec', 'replicas']],
+    ]);
+    expect(probs[0]!.from).toBe(text.indexOf('<<'));
+    expect(probs[0]!.to).toBe(text.indexOf('<<') + 2);
+  });
+
+  it('a merge from a scalar alias gives yaml.data', async () => {
+    const text = 'x-a: &a 1\nservices:\n  web:\n    <<: *a\n    image: x\n';
+    const probs = await validateText(parseText(text), composeFormat);
+    expect(brief(probs)).toEqual([['yaml.data', ['services', 'web', '<<']]]);
+  });
+
+  it('an excessive alias count gives yaml.data at the document root', async () => {
+    const aliases = Array.from({ length: 101 }, () => '*a').join(', ');
+    const text = `x-a: &a 1\nservices:\n  web:\n    image: x\n    command: [${aliases}]\n`;
+    const probs = await validateText(parseText(text), composeFormat);
+    expect(brief(probs)).toEqual([['yaml.data', []]]);
+    expect(probs[0]!.from).toBe(0);
+  });
+
+  it('a loadSchema failure gives schema.unavailable naming the kind and the cause', async () => {
+    const failing = { ...kubernetesFormat, loadSchema: () => Promise.reject(new Error('offline')) };
+    const probs = await validateText(parseText(deployment()), failing);
+    expect(probs.map((x) => [x.code, x.severity, x.message])).toEqual([
+      ['schema.unavailable', 'error', 'Could not load the schema for Deployment: offline'],
+    ]);
+    const compose = { ...composeFormat, loadSchema: () => Promise.reject(new Error('chunk failed')) };
+    const c = await validateText(parseText('services:\n  web:\n    image: x\n'), compose);
+    expect(c.map((x) => x.message)).toEqual(['Could not load the schema for Docker Compose: chunk failed']);
+  });
+});
+
+describe('empty and comment-only documents (A5)', () => {
+  const pod = 'apiVersion: v1\nkind: Pod\nmetadata:\n  name: x\nspec:\n  containers:\n    - name: a\n      image: nginx\n';
+  const compose = 'services:\n  web:\n    image: nginx\n';
+
+  it.each([
+    ['a trailing ---', `${pod}---\n`],
+    ['the Helm form', `---\n# Source: x.yaml\n---\n${pod}`],
+    ['---\\n--- alone', '---\n---\n'],
+  ])('kubernetes: %s validates to []', async (_, text) => {
+    expect(await validateText(parseText(text), kubernetesFormat)).toEqual([]);
+  });
+
+  it.each([
+    ['a trailing ---', `${compose}---\n`],
+    ['the Helm form', `---\n# Source: x.yaml\n---\n${compose}`],
+  ])('compose: %s validates to []', async (_, text) => {
+    expect(await validateText(parseText(text), composeFormat)).toEqual([]);
+  });
+
+  it('the Helm fixture validates to []', async () => {
+    expect(await validateText(parseText(fixture('k8s-helm-empty-docs.yaml')), kubernetesFormat)).toEqual([]);
+  });
+});
+
+describe('compose: one bad field gives one problem (A6)', () => {
+  const svc = (body: string) => `services:\n  w:\n    image: nginx\n${body}`;
+
+  it('ports: "abc" gives only the type error', async () => {
+    const probs = await validateText(parseText(svc('    ports: "abc"\n')), composeFormat);
+    expect(brief(probs)).toEqual([['schema.type', ['services', 'w', 'ports']]]);
+    expect(probs[0]!.message).toBe('Must be an array');
+  });
+
+  it('environment: { TZ: [1] } gives only the error on TZ', async () => {
+    const probs = await validateText(parseText(svc('    environment: { TZ: [1] }\n')), composeFormat);
+    expect(brief(probs)).toEqual([['schema.type', ['services', 'w', 'environment', 'TZ']]]);
+  });
+
+  it('a truly unknown key still gives Unknown field', async () => {
+    const probs = await validateText(parseText(svc('    bogus: 1\n')), composeFormat);
+    expect(brief(probs)).toEqual([['schema.unevaluatedProperties', ['services', 'w', 'bogus']]]);
+    expect(probs[0]!.message).toBe('Unknown field “bogus”');
+  });
+
+  it('a bad field next to an unknown key gives both', async () => {
+    const probs = await validateText(parseText(svc('    ports: "abc"\n    bogus: 1\n')), composeFormat);
+    expect(brief(probs)).toEqual([
+      ['schema.type', ['services', 'w', 'ports']],
+      ['schema.unevaluatedProperties', ['services', 'w', 'bogus']],
+    ]);
+  });
+});
+
+describe('kubernetes document shape and kinds (A7)', () => {
+  it('a non-mapping root gives schema.type “A document must be a mapping”', async () => {
+    const probs = await validateText(parseText('- a\n- b\n'), kubernetesFormat);
+    expect(probs.map((x) => [x.code, x.severity, x.path, x.message])).toEqual([
+      ['schema.type', 'error', [], 'A document must be a mapping'],
+    ]);
+  });
+
+  it('a missing kind gives schema.required at the root', async () => {
+    const probs = await validateText(parseText('apiVersion: v1\nmetadata:\n  name: x\n'), kubernetesFormat);
+    expect(probs.map((x) => [x.code, x.path, x.message, x.from])).toEqual([
+      ['schema.required', [], 'Missing required field “kind”', 0],
+    ]);
+  });
+
+  it('a non-string apiVersion gives schema.required at that key', async () => {
+    const text = 'apiVersion: 1\nkind: Pod\n';
+    const probs = await validateText(parseText(text), kubernetesFormat);
+    expect(probs.map((x) => [x.code, x.path, x.from])).toEqual([['schema.required', ['apiVersion'], 12]]);
+  });
+
+  it('a known kind under a wrong apiVersion gives kind.apiVersion at the apiVersion value', async () => {
+    const text = deployment().replace('apps/v1', 'apps/v');
+    const probs = await validateText(parseText(text), kubernetesFormat);
+    expect(probs.map((x) => [x.code, x.severity, x.source, x.path, x.message, x.from, x.to])).toEqual([
+      [
+        'kind.apiVersion', 'error', 'schema', ['apiVersion'],
+        '“apps/v” is not a valid apiVersion for Deployment; expected apps/v1', 12, 18,
+      ],
+    ]);
+  });
+
+  it('kind.apiVersion lists every valid apiVersion', async () => {
+    const text = 'apiVersion: autoscaling/v9\nkind: HorizontalPodAutoscaler\nmetadata:\n  name: x\n';
+    const probs = await validateText(parseText(text), kubernetesFormat);
+    expect(probs.map((x) => x.message)).toEqual([
+      '“autoscaling/v9” is not a valid apiVersion for HorizontalPodAutoscaler; expected autoscaling/v1, autoscaling/v2',
+    ]);
+  });
+});
+
+describe('compose extra documents (A8)', () => {
+  it('documents after the first non-empty one give format.extraDocument and are not validated', async () => {
+    const text = '---\n---\nservices:\n  web:\n    image: x\n---\nfoo: 1\n';
+    const probs = await validateText(parseText(text), composeFormat);
+    expect(probs.map((x) => [x.code, x.severity, x.doc, x.path, x.message])).toEqual([
+      ['format.extraDocument', 'error', 2, [], 'Compose files contain one document; this one is ignored'],
+    ]);
+    expect(probs[0]!.from).toBe(text.indexOf('foo'));
+  });
+});
+
+describe('messages (B2)', () => {
+  it('uses a/an correctly', () => {
+    const type = (t: unknown) => defaultMessages['type']!({ instancePath: '', keyword: 'type', params: { type: t } });
+    expect(type('integer')).toBe('Must be an integer');
+    expect(type(['array', 'object'])).toBe('Must be an array or object');
+    expect(type('string')).toBe('Must be a string');
+  });
+
+  it('validateText merges a partial message override', async () => {
+    const text = deployment('', '"three"').replace('        - name: web\n          image: nginx', '        - image: nginx');
+    const probs = await validateText(parseText(text), kubernetesFormat, {
+      messages: { type: (e) => `Typ: ${String(e.params['type'])}` },
+    });
+    expect(probs.map((x) => x.message)).toEqual(['Typ: integer', 'Missing required field “name”']);
+  });
+
+  it('the core texts come from the table and can be overridden', async () => {
+    const probs = await validateText(parseText(fixture('k8s-crd-unknown-kind.yaml')), kubernetesFormat, {
+      messages: { 'kind.unknown': (e) => `Unbekannt: ${String(e.params['kind'])}` },
+    });
+    expect(probs[0]!.message).toBe('Unbekannt: Widget');
   });
 });
 

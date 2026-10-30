@@ -37,7 +37,7 @@ describe('@stack-weaver/core', () => {
   it('main entry exports the documented names', () => {
     expect(Object.keys(api).sort()).toEqual(
       [
-        'DocumentStore', 'VERSION', 'addableAt', 'applyEdit', 'canEdit', 'detectFormat', 'diffText',
+        'DocumentStore', 'VERSION', 'addableAt', 'applyEdit', 'canEdit', 'defaultMessages', 'detectFormat', 'diffText',
         'getFormat', 'getNode', 'guideField', 'kindCatalog', 'mergeGuide', 'parseText', 'refAtOffset',
         'registerFormat', 'resolveAt', 'toData', 'toLineCol', 'validateText',
       ].sort(),

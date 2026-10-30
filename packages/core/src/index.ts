@@ -37,4 +37,5 @@ export type { CatalogGroup } from './engine/catalog.js';
 // Validation
 export { validateText } from './validation/validate.js';
 export type { Severity, Problem } from './validation/problems.js';
-export type { Messages } from './validation/messages.js';
+export { defaultMessages } from './validation/messages.js';
+export type { SchemaMessages, MessageFn } from './validation/messages.js';

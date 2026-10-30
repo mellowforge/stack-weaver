@@ -1,4 +1,5 @@
 import { isMap, isScalar } from 'yaml';
+import { isEmptyDocument } from '../../document/data.js';
 import type { ParsedText } from '../../document/types.js';
 import type { FormatDefinition, SchemaBundle } from '../types.js';
 import { kubernetesGuide } from './guide.js';
@@ -18,11 +19,13 @@ export const kubernetesFormat: FormatDefinition = {
   label: 'Kubernetes',
   version: '1.37.2',
   rootModel: 'documents',
+  /** True when the text parses, has a non-empty document, and every non-empty document is a mapping with string `apiVersion` and `kind`. */
   detect(p: ParsedText): boolean {
+    const docs = p.docs.filter((d) => !isEmptyDocument(d));
     return (
       p.ok &&
-      p.docs.length > 0 &&
-      p.docs.every((d) => isMap(d.contents) && str(d, 'apiVersion') !== undefined && str(d, 'kind') !== undefined)
+      docs.length > 0 &&
+      docs.every((d) => isMap(d.contents) && str(d, 'apiVersion') !== undefined && str(d, 'kind') !== undefined)
     );
   },
   kinds: kubernetesKinds,

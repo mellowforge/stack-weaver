@@ -1,22 +1,31 @@
 import type { ParsedText } from '../document/types.js';
 import type { FormatDefinition } from './types.js';
 
-const formats = new Map<string, FormatDefinition>();
+const registry = new Map<string, FormatDefinition>();
 
-/** Registers a format. Throws if a format with the same id is already registered. */
+/**
+ * Registers a format. Registering the identical object again is a no-op, so a module may register
+ * its format on every import; a different object with an id already in use throws.
+ */
 export function registerFormat(f: FormatDefinition): void {
-  if (formats.has(f.id)) throw new Error(`Format "${f.id}" is already registered`);
-  formats.set(f.id, f);
+  const existing = registry.get(f.id);
+  if (existing === f) return;
+  if (existing) throw new Error(`Format "${f.id}" is already registered`);
+  registry.set(f.id, f);
 }
 
 /** Returns the format registered under `id`, if any. */
 export function getFormat(id: string): FormatDefinition | undefined {
-  return formats.get(id);
+  return registry.get(id);
 }
 
-/** Returns the first format (in registration order) whose `detect` accepts `p`. */
-export function detectFormat(p: ParsedText): FormatDefinition | undefined {
-  for (const f of formats.values()) if (f.detect(p)) return f;
+/**
+ * Returns the first format whose `detect` accepts `p`.
+ * @param p - The parsed text.
+ * @param formats - Formats to try, in order; defaults to the registered formats in registration order.
+ */
+export function detectFormat(p: ParsedText, formats?: readonly FormatDefinition[]): FormatDefinition | undefined {
+  for (const f of formats ?? registry.values()) if (f.detect(p)) return f;
   return undefined;
 }
 
@@ -25,5 +34,5 @@ export function detectFormat(p: ParsedText): FormatDefinition | undefined {
  * @internal For tests only.
  */
 export function resetFormats(): void {
-  formats.clear();
+  registry.clear();
 }
