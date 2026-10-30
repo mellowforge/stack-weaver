@@ -1,4 +1,5 @@
-export const VERSION = '0.1.0';
+/** The version of `@stack-weaver/core`, generated from its package.json by `scripts/gen-version.mjs`. */
+export { VERSION } from './version.js';
 
 // Document model
 export type { YamlPath, NodeRef, TextChange, YamlProblem, ParsedText } from './document/types.js';

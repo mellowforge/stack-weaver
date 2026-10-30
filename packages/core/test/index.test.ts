@@ -29,8 +29,9 @@ function entryGraph(entry: string): { files: string[]; violations: string[] } {
 }
 
 describe('@stack-weaver/core', () => {
-  it('exports VERSION', () => {
-    expect(VERSION).toBe('0.1.0');
+  it("exports VERSION equal to package.json's version", () => {
+    const pkg = JSON.parse(readFileSync(new URL('../package.json', import.meta.url), 'utf8')) as { version: string };
+    expect(VERSION).toBe(pkg.version);
   });
 
   it('main entry exports the documented names', () => {

@@ -6,3 +6,4 @@ packages/angular/.angular/
 packages/react/dist-demo
 .cache/
 packages/core/src/formats/*/generated/
+packages/core/src/version.ts
