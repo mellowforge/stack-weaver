@@ -15,16 +15,30 @@ export interface ContractHarness {
   type(m: Mounted, s: string): void;
   /** Places the caret without going through `applyChange`. */
   setCaret(m: Mounted, offset: number): void;
-  /** Simulates the platform's undo shortcut. */
-  pressUndo(m: Mounted): void;
-  /** Simulates the platform's redo shortcut. */
-  pressRedo(m: Mounted): void;
+  /** The element that receives key presses (the focused editing surface). */
+  keyTarget(m: Mounted): HTMLElement;
   /** The diagnostics currently shown. */
   diagnostics(m: Mounted): CodeDiagnostic[];
   /** Asks for completions at the caret and resolves to the labels offered. */
   completions(m: Mounted): Promise<string[]>;
   /** The accessible name of the editing surface. */
   ariaLabel(m: Mounted): string | null;
+}
+
+const isMac = /Mac|iP(hone|ad|od)/.test(navigator.platform);
+/** Dispatches a platform "Mod" key press (Ctrl, or Meta on Apple platforms) on the editing surface. */
+function pressMod(target: HTMLElement, key: string, shiftKey = false): void {
+  target.dispatchEvent(
+    new KeyboardEvent('keydown', {
+      key: shiftKey ? key.toUpperCase() : key,
+      keyCode: key.toUpperCase().charCodeAt(0), // happy-dom sets none; CodeMirror needs it for Shift+letter
+      shiftKey,
+      ctrlKey: !isMac,
+      metaKey: isMac,
+      bubbles: true,
+      cancelable: true,
+    }),
+  );
 }
 
 export function runAdapterContract(name: string, makeHarness: () => ContractHarness): void {
@@ -149,7 +163,7 @@ export function runAdapterContract(name: string, makeHarness: () => ContractHarn
       const init = base('a: 1');
       const m = mount(init);
       h.type(m, '2');
-      h.pressUndo(m);
+      pressMod(h.keyTarget(m), 'z');
       expect(init.onUndo).toHaveBeenCalledTimes(1);
       expect(init.onRedo).not.toHaveBeenCalled();
       expect(m.inst.getText()).toBe('a: 12');
@@ -158,10 +172,47 @@ export function runAdapterContract(name: string, makeHarness: () => ContractHarn
     it('Mod-Shift-z calls onRedo and does not change text', () => {
       const init = base('a: 1');
       const m = mount(init);
-      h.pressRedo(m);
+      pressMod(h.keyTarget(m), 'z', true);
       expect(init.onRedo).toHaveBeenCalledTimes(1);
       expect(init.onUndo).not.toHaveBeenCalled();
       expect(m.inst.getText()).toBe('a: 1');
+    });
+
+    it('Mod-y calls onRedo and does not change text', () => {
+      const init = base('a: 1');
+      const m = mount(init);
+      pressMod(h.keyTarget(m), 'y');
+      expect(init.onRedo).toHaveBeenCalledTimes(1);
+      expect(init.onUndo).not.toHaveBeenCalled();
+      expect(m.inst.getText()).toBe('a: 1');
+    });
+
+    it('applyChange does not call onSelectionChange', () => {
+      const onSelectionChange = vi.fn();
+      const m = mount(base('x'.repeat(60), { onSelectionChange }));
+      h.setCaret(m, 40);
+      onSelectionChange.mockClear();
+      m.inst.applyChange({ from: 5, to: 5, insert: 'abc' });
+      expect(onSelectionChange).not.toHaveBeenCalled();
+    });
+
+    it('a caret at the start of an external insert stays before the inserted text', () => {
+      const m = mount(base('x'.repeat(20)));
+      h.setCaret(m, 5);
+      m.inst.applyChange({ from: 5, to: 5, insert: 'abc' });
+      expect(m.inst.getSelection()).toEqual({ from: 5, to: 5 });
+    });
+
+    it('setDiagnostics clamps out-of-range diagnostics to the document', () => {
+      const m = mount(base('abc'));
+      m.inst.setDiagnostics([
+        { from: 1, to: 999, severity: 'error', message: 'past end' },
+        { from: -5, to: 2, severity: 'info', message: 'before start' },
+      ]);
+      expect(h.diagnostics(m).map((d) => [d.from, d.to, d.message]).sort()).toEqual([
+        [0, 2, 'before start'],
+        [1, 3, 'past end'],
+      ]);
     });
 
     it('complete results are offered', async () => {

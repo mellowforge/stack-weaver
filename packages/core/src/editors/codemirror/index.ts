@@ -13,6 +13,7 @@ import {
   lineNumbers,
   type Tooltip,
 } from '@codemirror/view';
+import { hoverTooltipFor } from './hover.js';
 import type { CodeCompletion } from '../../assist/complete.js';
 import type { CodeDiagnostic, CodeEditorAdapter, CodeEditorInit, CodeEditorInstance } from '../adapter.js';
 
@@ -80,27 +81,7 @@ export function codemirrorAdapter(opts: CodemirrorAdapterOptions = {}): CodeEdit
         ? hoverTooltip((view, pos): Tooltip | null => {
             const info = hover(view.state.doc.toString(), pos);
             if (!info) return null;
-            return {
-              pos: info.from,
-              end: info.to,
-              above: true,
-              create() {
-                const doc = view.dom.ownerDocument;
-                const dom = doc.createElement('div');
-                dom.className = 'sw-hover';
-                const title = doc.createElement('div');
-                title.className = 'sw-hover-title';
-                title.textContent = info.title;
-                dom.appendChild(title);
-                if (info.description) {
-                  const description = doc.createElement('div');
-                  description.className = 'sw-hover-description';
-                  description.textContent = info.description;
-                  dom.appendChild(description);
-                }
-                return { dom };
-              },
-            };
+            return hoverTooltipFor(info, view.dom.ownerDocument);
           })
         : [];
 

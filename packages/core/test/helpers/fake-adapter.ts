@@ -15,14 +15,10 @@ export interface FakeInstance extends CodeEditorInstance {
   readonly readOnly: boolean;
   readonly theme: 'light' | 'dark';
   readonly revealed: { range: TextRange; select: boolean } | undefined;
-  /** Simulates user input: replaces the whole text, as a user's edit would, and calls `onChange`. Ignored while read-only. */
+  /** Simulates user input: sets the textarea value and fires `input`, as a user's edit would. The `input` handler rejects it while read-only. */
   type(text: string): void;
   /** Moves the caret as the user would; calls `onSelectionChange`. */
   setCaret(offset: number): void;
-  /** Simulates Mod-z. */
-  pressUndo(): void;
-  /** Simulates Mod-Shift-z. */
-  pressRedo(): void;
   /** Asks `complete` at the caret (explicit) and resolves to the option labels offered. */
   requestCompletions(): Promise<string[]>;
 }
@@ -50,6 +46,26 @@ export function createFakeAdapter(): CodeEditorAdapter & { last?: FakeInstance }
       };
       const mapPos = (pos: number, c: TextChange): number =>
         pos <= c.from ? pos : pos >= c.to ? pos + c.insert.length - (c.to - c.from) : c.from + c.insert.length;
+      const isMac = /Mac|iP(hone|ad|od)/.test(el.ownerDocument.defaultView?.navigator.platform ?? '');
+      const clamp = (n: number): number => Math.min(Math.max(n, 0), text.length);
+      // The user's input path, like a real <textarea>: read-only refuses the edit (and restores the value).
+      area.addEventListener('input', () => {
+        if (readOnly || destroyed) {
+          area.value = text;
+          return;
+        }
+        text = area.value;
+        selection = { from: text.length, to: text.length };
+        init.onChange(text);
+      });
+      area.addEventListener('keydown', (e) => {
+        if (!(isMac ? e.metaKey : e.ctrlKey)) return;
+        const key = e.key.toLowerCase();
+        if (key === 'z' && !e.shiftKey) init.onUndo();
+        else if ((key === 'z' && e.shiftKey) || key === 'y') init.onRedo();
+        else return;
+        e.preventDefault();
+      });
       const render = (): void => {
         area.value = text;
         area.readOnly = readOnly;
@@ -65,7 +81,10 @@ export function createFakeAdapter(): CodeEditorAdapter & { last?: FakeInstance }
           render();
         },
         setDiagnostics(d) {
-          diagnostics = [...d];
+          diagnostics = d.map((x) => {
+            const from = clamp(x.from);
+            return { ...x, from, to: Math.min(Math.max(x.to, from), text.length) };
+          });
         },
         reveal(range, opts) {
           revealed = { range, select: opts?.select === true };
@@ -102,15 +121,10 @@ export function createFakeAdapter(): CodeEditorAdapter & { last?: FakeInstance }
           return revealed;
         },
         type(next) {
-          if (readOnly || destroyed) return;
-          text = next;
-          selection = { from: next.length, to: next.length };
-          render();
-          init.onChange(text);
+          area.value = next;
+          area.dispatchEvent(new Event('input', { bubbles: true }));
         },
         setCaret: (offset) => setSelection({ from: offset, to: offset }),
-        pressUndo: () => init.onUndo(),
-        pressRedo: () => init.onRedo(),
         async requestCompletions() {
           const result = await init.complete?.(text, selection.from, true);
           return result ? result.options.map((o) => o.label) : [];
