@@ -30,6 +30,28 @@ describe('parseText', () => {
     expect(e.from).toBe(10);
   });
 
+  it('a dangling alias makes ok false with a problem at the alias range', () => {
+    const p = parseText('a: *nope\nb: 1\n');
+    expect(p.ok).toBe(false);
+    expect(p.errors).toEqual([
+      { message: 'Unresolved alias “*nope” (no anchor “&nope” before it)', from: 3, to: 8, line: 1, col: 4 },
+    ]);
+  });
+
+  it('an alias before its anchor is dangling; one after it resolves', () => {
+    expect(parseText('a: *x\nb: &x 1\n').ok).toBe(false);
+    expect(parseText('a: &x 1\nb: *x\n').ok).toBe(true);
+  });
+
+  it('collects YAML warnings without making ok false', () => {
+    const p = parseText('name: !foo a\n');
+    expect(p.ok).toBe(true);
+    expect(p.warnings).toHaveLength(1);
+    expect(p.warnings[0]).toMatchObject({ from: 6, to: 10, line: 1, col: 7 });
+    expect(p.warnings[0]!.message).toMatch(/Unresolved tag/);
+    expect(parseText('a: 1\n').warnings).toEqual([]);
+  });
+
   it('detects CRLF eol', () => {
     expect(parseText(corpus('k8s-web-app-crlf.yaml')).eol).toBe('\r\n');
     expect(parseText('a: 1\nb: 2\n').eol).toBe('\n');

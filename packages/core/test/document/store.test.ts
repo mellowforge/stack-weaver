@@ -52,6 +52,16 @@ describe('DocumentStore', () => {
     expect(store.lastGood).toBe(store.parsed);
   });
 
+  it('lastGood is undefined until a parse succeeds', () => {
+    const { store } = setup('a: [1\n');
+    expect(store.parsed.ok).toBe(false);
+    expect(store.lastGood).toBeUndefined();
+    store.setText('a: [1]\n', 'code');
+    expect(store.lastGood).toBe(store.parsed);
+    store.setText('a: [1\n', 'code');
+    expect(store.lastGood?.text).toBe('a: [1]\n');
+  });
+
   it('code typing within 500ms groups into one undo', () => {
     const { store, clock } = setup('');
     store.setText('a', 'code');

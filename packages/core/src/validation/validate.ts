@@ -1,12 +1,12 @@
 import { isMap, isNode, isScalar } from 'yaml';
 import { toData } from '../document/data.js';
 import { getNode, getPairKey, toLineCol } from '../document/paths.js';
-import type { ParsedText, YamlPath } from '../document/types.js';
+import type { ParsedText, YamlPath, YamlProblem } from '../document/types.js';
 import type { FormatDefinition, SchemaError } from '../formats/types.js';
 import { defaultMessages, messageFor } from './messages.js';
 import type { Messages } from './messages.js';
 import { SEVERITY_RANK } from './problems.js';
-import type { Problem } from './problems.js';
+import type { Problem, Severity } from './problems.js';
 
 const WRAPPERS = new Set(['anyOf', 'oneOf']);
 
@@ -24,18 +24,10 @@ const WRAPPERS = new Set(['anyOf', 'oneOf']);
  */
 export async function validateText(p: ParsedText, format: FormatDefinition): Promise<Problem[]> {
   const out: Problem[] = [];
+  for (const w of p.warnings) out.push(yamlProblem(p, w, 'warning', 'yaml.warning'));
 
   if (!p.ok) {
-    p.docs.forEach((d, doc) => {
-      for (const err of d.errors) {
-        const [from, to] = err.pos;
-        const { line, col } = toLineCol(p, from);
-        out.push({
-          severity: 'error', source: 'yaml', code: 'yaml.syntax', message: err.message,
-          doc, path: [], from, to, line, col,
-        });
-      }
-    });
+    for (const e of p.errors) out.push(yamlProblem(p, e, 'error', 'yaml.syntax'));
     return sortProblems(out);
   }
 
@@ -83,6 +75,20 @@ export function schemaErrorsToProblems(
     out.push(problem);
   }
   return out;
+}
+
+/** Index of the document holding `offset`: the last one starting at or before it. */
+function docAt(p: ParsedText, offset: number): number {
+  let doc = 0;
+  for (let i = 0; i < p.docs.length; i++) if (p.docs[i]!.range[0] <= offset) doc = i;
+  return doc;
+}
+
+function yamlProblem(p: ParsedText, y: YamlProblem, severity: Severity, code: string): Problem {
+  return {
+    severity, source: 'yaml', code, message: y.message,
+    doc: docAt(p, y.from), path: [], from: y.from, to: y.to, line: y.line, col: y.col,
+  };
 }
 
 function sortProblems(list: Problem[]): Problem[] {

@@ -43,7 +43,7 @@ interface Entry {
 export class DocumentStore {
   #text: string;
   #parsed: ParsedText;
-  #lastGood: ParsedText;
+  #lastGood: ParsedText | undefined;
   #undo: Entry[] = [];
   #redo: Entry[] = [];
   #listeners = new Set<(e: StoreEvent) => void>();
@@ -57,7 +57,7 @@ export class DocumentStore {
   constructor(text: string, opts: StoreOptions = {}) {
     this.#text = text;
     this.#parsed = parseText(text);
-    this.#lastGood = this.#parsed;
+    this.#lastGood = this.#parsed.ok ? this.#parsed : undefined;
     this.#now = opts.now ?? Date.now;
     this.#groupMs = opts.groupMs ?? 500;
     this.#limit = opts.historyLimit ?? 200;
@@ -73,8 +73,11 @@ export class DocumentStore {
     return this.#parsed;
   }
 
-  /** The most recent parse that succeeded. */
-  get lastGood(): ParsedText {
+  /**
+   * The most recent parse that succeeded (`ok`), kept while the current text is broken;
+   * `undefined` when no parse has succeeded yet.
+   */
+  get lastGood(): ParsedText | undefined {
     return this.#lastGood;
   }
 

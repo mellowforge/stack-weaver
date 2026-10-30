@@ -172,24 +172,10 @@ function itemInfo(t: string, parent: Coll, idx: number): Item | undefined {
 
 // ---- operations ----
 
-/** True when every alias resolves; `yaml` reports dangling aliases only at toJS time. */
-function aliasesResolve(q: ParsedText): boolean {
-  return q.docs.every((d) => {
-    let ok = true;
-    visit(d, {
-      Alias(_, a) {
-        if (!a.resolve(d)) ok = false;
-        return ok ? undefined : visit.BREAK;
-      },
-    });
-    return ok;
-  });
-}
-
 function finish(p: ParsedText, change: TextChange, check: (q: ParsedText) => boolean): EditResult {
   const text = p.text.slice(0, change.from) + change.insert + p.text.slice(change.to);
   const q = parseText(text);
-  return q.ok && aliasesResolve(q) && check(q) ? { ok: true, text, change } : refuse('unsupported');
+  return q.ok && check(q) ? { ok: true, text, change } : refuse('unsupported');
 }
 
 function sameDocs(p: ParsedText, q: ParsedText): boolean {

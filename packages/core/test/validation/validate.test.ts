@@ -58,6 +58,30 @@ describe('validateText', () => {
     expect(probs.every((x) => x.code === 'yaml.syntax' && x.source === 'yaml' && x.severity === 'error')).toBe(true);
   });
 
+  it('a dangling alias is a yaml.syntax error, and validateText resolves', async () => {
+    const text = 'services:\n  web:\n    image: *nope\n';
+    const probs = await validateText(parseText(text), composeFormat);
+    expect(probs.map((x) => [x.code, x.severity, x.from, x.to, x.doc])).toEqual([
+      ['yaml.syntax', 'error', text.indexOf('*nope'), text.indexOf('*nope') + 5, 0],
+    ]);
+  });
+
+  it('YAML warnings are reported as yaml.warning when the text parses', async () => {
+    const text = 'services:\n  web:\n    image: !foo nginx\n';
+    const probs = await validateText(parseText(text), composeFormat);
+    expect(probs.map((x) => [x.severity, x.source, x.code, x.from])).toEqual([
+      ['warning', 'yaml', 'yaml.warning', text.indexOf('!foo')],
+    ]);
+    expect(probs[0]!.message).toMatch(/Unresolved tag/);
+  });
+
+  it('YAML warnings are reported as yaml.warning when the text does not parse', async () => {
+    const text = 'a: !foo x\n---\nb: [\n';
+    const probs = await validateText(parseText(text), composeFormat);
+    expect(probs.find((x) => x.code === 'yaml.warning')).toMatchObject({ severity: 'warning', source: 'yaml', doc: 0, from: 3 });
+    expect(probs.find((x) => x.code === 'yaml.syntax')).toMatchObject({ severity: 'error', doc: 1 });
+  });
+
   it('compose unknown top-level key gives Unknown field “foo”', async () => {
     const text = 'services:\n  web:\n    image: nginx\nfoo: 1\n';
     const probs = await validateText(parseText(text), composeFormat);

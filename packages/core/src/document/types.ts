@@ -41,8 +41,10 @@ export interface ParsedText {
   docs: Document.Parsed[];
   /** Line counter used to map offsets to line/column. */
   lineCounter: LineCounter;
-  /** All errors across all documents. */
+  /** All errors across all documents, including aliases with no anchor before them. */
   errors: YamlProblem[];
+  /** All parser warnings across all documents (for example an unresolved tag); they do not affect `ok`. */
+  warnings: YamlProblem[];
   /** The first line ending found in the text, defaulting to `\n`. */
   eol: '\n' | '\r\n';
 }
