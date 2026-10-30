@@ -47,6 +47,11 @@ describe('normalizeK8s', () => {
     expect(out.C).toEqual({ type: 'string' });
   });
 
+  it('Time definition accepts null (kubectl exports creationTimestamp: null)', () => {
+    const out = normalizeK8s({ 'io.k8s.apimachinery.pkg.apis.meta.v1.Time': { type: 'string', format: 'date-time' } });
+    expect(out['io.k8s.apimachinery.pkg.apis.meta.v1.Time']).toEqual({ type: ['string', 'null'], format: 'date-time' });
+  });
+
   it('drops x-kubernetes-* keys except group-version-kind', () => {
     const gvk = [{ group: 'apps', version: 'v1', kind: 'Thing' }];
     const out = normalizeK8s({

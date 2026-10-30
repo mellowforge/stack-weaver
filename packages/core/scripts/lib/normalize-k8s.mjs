@@ -7,6 +7,9 @@ export const QUANTITY_DEF = 'io.k8s.apimachinery.pkg.api.resource.Quantity';
 /** Quantity grammar (signed decimal number with an optional SI, binary-SI or exponent suffix). */
 export const QUANTITY_PATTERN = '^[+-]?([0-9]+(\\.[0-9]*)?|\\.[0-9]+)([eE][+-]?[0-9]+|[numkMGTPE]i?|[KMGTPE]i)?$';
 
+/** Name of the apimachinery Time definition, which rule 4b makes nullable. */
+export const TIME_DEF = 'io.k8s.apimachinery.pkg.apis.meta.v1.Time';
+
 const GVK_KEY = 'x-kubernetes-group-version-kind';
 const COMPONENT_REF = '#/components/schemas/';
 const DEF_REF = '#/$defs/';
@@ -57,6 +60,8 @@ export function kindId({ group, version, kind }) {
  * 2. `format: int-or-string` / `x-kubernetes-int-or-string: true` become an integer|string `anyOf`;
  * 3. the Quantity definition becomes a pattern-checked string or a number;
  * 4. `nullable: true` adds `'null'` to `type`;
+ *    4b. the Time definition also accepts `null`: upstream does not mark it nullable, but kubectl
+ *    exports `creationTimestamp: null` and the API server accepts it;
  * 5. `x-kubernetes-*` keys are dropped except `x-kubernetes-group-version-kind`;
  * 6. each kind root (see {@link kindGvk}) gets `apiVersion`/`kind` consts and requires
  *    `apiVersion`, `kind` and `metadata`. Pass `{ kindRoots: false }` to skip rule 6, for
@@ -71,6 +76,7 @@ export function normalizeK8s(components, { kindRoots = true } = {}) {
   for (const [name, def] of Object.entries(components)) {
     let n = normalizeSchema(def);
     if (name === QUANTITY_DEF) n = quantity(n);
+    if (name === TIME_DEF) n = { ...n, type: [...new Set([...[n.type ?? 'string'].flat(), 'null'])] };
     if (kindRoots) {
       const gvk = kindGvk(name, def);
       if (gvk) n = kindRoot(n, gvk);
