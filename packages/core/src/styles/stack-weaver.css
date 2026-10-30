@@ -378,6 +378,15 @@
   text-align: center;
 }
 
+/* The glyph is drawn here, not typed into the item, so the item's text is only its label. */
+.sw-outline-toggle[data-sw-toggle='true']::before {
+  content: '\25B8';
+}
+
+.sw-outline-item[aria-expanded='true'] > .sw-outline-toggle[data-sw-toggle='true']::before {
+  content: '\25BE';
+}
+
 .sw-outline-label {
   display: inline-block;
   padding: 2px 6px;

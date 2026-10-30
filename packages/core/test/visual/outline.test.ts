@@ -40,6 +40,22 @@ function mount() {
 }
 
 describe('outline (APG tree)', () => {
+  it('a parent item is named by its label and its own text holds no nested item text (WCAG 2.5.3)', () => {
+    const { items, item } = mount();
+    const parent = item('Deployment web');
+    expect(parent.getAttribute('aria-expanded')).toBe('true');
+    const nameOf = (el: HTMLElement) => el.getAttribute('aria-labelledby')!.split(' ').map((id) => host.querySelector(`[id="${id}"]`)!.textContent).join(' ');
+    for (const i of items()) {
+      const label = i.querySelector('.sw-outline-label')!.textContent!;
+      expect(nameOf(i)).toBe(label);
+      // Axe's label-in-name check compares the item's visible text with its name: it must be only the label.
+      expect(i.textContent).toBe(label);
+    }
+    const group = parent.parentElement!.querySelector<HTMLElement>(':scope > [role=group]')!;
+    expect(group.contains(item('metadata'))).toBe(true);
+    expect(parent.contains(group)).toBe(false);
+  });
+
   it('role=tree with treeitems, aria-level, aria-expanded', () => {
     const { items, item } = mount();
     const tree = host.querySelector('[role=tree]')!;
@@ -49,7 +65,9 @@ describe('outline (APG tree)', () => {
     expect(item('metadata').getAttribute('aria-level')).toBe('2');
     expect(item('metadata').hasAttribute('aria-expanded')).toBe(false);
     expect(item('spec').getAttribute('aria-expanded')).toBe('false');
-    expect(item('spec').querySelector('[role=group]')).not.toBeNull();
+    const group = item('spec').parentElement!.querySelector<HTMLElement>(':scope > [role=group]');
+    expect(group).not.toBeNull();
+    expect(group!.hidden).toBe(true);
     expect(items().length).toBe(5);
   });
 

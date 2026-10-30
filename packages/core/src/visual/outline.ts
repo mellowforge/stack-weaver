@@ -54,21 +54,27 @@ export function createOutline(doc: Document, o: { label: string; onSelect(node: 
     walk(roots);
     return out;
   };
+  // Each node is `li[role=none] > div[role=treeitem] + ul[role=group]`. The group is the item's sibling, not its
+  // child (and is not `aria-owns`ed, which would count its text too): the item's text is just its label, as
+  // WCAG 2.5.3 (label in name) needs. The hierarchy is given by `aria-level` and the DOM order, which ARIA allows.
   const lis = new Map<string, HTMLElement>();
+  const wraps = new Map<string, HTMLElement>();
   const itemEl = (id: string): HTMLElement | undefined => lis.get(id);
 
-  /** Creates or updates the `li` of `n` in place, so a render never detaches an element under the pointer. */
+  /** Creates or updates the node of `n` in place, so a render never detaches an element under the pointer. Returns its `li`. */
   const patchItem = (n: OutlineNode, level: number): HTMLElement => {
     const parent = n.children.length > 0;
     let li = lis.get(n.id);
-    if (!li) {
-      // The name comes from the label alone: without `aria-labelledby` it would include the nested group.
+    let wrap = wraps.get(n.id);
+    if (!li || !wrap) {
       const labelId = `sw-outline-label-${nextLabel++}`;
-      li = h(doc, 'li', { role: 'treeitem', class: 'sw-outline-item', 'data-sw-id': n.id, 'aria-labelledby': labelId }, [
+      li = h(doc, 'div', { role: 'treeitem', class: 'sw-outline-item', 'data-sw-id': n.id, 'aria-labelledby': labelId }, [
         h(doc, 'span', { class: 'sw-outline-toggle', 'aria-hidden': 'true' }),
         h(doc, 'span', { class: 'sw-outline-label', id: labelId }),
       ]);
+      wrap = h(doc, 'li', { role: 'none', class: 'sw-outline-node' }, [li]);
       lis.set(n.id, li);
+      wraps.set(n.id, wrap);
     }
     const set = (name: string, value: string | undefined): void => {
       if (value === undefined) li.removeAttribute(name);
@@ -80,30 +86,31 @@ export function createOutline(doc: Document, o: { label: string; onSelect(node: 
     set('tabindex', n.id === focusId ? '0' : '-1');
     set('data-sw-readonly', n.readOnly !== undefined ? 'true' : undefined);
     set('data-sw-unknown', n.unknownKind ? 'true' : undefined);
+    // The open/closed glyph is drawn by CSS from `aria-expanded`: it is not text in the item.
     const toggle = li.querySelector<HTMLElement>(':scope > .sw-outline-toggle')!;
-    const glyph = parent ? (expanded.has(n.id) ? '▾' : '▸') : '';
-    if (toggle.textContent !== glyph) toggle.textContent = glyph;
     toggle.dataset['swToggle'] = parent ? 'true' : 'false';
     const label = li.querySelector<HTMLElement>(':scope > .sw-outline-label')!;
     if (label.textContent !== n.label) label.textContent = n.label;
-    let group = li.querySelector<HTMLUListElement>(':scope > ul');
+    let group = wrap.querySelector<HTMLUListElement>(':scope > ul');
     if (parent) {
       if (!group) {
         group = h(doc, 'ul', { role: 'group', class: 'sw-outline-group' });
-        li.append(group);
+        wrap.append(group);
       }
       group.hidden = !expanded.has(n.id);
       sync(group, n.children, level + 1);
-    } else group?.remove();
-    return li;
+    } else {
+      group?.remove();
+    }
+    return wrap;
   };
 
   function sync(list: HTMLElement, nodes: readonly OutlineNode[], level: number): void {
     let cursor: Element | null = list.firstElementChild;
     for (const n of nodes) {
-      const li = patchItem(n, level);
-      if (li === cursor) cursor = cursor.nextElementSibling;
-      else list.insertBefore(li, cursor);
+      const wrap = patchItem(n, level);
+      if (wrap === cursor) cursor = cursor.nextElementSibling;
+      else list.insertBefore(wrap, cursor);
     }
     while (cursor) {
       const next: Element | null = cursor.nextElementSibling;
@@ -116,7 +123,11 @@ export function createOutline(doc: Document, o: { label: string; onSelect(node: 
     const active = doc.activeElement;
     const hadFocus = active !== null && tree.contains(active);
     sync(tree, roots, 1);
-    for (const id of [...lis.keys()]) if (!entries.has(id)) lis.delete(id);
+    for (const id of [...lis.keys()]) {
+      if (entries.has(id)) continue;
+      lis.delete(id);
+      wraps.delete(id);
+    }
     if (hadFocus && focusId !== undefined && !tree.contains(doc.activeElement)) itemEl(focusId)?.focus();
   }
 
@@ -139,10 +150,8 @@ export function createOutline(doc: Document, o: { label: string; onSelect(node: 
     const li = itemEl(id);
     if (!li) return;
     li.setAttribute('aria-expanded', String(open));
-    const group = li.querySelector<HTMLElement>(':scope > [role=group]');
+    const group = wraps.get(id)?.querySelector<HTMLElement>(':scope > [role=group]');
     if (group) group.hidden = !open;
-    const toggle = li.querySelector(':scope > .sw-outline-toggle');
-    if (toggle) toggle.textContent = open ? '▾' : '▸';
   };
   const select = (id: string): void => {
     const e = entries.get(id);
