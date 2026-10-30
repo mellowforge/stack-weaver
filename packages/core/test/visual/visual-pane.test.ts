@@ -175,6 +175,13 @@ describe('visual pane', () => {
     expect(text.slice(fake.revealed!.range.from, fake.revealed!.range.to)).toContain('data');
   });
 
+  it('selecting an outline node reveals it in the code pane (split mode follows)', async () => {
+    const { fake } = await mount({ value: DEPLOY });
+    click('spec');
+    const at = DEPLOY.indexOf('spec:');
+    expect(fake.revealed?.range.from).toBe(at);
+  });
+
   it('reveal(ref) selects the outline node', async () => {
     const { editor } = await mount({ value: DEPLOY });
     editor.reveal({ doc: 0, path: ['spec', 'replicas'] });

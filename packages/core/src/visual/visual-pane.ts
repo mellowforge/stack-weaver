@@ -50,7 +50,16 @@ export function createVisualPane(
     if (first) ctx.revealRange({ from: first.from, to: first.to });
   };
   const banner = createBanner(doc, ui, jump);
-  const outline = createOutline(doc, { label: ui.outlineLabel, onSelect: (n) => choose(n.ref) });
+  const outline = createOutline(doc, {
+    label: ui.outlineLabel,
+    onSelect: (n) => {
+      choose(n.ref);
+      // Split mode: the code pane follows the outline (frame 2). Not while the text is broken: its ranges are stale.
+      if (!ctx.store.parsed.ok) return;
+      const view = describeNode(ctx.store.parsed, n.ref);
+      if (view) ctx.revealRange(view.keyRange ?? view.range);
+    },
+  });
   const title = h(doc, 'h2', { class: 'sw-section-title', tabindex: '-1' });
   const crumbList = h(doc, 'ol', { class: 'sw-crumb-list' });
   const crumbs = h(doc, 'nav', { class: 'sw-section-crumbs', 'aria-label': ui.sectionPathLabel }, [crumbList]);
