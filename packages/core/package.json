@@ -1,0 +1,66 @@
+{
+  "name": "@stack-weaver/core",
+  "version": "0.1.0",
+  "description": "Framework-agnostic, schema-driven visual and code editor core for Kubernetes and docker-compose YAML.",
+  "license": "MIT",
+  "author": "Konstantin Penzin",
+  "homepage": "https://github.com/Constantine-24/stack-weaver#readme",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/Constantine-24/stack-weaver.git",
+    "directory": "packages/core"
+  },
+  "bugs": {
+    "url": "https://github.com/Constantine-24/stack-weaver/issues"
+  },
+  "keywords": [
+    "kubernetes",
+    "docker-compose",
+    "yaml",
+    "editor",
+    "schema",
+    "framework-agnostic",
+    "typescript"
+  ],
+  "type": "module",
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
+    },
+    "./formats/kubernetes": {
+      "types": "./dist/formats/kubernetes/index.d.ts",
+      "import": "./dist/formats/kubernetes/index.js"
+    },
+    "./formats/compose": {
+      "types": "./dist/formats/compose/index.d.ts",
+      "import": "./dist/formats/compose/index.js"
+    }
+  },
+  "sideEffects": false,
+  "files": [
+    "dist",
+    "README.md",
+    "LICENSE",
+    "CHANGELOG.md"
+  ],
+  "scripts": {
+    "build": "tsc -p tsconfig.build.json && node scripts/copy-generated.mjs",
+    "test": "vitest run",
+    "typecheck": "tsc --noEmit -p tsconfig.json"
+  },
+  "dependencies": {
+    "ajv": "^8.20.0",
+    "ajv-formats": "^3.0.1",
+    "yaml": "^2.9.1"
+  },
+  "devDependencies": {
+    "typescript": "^7.0.2",
+    "vitest": "^5.0.5"
+  },
+  "publishConfig": {
+    "access": "public"
+  }
+}

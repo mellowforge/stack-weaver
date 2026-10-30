@@ -1,0 +1,8 @@
+node_modules
+dist
+.superpowers/
+.claude/
+packages/angular/.angular/
+packages/react/dist-demo
+.cache/
+packages/core/src/formats/*/generated/
