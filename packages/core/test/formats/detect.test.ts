@@ -39,6 +39,6 @@ describe('detect', () => {
     expect(k?.id).toBe('apps_v1_Deployment');
     expect(await kubernetesFormat.loadSchema(fx('k8s-crd-unknown-kind.yaml'), 0)).toBeUndefined();
     expect(await kubernetesFormat.loadSchema(parseText('foo: 1\n'), 0)).toBeUndefined();
-    expect((await composeFormat.loadSchema(fx('compose-basic.yaml'), 0)).id).toBe('compose');
+    expect((await composeFormat.loadSchema(fx('compose-basic.yaml'), 0))?.id).toBe('compose');
   });
 });
