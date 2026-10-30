@@ -2,6 +2,8 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { createEditorWithContext } from '../../src/editor/editor.js';
 import type { ManifestEditorOptions } from '../../src/editor/editor.js';
+import { mountSection } from '../../src/visual/section.js';
+import type { SectionSlots } from '../../src/visual/section.js';
 import { createFakeAdapter } from '../helpers/fake-adapter.js';
 
 let el: HTMLElement;
@@ -119,8 +121,12 @@ describe('visual pane', () => {
     expect(banner.textContent).toContain('last valid version');
     expect(rowText('replicas')).toBe('2'); // lastGood
     expect(el.querySelector('.sw-pane-visual')!.hasAttribute('data-sw-readonly')).toBe(true);
-    const controls = [...el.querySelectorAll<HTMLButtonElement>('.sw-pane-visual .sw-section button, .sw-pane-visual .sw-section input')];
-    expect(controls.every((c) => c.disabled)).toBe(true);
+    // The visual pane has no editing controls yet; Task 8 widgets get readOnly=true (pinned in the mountSection test below).
+    const enabled = [...el.querySelectorAll<HTMLElement>('.sw-section input, .sw-section select, .sw-section textarea, .sw-section button')].filter(
+      (c) => !(c as HTMLButtonElement).disabled,
+    );
+    expect(enabled).toEqual([]);
+    expect(banner.querySelector('button')!.disabled).toBe(false); // the way out stays usable
     banner.querySelector<HTMLElement>('button')!.click();
     const first = ctx.store.parsed.errors[0]!;
     expect(fake.revealed?.range.from).toBe(first.from);
@@ -184,5 +190,60 @@ describe('visual pane', () => {
   it('shows an empty state without nodes', async () => {
     await mount({ value: '' });
     expect(el.querySelector('.sw-visual-empty')?.textContent).toContain('Nothing to show');
+  });
+
+  it('row labels refresh once the schema has loaded', async () => {
+    const guide = { kubernetes: { fields: { 'io.k8s.api.apps.v1.DeploymentSpec#replicas': { label: 'How many copies' } } } };
+    await mount({ value: DEPLOY, guide });
+    click('spec');
+    expect(el.querySelector('.sw-section .sw-row[data-sw-key="replicas"] .sw-row-label')?.textContent).toBe('How many copies');
+  });
+
+  it('a pending render then pointerdown then click on an outline item still selects it', async () => {
+    const { fake } = await mount({ value: DEPLOY });
+    click('spec');
+    vi.useFakeTimers();
+    fake.type(`${DEPLOY}status:\n  a: {}\n`); // changes the outline, so the flush must patch it
+    const target = item('metadata').querySelector<HTMLElement>('.sw-outline-label')!;
+    target.dispatchEvent(new Event('pointerdown', { bubbles: true }));
+    expect(items().some((i) => i.dataset['swId'] === '0:status')).toBe(true);
+    expect(target.isConnected).toBe(true);
+    target.click();
+    expect(item('metadata').getAttribute('aria-selected')).toBe('true');
+    expect(title()).toBe('metadata');
+  });
+
+  it('does not render while hidden, and renders when shown', async () => {
+    const { editor } = await mount({ value: DEPLOY, mode: 'code' });
+    expect(items().length).toBe(0);
+    editor.setMode('visual');
+    expect(items().length).toBeGreaterThan(0);
+    expect(title()).toBe('Deployment web');
+  });
+});
+
+describe('mountSection read-only contract', () => {
+  it('passes readOnly=true and no problems to a field row while the text is broken, and refreshes its label', async () => {
+    const guide = { kubernetes: { fields: { 'io.k8s.api.apps.v1.DeploymentSpec#replicas': { label: 'Copies' } } } };
+    const { ctx, fake } = await mount({ value: DEPLOY, guide });
+    const calls: unknown[][] = [];
+    const labels: string[] = [];
+    const slots: SectionSlots = {
+      field: () => ({
+        el: document.createElement('div'),
+        setLabel: (l) => labels.push(l),
+        update: (...args) => calls.push(args),
+        destroy() {},
+      }),
+      addSlot: () => undefined,
+    };
+    const section = mountSection(ctx, { doc: 0, path: ['spec'] }, slots, document);
+    expect(calls.at(-1)).toEqual([2, false, []]);
+    expect(labels.at(-1)).toBe('Copies');
+    fake.type(`${DEPLOY}bad: [\n`);
+    section.update();
+    expect(ctx.store.parsed.ok).toBe(false);
+    expect(calls.at(-1)).toEqual([2, true, []]);
+    section.destroy();
   });
 });

@@ -1,4 +1,3 @@
-import { toData } from '../document/data.js';
 import { describeNode } from '../document/describe.js';
 import type { NodeView } from '../document/describe.js';
 import type { NodeRef, ParsedText, YamlValue } from '../document/types.js';
@@ -6,6 +5,7 @@ import type { EditorContext } from '../editor/context.js';
 import { h } from '../editor/dom.js';
 import type { Problem } from '../validation/problems.js';
 import { makeLabelFor } from './labels.js';
+import { isRecord, safeData } from './util.js';
 
 /** What a field row is built from. */
 export interface FieldRowInit {
@@ -23,6 +23,8 @@ export interface FieldRowHandle {
   readonly el: HTMLElement;
   /** Shows the current value; never called with a stale one after `destroy`. */
   update(value: YamlValue, readOnly: boolean, problems: readonly Problem[]): void;
+  /** Shows the row's current label (the guide label once the schema has loaded); optional for rows that carry their own. */
+  setLabel?(label: string): void;
   /** Releases the row. */
   destroy(): void;
 }
@@ -55,11 +57,9 @@ export interface Section {
 interface Row {
   readonly kind: 'scalar' | 'collection';
   readonly el: HTMLElement;
-  update(view: NodeView, value: YamlValue, readOnly: boolean, problems: readonly Problem[]): void;
+  update(view: NodeView, label: string, value: YamlValue, readOnly: boolean, problems: readonly Problem[]): void;
   destroy(): void;
 }
-
-const isRecord = (v: unknown): v is Record<string, unknown> => typeof v === 'object' && v !== null && !Array.isArray(v);
 
 function valueAt(data: unknown, path: readonly (string | number)[]): unknown {
   let cur = data;
@@ -80,8 +80,7 @@ const startsWith = (path: readonly (string | number)[], prefix: readonly (string
  * collection as no row (the outline reaches it).
  * @internal
  */
-export function mountSection(ctx: EditorContext, ref: NodeRef, slots: SectionSlots): Section {
-  const doc = document;
+export function mountSection(ctx: EditorContext, ref: NodeRef, slots: SectionSlots, doc: Document = document): Section {
   const ui = ctx.messages.ui;
   const rowsEl = h(doc, 'div', { class: 'sw-rows' });
   const noteEl = h(doc, 'div', { class: 'sw-section-note', hidden: true });
@@ -90,14 +89,14 @@ export function mountSection(ctx: EditorContext, ref: NodeRef, slots: SectionSlo
   if (add) el.append(add);
   const rows = new Map<string, Row>();
 
-  const textRow = (init: FieldRowInit, label: string): Row => {
-    const labelEl = h(doc, 'span', { class: 'sw-row-label' }, [label]);
+  const textRow = (init: FieldRowInit): Row => {
+    const labelEl = h(doc, 'span', { class: 'sw-row-label' });
     const valueEl = h(doc, 'span', { class: 'sw-row-value' });
     const rowEl = h(doc, 'div', { class: 'sw-row', 'data-sw-key': String(init.key) }, [labelEl, valueEl]);
     return {
       kind: 'scalar',
       el: rowEl,
-      update(view, value) {
+      update(view, label, value) {
         const text = value === null || value === undefined ? '' : String(view.value ?? value);
         if (valueEl.textContent !== text) valueEl.textContent = text;
         if (labelEl.textContent !== label) labelEl.textContent = label;
@@ -135,12 +134,7 @@ export function mountSection(ctx: EditorContext, ref: NodeRef, slots: SectionSlo
       return;
     }
     showNote(view, broken);
-    let data: unknown;
-    try {
-      data = toData(parsed, ref.doc);
-    } catch {
-      data = undefined;
-    }
+    const data = safeData(parsed, ref.doc);
     const labelFor = makeLabelFor(ctx, parsed);
     const problems = broken ? [] : ctx.problems();
     const sectionReadOnly = ctx.readOnly() || broken || view.readOnly !== undefined;
@@ -170,14 +164,17 @@ export function mountSection(ctx: EditorContext, ref: NodeRef, slots: SectionSlo
           row = {
             kind,
             el: handle.el,
-            update: (_v, value, readOnly, p) => handle.update(value, readOnly, p),
+            update: (_v, label, value, readOnly, p) => {
+              handle.setLabel?.(label);
+              handle.update(value, readOnly, p);
+            },
             destroy: () => {
               handle.destroy();
               handle.el.remove();
             },
           };
         } else if (kind === 'scalar') {
-          row = textRow(init, typeof key === 'number' ? `${ui.item} ${key + 1}` : labelFor(childRef, key));
+          row = textRow(init);
         }
         if (!row) continue; // a collection without a widget: the outline reaches it
         rows.set(rowKey, row);
@@ -185,7 +182,8 @@ export function mountSection(ctx: EditorContext, ref: NodeRef, slots: SectionSlo
       live.add(rowKey);
       const value = (cv.type === 'scalar' ? cv.value : valueAt(data, childRef.path)) as YamlValue;
       const rowProblems = problems.filter((p) => p.doc === ref.doc && startsWith(p.path, childRef.path));
-      row.update(cv, value ?? null, sectionReadOnly || cv.readOnly !== undefined, rowProblems);
+      const label = typeof key === 'number' ? `${ui.item} ${key + 1}` : labelFor(childRef, key);
+      row.update(cv, label, value ?? null, sectionReadOnly || cv.readOnly !== undefined, rowProblems);
       desired.push(row);
     }
     for (const [k, r] of [...rows]) {

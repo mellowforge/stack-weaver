@@ -52,43 +52,68 @@ export function createOutline(doc: Document, o: { label: string; onSelect(node: 
     walk(roots);
     return out;
   };
-  const itemEl = (id: string): HTMLElement | undefined =>
-    [...tree.querySelectorAll<HTMLElement>('[role=treeitem]')].find((i) => i.dataset['swId'] === id);
+  const lis = new Map<string, HTMLElement>();
+  const itemEl = (id: string): HTMLElement | undefined => lis.get(id);
 
-  const build = (nodes: readonly OutlineNode[], level: number): HTMLElement[] =>
-    nodes.map((n) => {
-      const parent = n.children.length > 0;
-      const toggle = h(doc, 'span', { class: 'sw-outline-toggle', 'aria-hidden': 'true' }, [parent ? (expanded.has(n.id) ? '▾' : '▸') : '']);
-      toggle.dataset['swToggle'] = parent ? 'true' : 'false';
-      const li = h(
-        doc,
-        'li',
-        {
-          role: 'treeitem',
-          class: 'sw-outline-item',
-          'aria-level': String(level),
-          'aria-selected': String(n.id === selectedId),
-          'aria-expanded': parent ? String(expanded.has(n.id)) : undefined,
-          tabindex: n.id === focusId ? '0' : '-1',
-          'data-sw-id': n.id,
-          'data-sw-readonly': n.readOnly !== undefined ? 'true' : undefined,
-          'data-sw-unknown': n.unknownKind ? 'true' : undefined,
-        },
-        [toggle, h(doc, 'span', { class: 'sw-outline-label' }, [n.label])],
-      );
-      if (parent) {
-        const group = h(doc, 'ul', { role: 'group', class: 'sw-outline-group' }, build(n.children, level + 1));
-        group.hidden = !expanded.has(n.id);
+  /** Creates or updates the `li` of `n` in place, so a render never detaches an element under the pointer. */
+  const patchItem = (n: OutlineNode, level: number): HTMLElement => {
+    const parent = n.children.length > 0;
+    let li = lis.get(n.id);
+    if (!li) {
+      li = h(doc, 'li', { role: 'treeitem', class: 'sw-outline-item', 'data-sw-id': n.id }, [
+        h(doc, 'span', { class: 'sw-outline-toggle', 'aria-hidden': 'true' }),
+        h(doc, 'span', { class: 'sw-outline-label' }),
+      ]);
+      lis.set(n.id, li);
+    }
+    const set = (name: string, value: string | undefined): void => {
+      if (value === undefined) li.removeAttribute(name);
+      else if (li.getAttribute(name) !== value) li.setAttribute(name, value);
+    };
+    set('aria-level', String(level));
+    set('aria-selected', String(n.id === selectedId));
+    set('aria-expanded', parent ? String(expanded.has(n.id)) : undefined);
+    set('tabindex', n.id === focusId ? '0' : '-1');
+    set('data-sw-readonly', n.readOnly !== undefined ? 'true' : undefined);
+    set('data-sw-unknown', n.unknownKind ? 'true' : undefined);
+    const toggle = li.querySelector<HTMLElement>(':scope > .sw-outline-toggle')!;
+    const glyph = parent ? (expanded.has(n.id) ? '▾' : '▸') : '';
+    if (toggle.textContent !== glyph) toggle.textContent = glyph;
+    toggle.dataset['swToggle'] = parent ? 'true' : 'false';
+    const label = li.querySelector<HTMLElement>(':scope > .sw-outline-label')!;
+    if (label.textContent !== n.label) label.textContent = n.label;
+    let group = li.querySelector<HTMLUListElement>(':scope > ul');
+    if (parent) {
+      if (!group) {
+        group = h(doc, 'ul', { role: 'group', class: 'sw-outline-group' });
         li.append(group);
       }
-      return li;
-    });
+      group.hidden = !expanded.has(n.id);
+      sync(group, n.children, level + 1);
+    } else group?.remove();
+    return li;
+  };
+
+  function sync(list: HTMLElement, nodes: readonly OutlineNode[], level: number): void {
+    let cursor: Element | null = list.firstElementChild;
+    for (const n of nodes) {
+      const li = patchItem(n, level);
+      if (li === cursor) cursor = cursor.nextElementSibling;
+      else list.insertBefore(li, cursor);
+    }
+    while (cursor) {
+      const next: Element | null = cursor.nextElementSibling;
+      cursor.remove();
+      cursor = next;
+    }
+  }
 
   function render(): void {
     const active = doc.activeElement;
     const hadFocus = active !== null && tree.contains(active);
-    tree.replaceChildren(...build(roots, 1));
-    if (hadFocus && focusId !== undefined) itemEl(focusId)?.focus();
+    sync(tree, roots, 1);
+    for (const id of [...lis.keys()]) if (!entries.has(id)) lis.delete(id);
+    if (hadFocus && focusId !== undefined && !tree.contains(doc.activeElement)) itemEl(focusId)?.focus();
   }
 
   /** Makes `id` the one item in the tab order. */

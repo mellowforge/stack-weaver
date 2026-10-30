@@ -1,4 +1,3 @@
-import { toData } from '../document/data.js';
 import { describeNode } from '../document/describe.js';
 import type { StoreEvent } from '../document/store.js';
 import type { NodeRef, ParsedText } from '../document/types.js';
@@ -11,6 +10,7 @@ import { buildOutline, nodeId } from './outline-model.js';
 import type { OutlineNode } from './outline-model.js';
 import { createOutline } from './outline.js';
 import { mountSection } from './section.js';
+import { isRecord, safeData } from './util.js';
 import type { Section, SectionSlots } from './section.js';
 
 /** How long after the last `'code'` change the visual pane re-renders. */
@@ -18,15 +18,13 @@ const CODE_SYNC_MS = 100;
 
 const NO_SLOTS: SectionSlots = { field: () => undefined, addSlot: () => undefined };
 
-const isRecord = (v: unknown): v is Record<string, unknown> => typeof v === 'object' && v !== null && !Array.isArray(v);
-
 /**
  * Creates the visual pane: the broken-YAML banner, the outline tree and the section of the
  * selected node. While the text does not parse it shows the last good parse, read-only.
  * @param o.slots - Fills the section's rows and add control; defaults to plain read-only rows.
  * @internal
  */
-export function createVisualPane(ctx: EditorContext, o: { el: HTMLElement; slots?: SectionSlots }): Pane {
+export function createVisualPane(ctx: EditorContext, o: { el: HTMLElement; slots?: SectionSlots }): Pane & { refresh(): void } {
   const doc = o.el.ownerDocument;
   const ui = ctx.messages.ui;
   const slots = o.slots ?? NO_SLOTS;
@@ -40,6 +38,7 @@ export function createVisualPane(ctx: EditorContext, o: { el: HTMLElement; slots
   let flat = new Map<string, OutlineNode>();
   let section: { id: string; handle: Section } | undefined;
   let card: HTMLElement | undefined;
+  let stale = false;
 
   const jump = (): void => {
     const first = ctx.problems().find((p) => p.code === 'yaml.syntax') ?? ctx.store.parsed.errors[0];
@@ -60,14 +59,10 @@ export function createVisualPane(ctx: EditorContext, o: { el: HTMLElement; slots
     const f = ctx.format();
     if (!f) return undefined;
     if (f.rootModel === 'mapping') return f.id;
-    try {
-      const data = toData(parsed, d);
-      const apiVersion = isRecord(data) ? data['apiVersion'] : undefined;
-      const kind = isRecord(data) ? data['kind'] : undefined;
-      return typeof apiVersion === 'string' && typeof kind === 'string' ? kindKey(apiVersion, kind) : undefined;
-    } catch {
-      return undefined;
-    }
+    const data = safeData(parsed, d);
+    const apiVersion = isRecord(data) ? data['apiVersion'] : undefined;
+    const kind = isRecord(data) ? data['kind'] : undefined;
+    return typeof apiVersion === 'string' && typeof kind === 'string' ? kindKey(apiVersion, kind) : undefined;
   };
 
   /** Starts each schema load once; labels and unknown kinds are known when it resolves. */
@@ -83,7 +78,7 @@ export function createVisualPane(ctx: EditorContext, o: { el: HTMLElement; slots
       void ctx.loadBundle(d).then((bundle) => {
         if (destroyed || stamp !== generation) return;
         if (!bundle && f.rootModel === 'documents' && ctx.bundleError(d) === undefined) unknownKeys.add(key);
-        flush();
+        render(); // not flush: a pending 100 ms code debounce must keep running
       });
     }
   }
@@ -138,12 +133,17 @@ export function createVisualPane(ctx: EditorContext, o: { el: HTMLElement; slots
       return;
     }
     section?.handle.destroy();
-    const handle = mountSection(ctx, sel.ref, slots);
+    const handle = mountSection(ctx, sel.ref, slots, doc);
     section = { id: sel.id, handle };
     content.append(handle.el);
   }
 
   function render(): void {
+    if (o.el.hidden) {
+      stale = true; // rendered when the pane is shown again
+      return;
+    }
+    stale = false;
     const broken = !ctx.store.parsed.ok;
     const parsed = broken ? ctx.store.lastGood : ctx.store.parsed;
     const format = ctx.format();
@@ -186,7 +186,9 @@ export function createVisualPane(ctx: EditorContext, o: { el: HTMLElement; slots
   };
   o.el.addEventListener('pointerdown', flushPending, true);
   o.el.addEventListener('focusin', flushPending, true);
-  const offProblems = ctx.onProblems(() => section?.handle.update());
+  const offProblems = ctx.onProblems(() => {
+    if (!o.el.hidden) section?.handle.update();
+  });
 
   render();
 
@@ -211,6 +213,11 @@ export function createVisualPane(ctx: EditorContext, o: { el: HTMLElement; slots
     },
     reveal(ref: NodeRef) {
       if (destroyed) return false;
+      if (o.el.hidden) {
+        selectedRef = ref;
+        stale = true;
+        return false;
+      }
       flushPending();
       const hit = nearest(ref);
       if (!hit) return false;
@@ -218,6 +225,9 @@ export function createVisualPane(ctx: EditorContext, o: { el: HTMLElement; slots
       flush();
       outline.expandTo(hit.id);
       return true;
+    },
+    refresh() {
+      if (!destroyed && stale && !o.el.hidden) flush();
     },
     setReadOnly() {
       flush();

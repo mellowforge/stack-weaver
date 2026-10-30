@@ -1,10 +1,8 @@
-import { toData } from '../document/data.js';
 import type { NodeRef, ParsedText } from '../document/types.js';
 import type { EditorContext } from '../editor/context.js';
 import { resolveAt } from '../engine/resolve.js';
 import { guideField, kindKey } from '../formats/guide.js';
-
-const isRecord = (v: unknown): v is Record<string, unknown> => typeof v === 'object' && v !== null && !Array.isArray(v);
+import { isRecord, safeData } from './util.js';
 
 /**
  * Builds the label lookup for one render of `parsed`: the guide label of a map key (through the
@@ -16,11 +14,7 @@ export function makeLabelFor(ctx: EditorContext, parsed: ParsedText): (ref: Node
   const data = new Map<number, unknown>();
   const dataOf = (doc: number): unknown => {
     if (!data.has(doc)) {
-      try {
-        data.set(doc, toData(parsed, doc));
-      } catch {
-        data.set(doc, undefined);
-      }
+      data.set(doc, safeData(parsed, doc));
     }
     return data.get(doc);
   };

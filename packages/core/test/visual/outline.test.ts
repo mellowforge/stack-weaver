@@ -122,4 +122,15 @@ describe('outline (APG tree)', () => {
     outline.expandTo('0:spec/template');
     expect(item('spec').getAttribute('aria-expanded')).toBe('true');
   });
+
+  it('patches items in place, so an element under the pointer stays attached', () => {
+    const { item, outline } = mount();
+    const before = item('metadata');
+    const [root, ...rest] = tree();
+    const [meta, ...others] = root!.children;
+    const next = [{ ...root!, children: [{ ...meta!, label: 'Metadata' }, ...others] }, ...rest];
+    outline.update(next, undefined);
+    expect(item('Metadata')).toBe(before);
+    expect(before.isConnected).toBe(true);
+  });
 });

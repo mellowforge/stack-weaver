@@ -153,7 +153,7 @@ export function createEditorWithContext(
     onRedo: () => redo(),
   });
 
-  const visualPane: Pane = createVisualPane(ctx, { el: shell.visualEl });
+  const visualPane = createVisualPane(ctx, { el: shell.visualEl });
   const adapter: Promise<CodeEditorAdapter> = options.codeEditor ? Promise.resolve(options.codeEditor) : loaders.loadDefaultAdapter();
   const codePane = createCodePane(ctx, { el: shell.codeEl, adapter, theme: themeNow, onUndo: () => undo(), onRedo: () => redo() });
   const panes: Pane[] = [visualPane, codePane];
@@ -200,6 +200,7 @@ export function createEditorWithContext(
     if (destroyed || m === mode) return;
     mode = m;
     shell.setMode(m);
+    visualPane.refresh();
     options.onModeChange?.(m);
   }
 

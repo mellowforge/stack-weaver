@@ -1,10 +1,11 @@
 import { describeNode } from '../document/describe.js';
 import type { NodeView } from '../document/describe.js';
-import { isEmptyDocument, toData } from '../document/data.js';
+import { isEmptyDocument } from '../document/data.js';
 import type { EditRefusal } from '../document/edit.js';
 import type { NodeRef, ParsedText } from '../document/types.js';
 import type { UiMessages } from '../editor/messages.js';
 import type { FormatDefinition } from '../formats/types.js';
+import { isRecord, safeData } from './util.js';
 
 /**
  * One node of the outline tree: a document, or a mapping or sequence inside it.
@@ -33,16 +34,6 @@ export function nodeId(ref: NodeRef): string {
 }
 
 const MAX_DEPTH = 40;
-
-const isRecord = (v: unknown): v is Record<string, unknown> => typeof v === 'object' && v !== null && !Array.isArray(v);
-
-function safeData(p: ParsedText, doc: number): unknown {
-  try {
-    return toData(p, doc);
-  } catch {
-    return undefined;
-  }
-}
 
 const unique = (keys: readonly string[]): string[] => [...new Set(keys)];
 
