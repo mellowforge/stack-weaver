@@ -3,7 +3,7 @@ import type { ChangeOrigin, StoreEvent } from '../document/store.js';
 import type { NodeRef, TextRange } from '../document/types.js';
 import type { CodeEditorAdapter } from '../editors/adapter.js';
 import { mergeGuide } from '../formats/guide.js';
-import type { FormatDefinition, Guide, GuideOverride } from '../formats/types.js';
+import type { FormatDefinition, Guide, GuideOverride, Recipe } from '../formats/types.js';
 import type { SchemaMessages } from '../validation/messages.js';
 import type { Problem } from '../validation/problems.js';
 import { createCodePane } from './code-pane.js';
@@ -12,6 +12,9 @@ import type { EditorContext, Pane } from './context.js';
 import { badgeText, loadBuiltinFormats, mergeFormats, resolveFormat } from './formats.js';
 import { defaultUiMessages } from './messages.js';
 import type { UiMessages } from './messages.js';
+import { createProblemScheduler, problemCountText } from './problems.js';
+import { createProblemsPanel } from './problems-panel.js';
+import { createRecipeCards } from './recipes.js';
 import { createShell } from './shell.js';
 
 /** Which panes are shown: the form editor, both side by side, or the YAML code. */
@@ -33,6 +36,8 @@ export interface ManifestEditorOptions {
   codeEditor?: CodeEditorAdapter;
   /** Extra formats; one with the id of a built-in replaces it. */
   formats?: readonly FormatDefinition[];
+  /** Extra starter recipes, offered while the document is empty; one with the id of a built-in replaces it. */
+  recipes?: readonly Recipe[];
   /** Guide overrides, keyed by format id. */
   guide?: Readonly<Record<string, GuideOverride>>;
   /** UI and schema message overrides. */
@@ -158,6 +163,31 @@ export function createEditorWithContext(
   const codePane = createCodePane(ctx, { el: shell.codeEl, adapter, theme: themeNow, onUndo: () => undo(), onRedo: () => redo() });
   const panes: Pane[] = [visualPane, codePane];
 
+  const panel = createProblemsPanel(shell.problemsEl, { ui, onSelect: (p) => ctx.revealRange({ from: p.from, to: p.to }) });
+  const guarded = (fn: () => void): void => {
+    try {
+      fn();
+    } catch (err) {
+      console.error('stack-weaver: a problems callback threw', err);
+    }
+  };
+  const scheduler = createProblemScheduler(ctx, (next) => {
+    problems = next;
+    shell.setProblemCount(problemCountText(ui, next.length));
+    panel.update(next);
+    codePane.setProblems(next);
+    for (const fn of [...problemListeners]) guarded(() => fn(next));
+    if (options.onProblemsChange) guarded(() => options.onProblemsChange?.(next));
+  });
+  const recipes = createRecipeCards(ctx, {
+    root: shell.recipesEl,
+    auto: formatOption === 'auto',
+    formats: () => (formatsLoaded ? formatList : []),
+    hostRecipes: options.recipes ?? [],
+    fixFormat: (f) => applyFormat(f),
+    focusCode: () => codePane.instance()?.focus(),
+  });
+
   const refreshHistory = (): void => shell.setHistory({ canUndo: store.canUndo, canRedo: store.canRedo, readOnly });
 
   function undo(): boolean {
@@ -179,7 +209,8 @@ export function createEditorWithContext(
     cache.clear();
     shell.setBadge(next ? badgeText(next) : ui.formatNone);
     for (const p of panes) p.update(null);
-    ctx.loadBundle(0).catch(() => {}); // prefetch the first document's schema; failures are recorded by the cache
+    void scheduler.run(); // a new format means new problems, now rather than in 150 ms
+    recipes.refresh();
   }
   shell.setBadge(ui.formatNone);
 
@@ -188,6 +219,8 @@ export function createEditorWithContext(
     // Panes first: a format change re-syncs them, and they must already hold this change.
     for (const p of panes) p.update(e);
     if (formatOption === 'auto' && !format && formatsLoaded) applyFormat(resolveFormat('auto', store.parsed, formatList));
+    scheduler.schedule();
+    recipes.refresh();
     refreshHistory();
     options.onChange?.(e.text, { origin: e.origin });
   });
@@ -218,9 +251,10 @@ export function createEditorWithContext(
     formatList = mergeFormats(builtins, hostFormats);
     formatsLoaded = true;
     applyFormat(resolveFormat(formatOption, store.parsed, formatList));
+    recipes.refresh(); // `applyFormat` does nothing when the format stays unresolved
   });
-  // Task 6 chains the first validation run after these two.
-  const ready = Promise.all([formatReady, codePane.ready]).then(() => undefined);
+  // Ready also means the first validation has been published (or dropped by a destroy).
+  const ready = Promise.all([formatReady, codePane.ready]).then(() => scheduler.run());
 
   refreshHistory();
   shell.setReadOnly(readOnly);
@@ -238,6 +272,7 @@ export function createEditorWithContext(
       readOnly = v;
       for (const p of panes) p.setReadOnly(v);
       shell.setReadOnly(v);
+      recipes.refresh();
       refreshHistory();
     },
     undo,
@@ -250,6 +285,7 @@ export function createEditorWithContext(
       if (destroyed) return;
       destroyed = true;
       unsubscribe();
+      scheduler.destroy();
       shell.root.removeEventListener('keydown', onKeydown, true);
       mq?.removeEventListener?.('change', onScheme);
       for (const p of panes) p.destroy();

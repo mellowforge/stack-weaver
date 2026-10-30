@@ -162,3 +162,135 @@
     border-bottom: 1px solid var(--sw-border);
   }
 }
+
+/* Text for assistive technology only. */
+.sw-visually-hidden {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+}
+
+.sw-breadcrumb {
+  padding: 2px var(--sw-gap);
+  color: var(--sw-muted);
+  border-top: 1px solid var(--sw-border);
+  font-family: var(--sw-font);
+  font-size: 12px;
+}
+
+.sw-problems {
+  border-top: 1px solid var(--sw-border);
+}
+
+.sw-problems-toggle,
+.sw-problem {
+  width: 100%;
+  padding: 4px var(--sw-gap);
+  color: var(--sw-fg);
+  background: transparent;
+  border: 0;
+  font: inherit;
+  text-align: start;
+  cursor: pointer;
+}
+
+.sw-problem-list {
+  margin: 0;
+  padding: 0;
+  max-height: 160px;
+  overflow: auto;
+  list-style: none;
+}
+
+.sw-problem {
+  display: flex;
+  gap: var(--sw-gap);
+}
+
+.sw-problem:hover,
+.sw-problems-toggle:hover {
+  background: color-mix(in srgb, var(--sw-accent) 10%, transparent);
+}
+
+.sw-problem[data-sw-severity='error'] .sw-problem-icon {
+  color: var(--sw-error);
+}
+
+.sw-problem[data-sw-severity='warning'] .sw-problem-icon {
+  color: var(--sw-warning);
+}
+
+.sw-problem[data-sw-severity='info'] .sw-problem-icon {
+  color: var(--sw-info);
+}
+
+.sw-problem-message {
+  flex: 1;
+}
+
+.sw-problem-pos {
+  color: var(--sw-muted);
+  font-family: var(--sw-mono);
+}
+
+.sw-recipes {
+  padding: var(--sw-gap);
+  border-bottom: 1px solid var(--sw-border);
+}
+
+.sw-recipes-title {
+  margin: 0 0 var(--sw-gap);
+  font-weight: 600;
+}
+
+.sw-recipes-format {
+  margin: var(--sw-gap) 0 4px;
+  color: var(--sw-muted);
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.sw-recipes-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+  gap: var(--sw-gap);
+}
+
+.sw-recipe,
+.sw-recipes-blank {
+  color: var(--sw-fg);
+  background: transparent;
+  border: 1px solid var(--sw-border);
+  border-radius: var(--sw-radius);
+  font: inherit;
+  cursor: pointer;
+}
+
+.sw-recipe {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: var(--sw-gap);
+  text-align: start;
+}
+
+.sw-recipe:hover {
+  border-color: var(--sw-accent);
+}
+
+.sw-recipe-title {
+  font-weight: 600;
+}
+
+.sw-recipe-description {
+  color: var(--sw-muted);
+  font-size: 12px;
+}
+
+.sw-recipes-blank {
+  margin-top: var(--sw-gap);
+  padding: 4px 12px;
+}

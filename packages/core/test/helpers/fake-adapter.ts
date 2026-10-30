@@ -12,6 +12,8 @@ export interface FakeInstance extends CodeEditorInstance {
   readonly diagnostics: readonly CodeDiagnostic[];
   /** Current selection. */
   readonly selection: TextRange;
+  /** The init the host passed, so tests can call `complete` and `hover` directly. */
+  readonly init: CodeEditorInit;
   readonly readOnly: boolean;
   readonly theme: 'light' | 'dark';
   readonly revealed: { range: TextRange; select: boolean } | undefined;
@@ -74,6 +76,7 @@ export function createFakeAdapter(): CodeEditorAdapter & { last?: FakeInstance }
       render();
 
       const inst: FakeInstance = {
+        init,
         getText: () => text,
         applyChange(c) {
           text = text.slice(0, c.from) + c.insert + text.slice(c.to);

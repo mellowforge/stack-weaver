@@ -1,4 +1,4 @@
-import type { ParsedText, YamlValue } from '../document/types.js';
+import type { NodeRef, ParsedText, YamlValue } from '../document/types.js';
 
 /** A JSON Schema document as plain data. */
 export type JsonSchema = Record<string, unknown>;
@@ -115,6 +115,22 @@ export interface GuideOverride {
   readonly fields?: Readonly<Record<string, Partial<GuideField>>>;
 }
 
+/** A starter document offered while the editor is empty. */
+export interface Recipe {
+  /** Stable id; a host recipe with the id of a built-in replaces it. */
+  readonly id: string;
+  /** The `id` of the format the recipe belongs to. */
+  readonly format: string;
+  /** Short card title. */
+  readonly title: string;
+  /** One-line plain-language description. */
+  readonly description: string;
+  /** The YAML text the recipe inserts; it should validate against its format. */
+  readonly yaml: string;
+  /** The value that most needs replacing (for example the container image); revealed after the recipe is chosen. */
+  readonly focus?: NodeRef;
+}
+
 /** A registered document format (Kubernetes, compose, ...). Registered formats are deep-frozen. */
 export interface FormatDefinition {
   /** Registry key, e.g. `'kubernetes'` or `'compose'`. */
@@ -146,4 +162,6 @@ export interface FormatDefinition {
   loadSchema(p: ParsedText, doc: number): Promise<SchemaBundle | undefined>;
   /** The format's guide overlay. */
   readonly guide: Guide;
+  /** Starter documents offered while the editor is empty. */
+  readonly recipes?: readonly Recipe[];
 }

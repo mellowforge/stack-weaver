@@ -13,6 +13,12 @@ export interface Shell {
   readonly visualEl: HTMLElement;
   /** The `.sw-pane-code` element. */
   readonly codeEl: HTMLElement;
+  /** The `.sw-recipes` element (starter recipes; hidden unless offered). */
+  readonly recipesEl: HTMLElement;
+  /** The `.sw-problems` element (the problems panel). */
+  readonly problemsEl: HTMLElement;
+  /** Sets the problem count text in the live region. */
+  setProblemCount(text: string): void;
   /** Shows `mode`: updates the radio group and pane visibility. */
   setMode(mode: EditorMode): void;
   /** Sets `data-sw-theme`. */
@@ -64,20 +70,32 @@ export function createShell(
   const redoBtn = h(doc, 'button', { type: 'button', class: 'sw-btn sw-redo' }, [o.ui.redo]);
   undoBtn.addEventListener('click', () => o.onUndo());
   redoBtn.addEventListener('click', () => o.onRedo());
-  // Task 6 fills this with the problem count.
-  const problemCount = h(doc, 'span', { class: 'sw-problem-count' });
+  // A polite live region: screen readers hear the count change.
+  const problemCount = h(doc, 'span', { class: 'sw-problem-count', role: 'status' });
 
   const topbar = h(doc, 'div', { class: 'sw-topbar' }, [badge, group, h(doc, 'div', { class: 'sw-history' }, [undoBtn, redoBtn]), problemCount]);
   const visualEl = h(doc, 'div', { class: 'sw-pane-visual', role: 'region', 'aria-label': o.ui.visualLabel });
   const codeEl = h(doc, 'div', { class: 'sw-pane-code' });
   const body = h(doc, 'div', { class: 'sw-body' }, [visualEl, codeEl]);
-  const root = h(doc, 'div', { class: 'sw-editor', 'data-sw-theme': o.theme, 'aria-label': o.ui.editorLabel, role: 'group' }, [topbar, body]);
+  const recipesEl = h(doc, 'div', { class: 'sw-recipes', hidden: true });
+  const problemsEl = h(doc, 'section', { class: 'sw-problems', 'aria-label': o.ui.problemsLabel, hidden: true });
+  const root = h(doc, 'div', { class: 'sw-editor', 'data-sw-theme': o.theme, 'aria-label': o.ui.editorLabel, role: 'group' }, [
+    topbar,
+    recipesEl,
+    body,
+    problemsEl,
+  ]);
   host.replaceChildren(root);
 
   const shell: Shell = {
     root,
     visualEl,
     codeEl,
+    recipesEl,
+    problemsEl,
+    setProblemCount: (text) => {
+      problemCount.textContent = text;
+    },
     setMode(mode) {
       root.setAttribute('data-sw-mode', mode);
       for (const [m, b] of radios) {
@@ -100,5 +118,6 @@ export function createShell(
     },
   };
   shell.setMode(o.mode);
+  shell.setProblemCount(o.ui.problemsNone);
   return shell;
 }

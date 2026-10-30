@@ -218,14 +218,25 @@ describe('lifecycle', () => {
     };
     const onProblemsChange = vi.fn();
     const onChange = vi.fn();
-    const { editor, ctx } = await mount({ format: 'custom', formats: [custom], value: 'a: 1\n', onProblemsChange, onChange });
-    expect(loadSchema).toHaveBeenCalledTimes(1);
+    // `ready` waits for the first validation, which waits for the schema: do not await it here.
+    const { editor, ctx } = createEditorWithContext(el, {
+      codeEditor: createFakeAdapter(),
+      format: 'custom',
+      formats: [custom],
+      value: 'a: 1\n',
+      onProblemsChange,
+      onChange,
+    });
+    await vi.waitFor(() => expect(loadSchema).toHaveBeenCalledTimes(1)); // the first validation is pending
     const pending = ctx.loadBundle(0);
     editor.destroy();
     expect(el.childNodes.length).toBe(0);
-    resolve({ id: 'custom', schema: {}, validate: () => [] });
+    // Were the result not dropped, this schema would publish one error.
+    resolve({ id: 'custom', schema: {}, validate: () => [{ instancePath: '/a', keyword: 'type', params: { type: 'string' } }] });
     await expect(pending).resolves.toBeUndefined();
-    await Promise.resolve();
+    await expect(editor.ready).resolves.toBeUndefined();
+    await new Promise((r) => setTimeout(r, 0));
+    expect(editor.getProblems()).toEqual([]);
     expect(ctx.bundleFor(0)).toBeUndefined();
     expect(onProblemsChange).not.toHaveBeenCalled();
     expect(onChange).not.toHaveBeenCalled();
