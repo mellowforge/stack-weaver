@@ -1,5 +1,5 @@
 // @vitest-environment happy-dom
-import { readFileSync } from 'node:fs';
+import { readFileSync, readdirSync } from 'node:fs';
 import { join } from 'node:path';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { createEditorWithContext } from '../../src/editor/editor.js';
@@ -51,8 +51,8 @@ async function mountWithRows(options: ManifestEditorOptions = {}) {
 
 // ---- accessible names ------------------------------------------------------------------------
 
-/** Roles an author must name. `list`, `status`, `alert` and `listitem` are named by their content or need no name. */
-const NAMED_ROLES = new Set(['button', 'radio', 'radiogroup', 'tree', 'treeitem', 'group', 'region', 'dialog', 'textbox', 'combobox', 'listbox', 'option', 'checkbox', 'switch', 'tab', 'tablist']);
+/** Roles that need no author-supplied name: structure, live regions and presentation. Every other role must be named. */
+const EXEMPT_ROLES = new Set(['list', 'listitem', 'status', 'alert', 'presentation', 'none']);
 
 function textOf(ids: string, root: Document): string {
   return ids
@@ -75,7 +75,7 @@ function accessibleName(node: Element): string {
   }
   const wrapping = node.closest('label');
   if (wrapping?.textContent?.trim()) return wrapping.textContent.trim();
-  if (node.matches('button, [role=radio], [role=button], [role=option]')) return (node.textContent ?? '').trim();
+  if (node.matches('button, a[href], [role=radio], [role=button], [role=option], [role=link], [role=menuitem], [role=tab]')) return (node.textContent ?? '').trim();
   return '';
 }
 
@@ -86,7 +86,7 @@ function unnamed(root: HTMLElement): string[] {
     if (node.matches('input[type=hidden]')) continue;
     if (node.matches('.sw-outline-group')) continue; // an APG tree's group of children needs no name of its own
     const role = node.getAttribute('role');
-    if (role !== null && !NAMED_ROLES.has(role) && !node.matches('button, input, select, textarea')) continue;
+    if (role !== null && EXEMPT_ROLES.has(role) && !node.matches('button, input, select, textarea')) continue;
     if (accessibleName(node) === '') out.push(`${node.tagName.toLowerCase()}.${node.className}[role=${role ?? ''}]`);
   }
   return out;
@@ -218,6 +218,11 @@ const light = tokens(block('.sw-editor'));
 const dark = tokens(block(".sw-editor[data-sw-theme='dark']"));
 
 describe('theming', () => {
+  it('breadcrumb items are spaced with CSS, so separators never touch the next label', () => {
+    expect(block('.sw-crumb-list')).toMatch(/gap:/);
+    expect(block('.sw-crumb-sep')).toMatch(/margin-inline-start:/);
+  });
+
   it('dark theme defines every token', () => {
     const colours = [...light].filter(([, v]) => /^#[0-9a-f]{6}$/i.test(v)).map(([k]) => k);
     expect(colours.length).toBeGreaterThan(8);
@@ -240,7 +245,7 @@ function contrast(a: string, b: string): number {
 }
 
 describe('contrast', () => {
-  const pairs: [string, string][] = [
+  const pairs: [string, string, number?][] = [
     ['--sw-fg', '--sw-bg'],
     ['--sw-on-accent', '--sw-accent'],
     ['--sw-accent', '--sw-bg'],
@@ -248,16 +253,18 @@ describe('contrast', () => {
     ['--sw-muted', '--sw-bg'],
     ['--sw-warning', '--sw-bg'],
     ['--sw-info', '--sw-bg'],
+    ['--sw-focus', '--sw-bg', 3],
+    ['--sw-border', '--sw-bg', 3],
   ];
   for (const [name, theme] of [['light', light], ['dark', dark]] as const) {
-    for (const [fg, bg] of pairs) {
-      it(`${fg} on ${bg} is at least 4.5:1 (${name})`, () => {
+    for (const [fg, bg, min = 4.5] of pairs) {
+      it(`${fg} on ${bg} is at least ${min}:1 (${name})`, () => {
         const merged = new Map([...light, ...theme]);
         const f = merged.get(fg);
         const b = merged.get(bg);
         expect(f, fg).toMatch(/^#[0-9a-f]{6}$/i);
         expect(b, bg).toMatch(/^#[0-9a-f]{6}$/i);
-        expect(contrast(f!, b!)).toBeGreaterThanOrEqual(4.5);
+        expect(contrast(f!, b!)).toBeGreaterThanOrEqual(min);
       });
     }
   }
@@ -268,6 +275,10 @@ describe('contrast', () => {
     expect(css).not.toMatch(/color:\s*#fff/i);
   });
 });
+
+function sourceFiles(dir: string): string[] {
+  return readdirSync(dir, { withFileTypes: true }).flatMap((d) => (d.isDirectory() ? sourceFiles(join(dir, d.name)) : d.name.endsWith('.ts') ? [join(dir, d.name)] : []));
+}
 
 describe('focus-visible', () => {
   it('focus-visible styles exist for every interactive class', async () => {
@@ -285,9 +296,21 @@ describe('focus-visible', () => {
     }
     // The recipe cards only exist while the document is empty.
     elements.push({ name: 'sw-recipe', classes: ['sw-recipe'] }, { name: 'sw-recipes-blank', classes: ['sw-recipes-blank'] });
-    const rules = (css.match(/[^{}]+(?=\{)/g) ?? []).map((s) => s.trim()).filter((s) => s.includes(':focus-visible'));
-    const covered = (c: string): boolean => rules.some((r) => r.split(',').some((part) => new RegExp(`\\.${c}:focus-visible(?![\\w-])`).test(part)));
+    // Every `sw-*` class given to a button, input, select or textarea anywhere in src/ (covers widgets not rendered here).
+    for (const file of sourceFiles(join(process.cwd(), 'src'))) {
+      const text = readFileSync(file, 'utf8');
+      for (const m of text.matchAll(/'(?:button|input|select|textarea)',\s*\{[^}]*?class:\s*'([^']+)'/g)) {
+        const classes = m[1]!.split(/\s+/).filter((c) => c.startsWith('sw-'));
+        elements.push({ name: `${classes.join('.')} (${file.split('/').pop()})`, classes });
+      }
+    }
+    const rules = [...css.matchAll(/([^{}]+)\{([^{}]*)\}/g)].map((m) => ({ selector: m[1]!.trim(), body: m[2]! })).filter((r) => r.selector.includes(':focus-visible'));
+    const ruleFor = (c: string) => rules.find((r) => r.selector.split(',').some((part) => new RegExp(`\\.${c}:focus-visible(?![\\w-])`).test(part)));
+    const covered = (c: string): boolean => ruleFor(c) !== undefined;
     const missing = [...new Set(elements.filter((e) => !e.classes.some(covered)).map((e) => e.name))];
+    // And the rule must really draw something.
+    const invisible = rules.filter((r) => !/outline:\s*(?!none)[^;]+;|box-shadow:\s*(?!none)[^;]+;/.test(r.body)).map((r) => r.selector);
+    expect(invisible).toEqual([]);
     expect(missing).toEqual([]);
     editor.destroy();
   });

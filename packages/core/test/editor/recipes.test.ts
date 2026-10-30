@@ -5,7 +5,7 @@ import { createEditorWithContext } from '../../src/editor/editor.js';
 import type { ManifestEditorOptions } from '../../src/editor/editor.js';
 import { composeFormat } from '../../src/formats/compose/index.js';
 import { kubernetesFormat } from '../../src/formats/kubernetes/index.js';
-import type { Recipe } from '../../src/formats/types.js';
+import type { FormatDefinition, Recipe, SchemaBundle } from '../../src/formats/types.js';
 import { createFakeAdapter } from '../helpers/fake-adapter.js';
 
 let el: HTMLElement;
@@ -151,6 +151,39 @@ describe('recipe focus in the visual pane', () => {
   it('choosing a recipe in code mode does not move focus into the hidden visual pane', async () => {
     await mount({ format: 'kubernetes', mode: 'code' });
     cards()[0]!.click();
+    await new Promise((r) => setTimeout(r, 20));
+    expect(el.querySelector('.sw-pane-visual')!.contains(document.activeElement)).toBe(false);
+  });
+
+  it('a recipe focus made stale while the schema loads is dropped', async () => {
+    let resolve!: (b: SchemaBundle | undefined) => void;
+    let calls = 0;
+    const custom: FormatDefinition = {
+      id: 'custom',
+      label: 'Custom',
+      version: '1',
+      rootModel: 'mapping',
+      detect: () => false,
+      kinds: () => [],
+      loadSchema: () => {
+        calls++;
+        return new Promise<SchemaBundle | undefined>((r) => (resolve = r));
+      },
+      guide: { groups: [], kinds: {}, fields: {} },
+    };
+    const recipe: Recipe = { id: 'c', format: 'custom', title: 'C', description: 'd', yaml: 'svc:\n  name: x\n', focus: { doc: 0, path: ['svc', 'name'] } };
+    // `ready` waits for the first validation, which waits for the schema: do not await it.
+    const made = createEditorWithContext(el, { codeEditor: createFakeAdapter(), format: 'custom', formats: [custom], recipes: [recipe], mode: 'visual' });
+    await vi.waitFor(() => expect(el.querySelector('[data-sw-recipe="c"]')).not.toBeNull());
+    el.querySelector<HTMLButtonElement>('[data-sw-recipe="c"]')!.click();
+    await vi.waitFor(() => expect(calls).toBeGreaterThan(0));
+    made.editor.setValue('svc:\n  name: y\n'); // the user changes the text meanwhile
+    resolve({
+      id: 'custom',
+      schema: { type: 'object', properties: { svc: { type: 'object', properties: { name: { type: 'string' } } } } },
+      validate: () => [],
+    });
+    await vi.waitFor(() => expect(el.querySelector('.sw-row input')).not.toBeNull());
     await new Promise((r) => setTimeout(r, 20));
     expect(el.querySelector('.sw-pane-visual')!.contains(document.activeElement)).toBe(false);
   });

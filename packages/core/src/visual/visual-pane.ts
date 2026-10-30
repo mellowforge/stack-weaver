@@ -142,7 +142,7 @@ export function createVisualPane(
         const last = i === chain.length - 1;
         return h(doc, 'li', { class: 'sw-crumb' }, [
           h(doc, 'span', last ? { class: 'sw-crumb-label', 'aria-current': 'location' } : { class: 'sw-crumb-label' }, [label]),
-          ...(last ? [] : [h(doc, 'span', { class: 'sw-crumb-sep', 'aria-hidden': 'true' }, [' ›'])]),
+          ...(last ? [] : [h(doc, 'span', { class: 'sw-crumb-sep', 'aria-hidden': 'true' }, ['›'])]),
         ]);
       }),
     );

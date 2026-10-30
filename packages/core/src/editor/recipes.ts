@@ -63,10 +63,9 @@ export function createRecipeCards(
     ctx.store.setText(recipe.yaml, 'api');
     const format = o.formats().find((f) => f.id === recipe.format);
     if (format) o.fixFormat(format);
-    const range = recipe.focus && rangeForRef(ctx.store.parsed, recipe.focus);
-    if (range) ctx.revealRange(range);
-    // In visual and split mode the focus lands on the field's widget, once the schema has loaded.
-    if (recipe.focus) {
+    // One reveal: `select` shows the node in the code editor and the visual pane; in visual and
+    // split mode the focus then lands on the field's widget, once the schema has loaded.
+    if (recipe.focus && rangeForRef(ctx.store.parsed, recipe.focus)) {
       ctx.select(recipe.focus);
       ctx.focusField(recipe.focus);
     }

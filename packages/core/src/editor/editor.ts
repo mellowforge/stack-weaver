@@ -108,6 +108,8 @@ export function createEditorWithContext(
   const hostFormats = options.formats ?? [];
   const formatOption = options.format ?? 'auto';
   let destroyed = false;
+  /** Bumped by every store change and mode change, and by each focus request; see `focusField`. */
+  let focusGen = 0;
   let readOnly = options.readOnly ?? false;
   let mode: EditorMode = options.mode ?? 'split';
   let format: FormatDefinition | undefined;
@@ -142,8 +144,11 @@ export function createEditorWithContext(
       visualPane.reveal(ref);
     },
     focusField: (ref) => {
+      // Anything the user does while the schema loads (typing, another mode, another recipe) makes
+      // this focus stale: it is then dropped rather than stolen. `loadBundle` never rejects.
+      const stamp = ++focusGen;
       void cache.loadBundle(ref.doc).then(() => {
-        if (!destroyed) visualPane.focusField(ref);
+        if (!destroyed && stamp === focusGen && mode !== 'code') visualPane.focusField(ref);
       });
     },
     onProblems(fn) {
@@ -209,6 +214,7 @@ export function createEditorWithContext(
   function setMode(m: EditorMode): void {
     if (destroyed || m === mode) return;
     mode = m;
+    focusGen++;
     shell.setMode(m);
     visualPane.refresh();
     options.onModeChange?.(m);
@@ -227,6 +233,7 @@ export function createEditorWithContext(
 
   const unsubscribe = store.subscribe((e: StoreEvent) => {
     if (destroyed) return;
+    focusGen++;
     // Panes first: a format change re-syncs them, and they must already hold this change.
     for (const p of panes) p.update(e);
     if (formatOption === 'auto' && !format && formatsLoaded) applyFormat(resolveFormat('auto', store.parsed, formatList));
