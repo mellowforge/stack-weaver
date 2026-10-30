@@ -262,6 +262,10 @@ function createFieldRow(ctx: EditorContext, registry: WidgetRegistry, envFor: (p
     setLabel(l) {
       sectionLabel = l;
     },
+    focus() {
+      if (widget) widget.focus();
+      else (cardBtn ?? rowEl.querySelector<HTMLElement>('button'))?.focus();
+    },
     destroy() {
       destroyed = true;
       dropBody();

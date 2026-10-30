@@ -26,7 +26,10 @@ const NO_SLOTS: SectionSlots = { field: () => undefined, addSlot: () => undefine
  * @param o.slots - Fills the section's rows and add control; defaults to plain read-only rows.
  * @internal
  */
-export function createVisualPane(ctx: EditorContext, o: { el: HTMLElement; slots?: SectionSlots }): Pane & { refresh(): void } {
+export function createVisualPane(
+  ctx: EditorContext,
+  o: { el: HTMLElement; slots?: SectionSlots },
+): Pane & { refresh(): void; focusField(ref: NodeRef): boolean } {
   const doc = o.el.ownerDocument;
   const ui = ctx.messages.ui;
   const slots = o.slots ?? NO_SLOTS;
@@ -49,14 +52,21 @@ export function createVisualPane(ctx: EditorContext, o: { el: HTMLElement; slots
   const banner = createBanner(doc, ui, jump);
   const outline = createOutline(doc, { label: ui.outlineLabel, onSelect: (n) => choose(n.ref) });
   const title = h(doc, 'h2', { class: 'sw-section-title', tabindex: '-1' });
-  const crumbs = h(doc, 'nav', { class: 'sw-section-crumbs', 'aria-label': ui.breadcrumbLabel });
-  const removal = createRemoveControl(ctx, doc, () => title.focus());
+  const crumbList = h(doc, 'ol', { class: 'sw-crumb-list' });
+  const crumbs = h(doc, 'nav', { class: 'sw-section-crumbs', 'aria-label': ui.sectionPathLabel }, [crumbList]);
+  const empty = h(doc, 'p', { class: 'sw-visual-empty', hidden: true, tabindex: '-1' }, [ui.visualEmpty]);
+  const addResource = createAddResource(ctx, doc);
+  // After a removal focus must stay on something visible: the section's title, or, when nothing is
+  // left, the add button (else the empty message) rather than the hidden section.
+  const removal = createRemoveControl(ctx, doc, () => {
+    if (nodes.length > 0) title.focus();
+    else if (!addResource.el.hidden && !addResource.el.disabled) addResource.el.focus();
+    else empty.focus();
+  });
   const header = h(doc, 'header', { class: 'sw-section-header' }, [title, crumbs, removal.el]);
   const content = h(doc, 'div', { class: 'sw-section-content' });
   const host = h(doc, 'div', { class: 'sw-section-host' }, [header, content]);
   const body = h(doc, 'div', { class: 'sw-visual-body' }, [outline.el, host]);
-  const empty = h(doc, 'p', { class: 'sw-visual-empty', hidden: true }, [ui.visualEmpty]);
-  const addResource = createAddResource(ctx, doc);
   const toolbar = h(doc, 'div', { class: 'sw-visual-toolbar' }, [addResource.el]);
   o.el.append(banner.el, toolbar, body, empty);
 
@@ -127,7 +137,15 @@ export function createVisualPane(ctx: EditorContext, o: { el: HTMLElement; slots
       const hit = flat.get(nodeId({ doc: sel.ref.doc, path: sel.ref.path.slice(0, n) }));
       if (hit) chain.push(hit.label);
     }
-    crumbs.textContent = chain.join(' › ');
+    crumbList.replaceChildren(
+      ...chain.map((label, i) => {
+        const last = i === chain.length - 1;
+        return h(doc, 'li', { class: 'sw-crumb' }, [
+          h(doc, 'span', last ? { class: 'sw-crumb-label', 'aria-current': 'location' } : { class: 'sw-crumb-label' }, [label]),
+          ...(last ? [] : [h(doc, 'span', { class: 'sw-crumb-sep', 'aria-hidden': 'true' }, [' ›'])]),
+        ]);
+      }),
+    );
     if (sel.unknownKind) {
       showCard(sel, parsed, broken);
       return;
@@ -234,6 +252,17 @@ export function createVisualPane(ctx: EditorContext, o: { el: HTMLElement; slots
       flush();
       outline.expandTo(hit.id);
       return true;
+    },
+    focusField(ref: NodeRef) {
+      if (destroyed || o.el.hidden) return false;
+      flushPending();
+      flush(); // the schema may have loaded since the last render
+      const hit = nearest(ref);
+      if (!hit || section?.id !== hit.id) return false;
+      const key = ref.path[hit.ref.path.length];
+      if (key !== undefined && section.handle.focusRow(key)) return true;
+      title.focus();
+      return false;
     },
     refresh() {
       if (!destroyed && stale && !o.el.hidden) flush();

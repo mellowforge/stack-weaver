@@ -36,7 +36,7 @@ function mergeRecipes(formats: readonly FormatDefinition[], host: readonly Recip
  *
  * With format `'auto'` every format's recipes are offered, grouped by format label; with a fixed
  * format, only that format's. Choosing a card sets the text (origin `'api'`), fixes the format and
- * reveals the recipe's `focus` in the code editor. "Start blank" hides the cards and focuses the
+ * reveals the recipe's `focus` in the code editor and, in the visual pane, focuses its widget. "Start blank" hides the cards and focuses the
  * code; they stay hidden until the text has become non-empty and then empty again.
  * @internal
  */
@@ -65,6 +65,11 @@ export function createRecipeCards(
     if (format) o.fixFormat(format);
     const range = recipe.focus && rangeForRef(ctx.store.parsed, recipe.focus);
     if (range) ctx.revealRange(range);
+    // In visual and split mode the focus lands on the field's widget, once the schema has loaded.
+    if (recipe.focus) {
+      ctx.select(recipe.focus);
+      ctx.focusField(recipe.focus);
+    }
   }
 
   function render(groups: readonly { format: FormatDefinition; recipes: readonly Recipe[] }[]): void {

@@ -141,6 +141,11 @@ export function createEditorWithContext(
       codePane.reveal(ref);
       visualPane.reveal(ref);
     },
+    focusField: (ref) => {
+      void cache.loadBundle(ref.doc).then(() => {
+        if (!destroyed) visualPane.focusField(ref);
+      });
+    },
     onProblems(fn) {
       problemListeners.add(fn);
       return () => {

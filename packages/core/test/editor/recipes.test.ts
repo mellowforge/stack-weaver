@@ -128,3 +128,40 @@ describe('recipe cards', () => {
     expect(el.querySelector('.sw-recipes b')).toBeNull();
   });
 });
+
+describe('recipe focus in the visual pane', () => {
+  const recipeInput = (r: Recipe): HTMLElement | null => {
+    const key = String(r.focus!.path[r.focus!.path.length - 1]);
+    return el.querySelector<HTMLElement>(`.sw-section .sw-row[data-sw-key="${key}"] input, .sw-section .sw-row[data-sw-key="${key}"] select`);
+  };
+
+  for (const mode of ['visual', 'split'] as const) {
+    it(`choosing a recipe in ${mode} focuses the widget at recipe.focus`, async () => {
+      await mount({ format: 'kubernetes', mode });
+      const recipe = kubernetesFormat.recipes!.find((r) => r.id === 'k8s-web-app')!;
+      cards().find((b) => b.getAttribute('data-sw-recipe') === recipe.id)!.click();
+      await vi.waitFor(() => {
+        const input = recipeInput(recipe);
+        expect(input).not.toBeNull();
+        expect(document.activeElement).toBe(input);
+      });
+    });
+  }
+
+  it('choosing a recipe in code mode does not move focus into the hidden visual pane', async () => {
+    await mount({ format: 'kubernetes', mode: 'code' });
+    cards()[0]!.click();
+    await new Promise((r) => setTimeout(r, 20));
+    expect(el.querySelector('.sw-pane-visual')!.contains(document.activeElement)).toBe(false);
+  });
+
+  it('the Secret recipe focuses a control inside the visual pane', async () => {
+    await mount({ format: 'kubernetes', mode: 'visual' });
+    cards().find((b) => b.getAttribute('data-sw-recipe') === 'k8s-config')!.click();
+    await vi.waitFor(() => {
+      const a = document.activeElement as HTMLElement | null;
+      expect(a?.matches('input, textarea, select')).toBe(true);
+      expect(el.querySelector('.sw-pane-visual')!.contains(a)).toBe(true);
+    });
+  });
+});

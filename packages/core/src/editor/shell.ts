@@ -71,7 +71,7 @@ export function createShell(
   undoBtn.addEventListener('click', () => o.onUndo());
   redoBtn.addEventListener('click', () => o.onRedo());
   // A polite live region: screen readers hear the count change.
-  const problemCount = h(doc, 'span', { class: 'sw-problem-count', role: 'status' });
+  const problemCount = h(doc, 'span', { class: 'sw-problem-count', role: 'status', 'aria-live': 'polite' });
 
   const topbar = h(doc, 'div', { class: 'sw-topbar' }, [badge, group, h(doc, 'div', { class: 'sw-history' }, [undoBtn, redoBtn]), problemCount]);
   const visualEl = h(doc, 'div', { class: 'sw-pane-visual', role: 'region', 'aria-label': o.ui.visualLabel });

@@ -16,7 +16,7 @@ export interface Banner {
 export function createBanner(doc: Document, ui: UiMessages, onJump: () => void): Banner {
   const button = h(doc, 'button', { type: 'button', class: 'sw-btn sw-banner-jump' }, [ui.jumpToError]);
   button.addEventListener('click', onJump);
-  const el = h(doc, 'div', { class: 'sw-banner', role: 'alert', hidden: true }, [
+  const el = h(doc, 'div', { class: 'sw-banner', role: 'alert', 'aria-live': 'assertive', hidden: true }, [
     h(doc, 'span', { class: 'sw-banner-text' }, [ui.bannerBroken]),
     button,
   ]);

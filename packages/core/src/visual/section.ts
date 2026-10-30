@@ -25,6 +25,8 @@ export interface FieldRowHandle {
   update(value: YamlValue, readOnly: boolean, problems: readonly Problem[]): void;
   /** Shows the row's current label (the guide label once the schema has loaded); optional for rows that carry their own. */
   setLabel?(label: string): void;
+  /** Moves focus to the row's main control. */
+  focus?(): void;
   /** Releases the row. */
   destroy(): void;
 }
@@ -54,6 +56,8 @@ export interface Section {
   readonly el: HTMLElement;
   /** Re-reads the document: reuses rows by path, drops vanished ones, mounts new ones in source order. */
   update(): void;
+  /** Focuses the control of the row for child `key`; false when there is no such row or it has nothing to focus. */
+  focusRow(key: string | number): boolean;
   /** Releases the section and its rows. */
   destroy(): void;
 }
@@ -62,6 +66,7 @@ interface Row {
   readonly kind: 'scalar' | 'collection';
   readonly el: HTMLElement;
   update(view: NodeView, label: string, value: YamlValue, readOnly: boolean, problems: readonly Problem[]): void;
+  focus?(): void;
   destroy(): void;
 }
 
@@ -173,6 +178,7 @@ export function mountSection(ctx: EditorContext, ref: NodeRef, slots: SectionSlo
               handle.setLabel?.(label);
               handle.update(value, readOnly, p);
             },
+            ...(handle.focus && { focus: () => handle.focus!() }),
             destroy: () => {
               handle.destroy();
               handle.el.remove();
@@ -211,6 +217,12 @@ export function mountSection(ctx: EditorContext, ref: NodeRef, slots: SectionSlo
   return {
     el,
     update,
+    focusRow(key) {
+      const row = rows.get(typeof key === 'number' ? `i:${key}` : `k:${key}`);
+      if (!row?.focus) return false;
+      row.focus();
+      return row.el.contains(doc.activeElement);
+    },
     destroy() {
       clear();
       if (add) slots.destroyAddSlot?.(add);

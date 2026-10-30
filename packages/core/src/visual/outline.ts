@@ -22,6 +22,8 @@ interface Entry {
   level: number;
 }
 
+let nextLabel = 0;
+
 /**
  * Creates the outline. Arrow keys move focus, Right and Left open, close and walk, Enter, Space and
  * click select; only the focused item is in the tab order (roving tabindex).
@@ -60,9 +62,11 @@ export function createOutline(doc: Document, o: { label: string; onSelect(node: 
     const parent = n.children.length > 0;
     let li = lis.get(n.id);
     if (!li) {
-      li = h(doc, 'li', { role: 'treeitem', class: 'sw-outline-item', 'data-sw-id': n.id }, [
+      // The name comes from the label alone: without `aria-labelledby` it would include the nested group.
+      const labelId = `sw-outline-label-${nextLabel++}`;
+      li = h(doc, 'li', { role: 'treeitem', class: 'sw-outline-item', 'data-sw-id': n.id, 'aria-labelledby': labelId }, [
         h(doc, 'span', { class: 'sw-outline-toggle', 'aria-hidden': 'true' }),
-        h(doc, 'span', { class: 'sw-outline-label' }),
+        h(doc, 'span', { class: 'sw-outline-label', id: labelId }),
       ]);
       lis.set(n.id, li);
     }

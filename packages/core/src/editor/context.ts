@@ -36,6 +36,8 @@ export interface EditorContext {
   revealRange(r: TextRange): void;
   /** Reveals `ref` in the panes. */
   select(ref: NodeRef): void;
+  /** Selects `ref` in the visual pane, waits for its schema, then focuses the field's widget (nothing happens in code mode). */
+  focusField(ref: NodeRef): void;
   /** Subscribes to problem changes; returns an unsubscribe function. */
   onProblems(fn: (problems: readonly Problem[]) => void): () => void;
 }

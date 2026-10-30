@@ -36,6 +36,8 @@ export interface UiMessages {
   severityInfo: string;
   /** Accessible name of the breadcrumb that shows where the caret is. */
   breadcrumbLabel: string;
+  /** Accessible name of the path to the shown section in the visual pane (distinct from the code breadcrumb). */
+  sectionPathLabel: string;
   /** Heading of the starter recipes. */
   recipesTitle: string;
   /** Label of the button that skips the recipes. */
@@ -152,6 +154,7 @@ export const defaultUiMessages: UiMessages = {
   severityWarning: 'Warning',
   severityInfo: 'Information',
   breadcrumbLabel: 'Location',
+  sectionPathLabel: 'Section path',
   recipesTitle: 'Start from a template',
   recipesBlank: 'Start blank',
   tierRecommended: 'Recommended',
