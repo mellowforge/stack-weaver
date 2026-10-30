@@ -1,18 +1,18 @@
 #!/usr/bin/env node
-// Generates one lazy schema + validator module per Kubernetes kind from the pinned upstream
+// Generates two lazy modules (schema, validator) per Kubernetes kind from the pinned upstream
 // OpenAPI v3 spec. Downloads are cached in .cache/k8s/<tag>/ and pinned by sha256 in
 // schema-sources.lock.json. Output: src/formats/kubernetes/generated/ (gitignored).
 //
 //   node scripts/gen-kubernetes.mjs [--force]
 //
 // Env: GITHUB_TOKEN (optional, for the api.github.com fallback when `gh` is unavailable),
-//      SW_SKIP_BUDGET=1 (report but do not fail on kinds over the 60 kB gzip budget).
+//      SW_SKIP_BUDGET=1 (report but do not fail on chunks over the 60 kB gzip per-chunk budget).
 import { execFileSync } from 'node:child_process';
 import { createHash } from 'node:crypto';
 import { existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { emitSchemaModule, gzipSize } from './lib/emit.mjs';
+import { emitSchemaModules, gzipSize } from './lib/emit.mjs';
 import { apiVersionOf, collectReachable, kindGvk, kindId, normalizeK8s, refsOf } from './lib/normalize-k8s.mjs';
 
 const TAG = 'v1.37.2';
@@ -148,31 +148,38 @@ function generate(files) {
     }
     const sortedDefs = Object.fromEntries(Object.keys($defs).sort().map((n) => [n, $defs[n]]));
     const schema = { $schema: 'https://json-schema.org/draft/2020-12/schema', $ref: `#/$defs/${k.defName}`, $defs: sortedDefs };
-    const mod = emitSchemaModule(schema, { header });
+    const mod = emitSchemaModules(schema, { header });
     for (const w of mod.warnings) warnings.add(w);
-    writeFileSync(join(outDir, 'kinds', `${k.id}.js`), mod.js);
-    writeFileSync(join(outDir, 'kinds', `${k.id}.d.ts`), mod.dts);
-    sizes.push({
-      id: k.id,
-      gzip: gzipSize(mod.js),
-      schemaGzip: gzipSize(JSON.stringify(schema)),
-      raw: Buffer.byteLength(mod.js),
-    });
+    for (const [suffix, js, dts] of [['schema', mod.schemaJs, mod.schemaDts], ['validate', mod.validateJs, mod.validateDts]]) {
+      const file = `${k.id}.${suffix}.js`;
+      writeFileSync(join(outDir, 'kinds', file), js);
+      writeFileSync(join(outDir, 'kinds', `${k.id}.${suffix}.d.ts`), dts);
+      sizes.push({ file, gzip: gzipSize(js), raw: Buffer.byteLength(js) });
+    }
   }
 
   writeFileSync(join(outDir, 'kinds.json'), `${JSON.stringify(kinds, null, 2)}\n`);
-  const entries = kinds.map((k) => `  ${JSON.stringify(k.id)}: () => import(${JSON.stringify(`./kinds/${k.id}.js`)}),`).join('\n');
+  const entries = kinds
+    .map((k) => {
+      const imp = (suffix) => `import(${JSON.stringify(`./kinds/${k.id}.${suffix}.js`)})`;
+      return `  ${JSON.stringify(k.id)}: () => Promise.all([${imp('schema')}, ${imp('validate')}]),`;
+    })
+    .join('\n');
   writeFileSync(
     join(outDir, 'loaders.ts'),
     `${header}
-/** A generated kind module: the root schema and its precompiled ajv validator. */
-export interface KindModule {
+/** A generated kind schema chunk. */
+export interface SchemaModule {
   schema: Record<string, unknown>;
+}
+
+/** A generated kind validator chunk: the precompiled ajv validator. */
+export interface ValidateModule {
   validate: ((data: unknown) => boolean) & { errors?: unknown[] | null };
 }
 
-/** Lazy loaders for every generated kind, keyed by kind id. */
-export const loaders: Record<string, () => Promise<KindModule>> = {
+/** Lazy loaders for every generated kind, keyed by kind id; each loads two chunks in parallel. */
+export const loaders: Record<string, () => Promise<[SchemaModule, ValidateModule]>> = {
 ${entries}
 };
 `,
@@ -180,14 +187,16 @@ ${entries}
 
   const kb = (n) => `${(n / 1000).toFixed(1)} kB`;
   for (const s of sizes) {
-    console.log(`${s.gzip > BUDGET ? 'OVER ' : '     '}${s.id.padEnd(72)} ${kb(s.gzip).padStart(9)} gzip  (schema ${kb(s.schemaGzip)}, raw ${kb(s.raw)})`);
+    console.log(`${s.gzip > BUDGET ? 'OVER ' : '     '}${s.file.padEnd(80)} ${kb(s.gzip).padStart(9)} gzip  (raw ${kb(s.raw)})`);
   }
   if (warnings.size > 0) throw new Error(`ajv warnings:\n${[...warnings].join('\n')}`);
   const over = sizes.filter((s) => s.gzip > BUDGET);
   const largest = sizes.reduce((a, b) => (b.gzip > a.gzip ? b : a));
-  console.log(`${kinds.length} kinds in ${((performance.now() - started) / 1000).toFixed(1)}s; largest ${largest.id} ${kb(largest.gzip)} gzip`);
+  console.log(
+    `${kinds.length} kinds (${sizes.length} chunks) in ${((performance.now() - started) / 1000).toFixed(1)}s; largest ${largest.file} ${kb(largest.gzip)} gzip`,
+  );
   if (over.length > 0) {
-    const msg = `${over.length} kind(s) over the ${kb(BUDGET)} gzip budget: ${over.map((s) => s.id).join(', ')}`;
+    const msg = `${over.length} chunk(s) over the ${kb(BUDGET)} gzip budget: ${over.map((s) => s.file).join(', ')}`;
     if (!skipBudget) throw new Error(msg);
     console.warn(`WARNING (SW_SKIP_BUDGET=1): ${msg}`);
   }

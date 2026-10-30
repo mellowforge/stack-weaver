@@ -1,4 +1,4 @@
-// Compiles a JSON Schema into an ESM module holding the schema and a precompiled ajv standalone
+// Compiles a JSON Schema into two ESM modules: the schema, and a precompiled ajv standalone
 // validator (no `new Function` at runtime, so it works under a strict CSP).
 import { gzipSync } from 'node:zlib';
 import Ajv2020 from 'ajv/dist/2020.js';
@@ -24,27 +24,37 @@ export function createAjv(warnings = []) {
 }
 
 /**
- * Compiles `schema` and returns the ESM module source: `export const schema`, `export const
- * validate` and `export default validate`. CommonJS `require()` calls that ajv emits for its
- * runtime helpers and for ajv-formats are rewritten into static ESM imports.
+ * Compiles `schema` into two ESM modules, so each lazy chunk stays small:
+ * - `schemaJs`: `export const schema` (the JSON Schema, descriptions included);
+ * - `validateJs`: `export const validate` and `export default validate`, the precompiled ajv
+ *   validator. CommonJS `require()` calls that ajv emits for its runtime helpers and for
+ *   ajv-formats are rewritten into static ESM imports.
  * @param {Record<string, unknown>} schema
  * @param {{ header?: string }} [options]
- * @returns {{ js: string, dts: string, warnings: string[] }}
+ * @returns {{ schemaJs: string, schemaDts: string, validateJs: string, validateDts: string, warnings: string[] }}
  */
-export function emitSchemaModule(schema, { header = '' } = {}) {
+export function emitSchemaModules(schema, { header = '' } = {}) {
   const warnings = [];
   const ajv = createAjv(warnings);
   const validate = ajv.compile(schema);
   const code = dropUnusedSchemaConsts(standaloneCode(ajv, validate).replace(/^"use strict";\s*/, ''));
   const standalone = toEsmImports(code);
-  const js = `${header}${standalone.imports}export const schema = ${JSON.stringify(schema)};\n${standalone.code}\n`;
-  return { js, dts: `${header}${SCHEMA_MODULE_DTS}`, warnings };
+  return {
+    schemaJs: `${header}export const schema = ${JSON.stringify(schema)};\n`,
+    schemaDts: `${header}${SCHEMA_DTS}`,
+    validateJs: `${header}${standalone.imports}${standalone.code}\n`,
+    validateDts: `${header}${VALIDATE_DTS}`,
+    warnings,
+  };
 }
 
-/** Declarations shared by every emitted schema module. */
-export const SCHEMA_MODULE_DTS = `/** JSON Schema 2020-12 root, with \`$defs\`. */
+/** Declarations of an emitted schema module. */
+export const SCHEMA_DTS = `/** JSON Schema 2020-12 root, with \`$defs\`. */
 export declare const schema: Record<string, unknown>;
-/** Precompiled ajv validator; \`errors\` holds the last call's errors. */
+`;
+
+/** Declarations of an emitted validator module. */
+export const VALIDATE_DTS = `/** Precompiled ajv validator; \`errors\` holds the last call's errors. */
 export declare const validate: ((data: unknown) => boolean) & { errors?: unknown[] | null };
 export default validate;
 `;

@@ -1,4 +1,5 @@
 import { readdirSync, readFileSync } from 'node:fs';
+import { gzipSync } from 'node:zlib';
 import { describe, expect, it } from 'vitest';
 import { parseText } from '../../src/document/parse.js';
 import { kubernetesKinds, loadKubernetesKind } from '../../src/formats/kubernetes/loader.js';
@@ -81,5 +82,21 @@ describe('loadKubernetesKind', () => {
   it('unknown kind returns undefined', async () => {
     expect(await loadKubernetesKind('example.com/v1', 'Widget')).toBeUndefined();
     expect(await loadKubernetesKind('apps/v1', 'DeploymentList')).toBeUndefined();
+  });
+});
+
+describe('generated chunks', () => {
+  it('every generated chunk is under 60 kB gzipped', () => {
+    const dir = new URL('../../src/formats/kubernetes/generated/kinds/', import.meta.url);
+    const chunks = readdirSync(dir).filter((f) => f.endsWith('.js'));
+    expect(chunks).toHaveLength(kubernetesKinds().length * 2);
+    for (const k of kubernetesKinds()) {
+      expect(chunks).toContain(`${k.id}.schema.js`);
+      expect(chunks).toContain(`${k.id}.validate.js`);
+    }
+    const over = chunks
+      .map((f) => ({ f, gzip: gzipSync(readFileSync(new URL(f, dir)), { level: 9 }).length }))
+      .filter((c) => c.gzip > 60_000);
+    expect(over).toEqual([]);
   });
 });

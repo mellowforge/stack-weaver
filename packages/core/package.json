@@ -51,6 +51,7 @@
     "build": "tsc -p tsconfig.build.json && node scripts/copy-generated.mjs",
     "pretest": "node scripts/gen-kubernetes.mjs",
     "test": "vitest run",
+    "pretypecheck": "node scripts/gen-kubernetes.mjs",
     "typecheck": "tsc --noEmit -p tsconfig.json"
   },
   "dependencies": {
