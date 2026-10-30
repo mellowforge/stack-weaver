@@ -46,6 +46,24 @@ export interface UiMessages {
   tierCommon: string;
   /** Completion section name for advanced items. */
   tierAdvanced: string;
+  /** Fallback name of a sequence item; the item number follows. */
+  item: string;
+  /** Fallback name of a document without a kind; the document number follows. */
+  document: string;
+  /** Accessible name of the outline tree. */
+  outlineLabel: string;
+  /** Shown in the visual pane while there is nothing to show. */
+  visualEmpty: string;
+  /** Banner shown while the YAML cannot be parsed. */
+  bannerBroken: string;
+  /** Button in the banner that moves to the first YAML error. */
+  jumpToError: string;
+  /** Card text for a document whose kind has no schema. */
+  unknownKind: string;
+  /** Button that moves to the part in the code editor. */
+  editInCode: string;
+  /** Note on a part that cannot be edited visually. */
+  readOnlyNode: string;
 }
 
 /** The English UI strings. */
@@ -73,4 +91,13 @@ export const defaultUiMessages: UiMessages = {
   tierRecommended: 'Recommended',
   tierCommon: 'Common',
   tierAdvanced: 'Advanced',
+  item: 'Item',
+  document: 'Document',
+  outlineLabel: 'Outline',
+  visualEmpty: 'Nothing to show yet. Start from a template or write YAML in code.',
+  bannerBroken: 'The YAML has errors. The visual editor shows the last valid version and is read-only until they are fixed.',
+  jumpToError: 'Jump to error',
+  unknownKind: 'Unknown kind, edit in code',
+  editInCode: 'Edit in code',
+  readOnlyNode: 'This part cannot be edited visually.',
 };

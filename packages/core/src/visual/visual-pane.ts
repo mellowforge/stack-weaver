@@ -1,0 +1,237 @@
+import { toData } from '../document/data.js';
+import { describeNode } from '../document/describe.js';
+import type { StoreEvent } from '../document/store.js';
+import type { NodeRef, ParsedText } from '../document/types.js';
+import type { EditorContext, Pane } from '../editor/context.js';
+import { h } from '../editor/dom.js';
+import { kindKey } from '../formats/guide.js';
+import { createBanner } from './banner.js';
+import { makeLabelFor } from './labels.js';
+import { buildOutline, nodeId } from './outline-model.js';
+import type { OutlineNode } from './outline-model.js';
+import { createOutline } from './outline.js';
+import { mountSection } from './section.js';
+import type { Section, SectionSlots } from './section.js';
+
+/** How long after the last `'code'` change the visual pane re-renders. */
+const CODE_SYNC_MS = 100;
+
+const NO_SLOTS: SectionSlots = { field: () => undefined, addSlot: () => undefined };
+
+const isRecord = (v: unknown): v is Record<string, unknown> => typeof v === 'object' && v !== null && !Array.isArray(v);
+
+/**
+ * Creates the visual pane: the broken-YAML banner, the outline tree and the section of the
+ * selected node. While the text does not parse it shows the last good parse, read-only.
+ * @param o.slots - Fills the section's rows and add control; defaults to plain read-only rows.
+ * @internal
+ */
+export function createVisualPane(ctx: EditorContext, o: { el: HTMLElement; slots?: SectionSlots }): Pane {
+  const doc = o.el.ownerDocument;
+  const ui = ctx.messages.ui;
+  const slots = o.slots ?? NO_SLOTS;
+  let destroyed = false;
+  let timer: ReturnType<typeof setTimeout> | undefined;
+  let generation = 0;
+  const requested = new Set<string>();
+  const unknownKeys = new Set<string>();
+  let selectedRef: NodeRef | undefined;
+  let nodes: readonly OutlineNode[] = [];
+  let flat = new Map<string, OutlineNode>();
+  let section: { id: string; handle: Section } | undefined;
+  let card: HTMLElement | undefined;
+
+  const jump = (): void => {
+    const first = ctx.problems().find((p) => p.code === 'yaml.syntax') ?? ctx.store.parsed.errors[0];
+    if (first) ctx.revealRange({ from: first.from, to: first.to });
+  };
+  const banner = createBanner(doc, ui, jump);
+  const outline = createOutline(doc, { label: ui.outlineLabel, onSelect: (n) => choose(n.ref) });
+  const title = h(doc, 'h2', { class: 'sw-section-title' });
+  const crumbs = h(doc, 'nav', { class: 'sw-section-crumbs', 'aria-label': ui.breadcrumbLabel });
+  const header = h(doc, 'header', { class: 'sw-section-header' }, [title, crumbs]);
+  const content = h(doc, 'div', { class: 'sw-section-content' });
+  const host = h(doc, 'div', { class: 'sw-section-host' }, [header, content]);
+  const body = h(doc, 'div', { class: 'sw-visual-body' }, [outline.el, host]);
+  const empty = h(doc, 'p', { class: 'sw-visual-empty', hidden: true }, [ui.visualEmpty]);
+  o.el.append(banner.el, body, empty);
+
+  const bundleKeyOf = (parsed: ParsedText, d: number): string | undefined => {
+    const f = ctx.format();
+    if (!f) return undefined;
+    if (f.rootModel === 'mapping') return f.id;
+    try {
+      const data = toData(parsed, d);
+      const apiVersion = isRecord(data) ? data['apiVersion'] : undefined;
+      const kind = isRecord(data) ? data['kind'] : undefined;
+      return typeof apiVersion === 'string' && typeof kind === 'string' ? kindKey(apiVersion, kind) : undefined;
+    } catch {
+      return undefined;
+    }
+  };
+
+  /** Starts each schema load once; labels and unknown kinds are known when it resolves. */
+  function requestBundles(parsed: ParsedText): void {
+    const f = ctx.format();
+    if (!f) return;
+    const docs = f.rootModel === 'mapping' ? [0] : parsed.docs.map((_, i) => i);
+    for (const d of docs) {
+      const key = bundleKeyOf(parsed, d);
+      if (key === undefined || requested.has(key)) continue;
+      requested.add(key);
+      const stamp = generation;
+      void ctx.loadBundle(d).then((bundle) => {
+        if (destroyed || stamp !== generation) return;
+        if (!bundle && f.rootModel === 'documents' && ctx.bundleError(d) === undefined) unknownKeys.add(key);
+        flush();
+      });
+    }
+  }
+
+  /** The outline node at `ref`, or its nearest ancestor that is one. */
+  const nearest = (ref: NodeRef): OutlineNode | undefined => {
+    for (let n = ref.path.length; n >= 0; n--) {
+      const hit = flat.get(nodeId({ doc: ref.doc, path: ref.path.slice(0, n) }));
+      if (hit) return hit;
+    }
+    return undefined;
+  };
+
+  function showCard(node: OutlineNode, parsed: ParsedText | undefined, broken: boolean): void {
+    section?.handle.destroy();
+    section = undefined;
+    card?.remove();
+    const view = parsed ? describeNode(parsed, node.ref) : undefined;
+    const link = h(doc, 'button', { type: 'button', class: 'sw-link', disabled: broken || !view }, [ui.editInCode]);
+    link.addEventListener('click', () => {
+      if (view) ctx.revealRange(view.range);
+    });
+    card = h(doc, 'div', { class: 'sw-unknown-kind' }, [h(doc, 'p', {}, [ui.unknownKind]), link]);
+    content.append(card);
+  }
+
+  function renderSelection(sel: OutlineNode | undefined, parsed: ParsedText | undefined, broken: boolean): void {
+    body.hidden = nodes.length === 0;
+    empty.hidden = nodes.length > 0;
+    if (!sel) {
+      section?.handle.destroy();
+      section = undefined;
+      card?.remove();
+      card = undefined;
+      return;
+    }
+    title.textContent = sel.label;
+    const chain: string[] = [];
+    for (let n = 0; n <= sel.ref.path.length; n++) {
+      const hit = flat.get(nodeId({ doc: sel.ref.doc, path: sel.ref.path.slice(0, n) }));
+      if (hit) chain.push(hit.label);
+    }
+    crumbs.textContent = chain.join(' › ');
+    if (sel.unknownKind) {
+      showCard(sel, parsed, broken);
+      return;
+    }
+    card?.remove();
+    card = undefined;
+    if (section?.id === sel.id) {
+      section.handle.update();
+      return;
+    }
+    section?.handle.destroy();
+    const handle = mountSection(ctx, sel.ref, slots);
+    section = { id: sel.id, handle };
+    content.append(handle.el);
+  }
+
+  function render(): void {
+    const broken = !ctx.store.parsed.ok;
+    const parsed = broken ? ctx.store.lastGood : ctx.store.parsed;
+    const format = ctx.format();
+    banner.show(broken);
+    o.el.toggleAttribute('data-sw-readonly', broken || ctx.readOnly());
+    if (parsed && format) requestBundles(parsed);
+    nodes = parsed && format
+      ? buildOutline(parsed, format, makeLabelFor(ctx, parsed), ui, (_d, apiVersion, kind) => unknownKeys.has(kindKey(apiVersion, kind)))
+      : [];
+    flat = new Map();
+    const index = (list: readonly OutlineNode[]): void => {
+      for (const n of list) {
+        flat.set(n.id, n);
+        index(n.children);
+      }
+    };
+    index(nodes);
+    const sel = (selectedRef ? nearest(selectedRef) : undefined) ?? nodes[0];
+    outline.update(nodes, sel?.id);
+    renderSelection(sel, parsed, broken);
+  }
+
+  function flush(): void {
+    if (destroyed) return;
+    if (timer !== undefined) {
+      clearTimeout(timer);
+      timer = undefined;
+    }
+    render();
+  }
+
+  function choose(ref: NodeRef): void {
+    selectedRef = ref;
+    flush();
+  }
+
+  // A pending re-render must not move things under the user's pointer or caret.
+  const flushPending = (): void => {
+    if (timer !== undefined) flush();
+  };
+  o.el.addEventListener('pointerdown', flushPending, true);
+  o.el.addEventListener('focusin', flushPending, true);
+  const offProblems = ctx.onProblems(() => section?.handle.update());
+
+  render();
+
+  return {
+    el: o.el,
+    update(e: StoreEvent | null) {
+      if (destroyed) return;
+      if (e === null) {
+        generation++;
+        requested.clear();
+        unknownKeys.clear();
+        flush();
+      } else if (e.origin === 'code') {
+        if (timer !== undefined) clearTimeout(timer);
+        timer = setTimeout(() => {
+          timer = undefined;
+          render();
+        }, CODE_SYNC_MS);
+      } else {
+        flush();
+      }
+    },
+    reveal(ref: NodeRef) {
+      if (destroyed) return false;
+      flushPending();
+      const hit = nearest(ref);
+      if (!hit) return false;
+      selectedRef = hit.ref;
+      flush();
+      outline.expandTo(hit.id);
+      return true;
+    },
+    setReadOnly() {
+      flush();
+    },
+    destroy() {
+      destroyed = true;
+      if (timer !== undefined) clearTimeout(timer);
+      timer = undefined;
+      offProblems();
+      o.el.removeEventListener('pointerdown', flushPending, true);
+      o.el.removeEventListener('focusin', flushPending, true);
+      section?.handle.destroy();
+      outline.destroy();
+      o.el.replaceChildren();
+    },
+  };
+}

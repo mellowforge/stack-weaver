@@ -16,6 +16,7 @@ import { createProblemScheduler, problemCountText } from './problems.js';
 import { createProblemsPanel } from './problems-panel.js';
 import { createRecipeCards } from './recipes.js';
 import { createShell } from './shell.js';
+import { createVisualPane } from '../visual/visual-pane.js';
 
 /** Which panes are shown: the form editor, both side by side, or the YAML code. */
 export type EditorMode = 'visual' | 'split' | 'code';
@@ -132,7 +133,8 @@ export function createEditorWithContext(
     bundleError: cache.bundleError,
     revealRange: (r: TextRange) => codePane.revealRange(r),
     select: (ref) => {
-      if (!codePane.reveal(ref)) visualPane.reveal(ref);
+      codePane.reveal(ref);
+      visualPane.reveal(ref);
     },
     onProblems(fn) {
       problemListeners.add(fn);
@@ -151,19 +153,17 @@ export function createEditorWithContext(
     onRedo: () => redo(),
   });
 
-  // Until Task 7 the visual pane is an empty placeholder.
-  const visualPane: Pane = {
-    el: shell.visualEl,
-    update() {},
-    reveal: () => false,
-    setReadOnly() {},
-    destroy() {},
-  };
+  const visualPane: Pane = createVisualPane(ctx, { el: shell.visualEl });
   const adapter: Promise<CodeEditorAdapter> = options.codeEditor ? Promise.resolve(options.codeEditor) : loaders.loadDefaultAdapter();
   const codePane = createCodePane(ctx, { el: shell.codeEl, adapter, theme: themeNow, onUndo: () => undo(), onRedo: () => redo() });
   const panes: Pane[] = [visualPane, codePane];
 
-  const panel = createProblemsPanel(shell.problemsEl, { ui, onSelect: (p) => ctx.revealRange({ from: p.from, to: p.to }) });
+  const panel = createProblemsPanel(shell.problemsEl, { ui, onSelect: (p) => {
+      // The code pane is hidden in visual mode: select the node in the outline instead.
+      if (mode !== 'code') visualPane.reveal({ doc: p.doc, path: p.path });
+      if (mode !== 'visual') ctx.revealRange({ from: p.from, to: p.to });
+    },
+  });
   const guarded = (fn: () => void): void => {
     try {
       fn();
