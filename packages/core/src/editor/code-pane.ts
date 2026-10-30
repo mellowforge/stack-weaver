@@ -125,9 +125,13 @@ export function createCodePane(
     update(e: StoreEvent | null) {
       if (!inst) return;
       if (e && e.origin !== 'code') inst.applyChange(e.change);
-      // Safety net: the editor must already match the store here; never expected to run.
+      // Safety net: the editor must already match the store here. It is never expected to run, so
+      // it logs: a full replace loses the caret and hides an adapter bug.
       const text = inst.getText();
-      if (text !== ctx.store.text) inst.applyChange({ from: 0, to: text.length, insert: ctx.store.text });
+      if (text !== ctx.store.text) {
+        console.error('stack-weaver: code editor out of sync with the store', { editorLength: text.length, storeLength: ctx.store.text.length });
+        inst.applyChange({ from: 0, to: text.length, insert: ctx.store.text });
+      }
       showCrumb(inst.getSelection().from);
     },
     reveal(ref: NodeRef) {

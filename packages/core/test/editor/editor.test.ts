@@ -338,4 +338,24 @@ describe('code pane stays in step with the store', () => {
     for (const [change] of apply.mock.calls) expect(change.insert.length).toBeLessThan(editor.getValue().length);
     expect(fake.getText()).toBe(editor.getValue());
   });
+
+  it('the safety net logs when it has to replace the whole text', async () => {
+    const log = vi.spyOn(console, 'error').mockImplementation(() => {});
+    const { editor, fake } = await mount({ value: 'a: 1\n' });
+    fake.applyChange({ from: 0, to: 0, insert: '# drift\n' }); // the editor no longer matches the store
+    editor.setValue('a: 2\n');
+    expect(fake.getText()).toBe('a: 2\n');
+    expect(log).toHaveBeenCalledTimes(1);
+    expect(log.mock.calls[0]?.[0]).toBe('stack-weaver: code editor out of sync with the store');
+  });
+
+  it('readOnly plus setValue keeps the adapter text equal to the store', async () => {
+    const onChange = vi.fn();
+    const { editor, fake } = await mount({ value: 'a: 1\n', readOnly: true, onChange });
+    editor.setValue('a: 2\nb: 3\n');
+    expect(fake.getText()).toBe('a: 2\nb: 3\n');
+    expect(fake.getText()).toBe(editor.getValue());
+    expect(onChange).toHaveBeenCalledTimes(1);
+    expect(onChange).toHaveBeenCalledWith('a: 2\nb: 3\n', { origin: 'api' });
+  });
 });
