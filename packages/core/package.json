@@ -48,7 +48,7 @@
   ],
   "scripts": {
     "prebuild": "node scripts/gen-version.mjs && node scripts/gen-kubernetes.mjs && node scripts/gen-compose.mjs",
-    "build": "tsc -p tsconfig.build.json && node scripts/copy-generated.mjs",
+    "build": "node scripts/copy-generated.mjs && tsc -p tsconfig.build.json",
     "pretest": "node scripts/gen-version.mjs && node scripts/gen-kubernetes.mjs && node scripts/gen-compose.mjs",
     "test": "vitest run",
     "pretypecheck": "node scripts/gen-version.mjs && node scripts/gen-kubernetes.mjs && node scripts/gen-compose.mjs",

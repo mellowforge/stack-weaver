@@ -1,9 +1,10 @@
 #!/usr/bin/env node
 /**
- * Packs every publishable package exactly as `pnpm publish` would and checks each
- * tarball: required files present, no sources, tests or scripts, no `workspace:`
- * specifier left in the packed package.json, and type declarations that resolve
- * (arethetypeswrong). Run after `pnpm build`.
+ * Packs each package listed in PACKAGES below exactly as `pnpm publish` would and
+ * checks each tarball: required files present (including generated schema modules),
+ * no sources, tests or scripts, no `workspace:` specifier left in the packed
+ * package.json, and type declarations that resolve (arethetypeswrong). Add a package
+ * to PACKAGES when it becomes publishable. Run after `pnpm build`.
  */
 import { execFileSync } from 'node:child_process';
 import { mkdtempSync, rmSync } from 'node:fs';
@@ -20,6 +21,9 @@ const PACKAGES = [
       'dist/index.d.ts',
       'dist/formats/kubernetes/index.js',
       'dist/formats/compose/index.js',
+      'dist/formats/kubernetes/generated/kinds.json',
+      'dist/formats/kubernetes/generated/loaders.js',
+      'dist/formats/compose/generated/compose.validate.js',
     ],
   },
 ];

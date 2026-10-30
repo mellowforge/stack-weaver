@@ -100,6 +100,16 @@ describe('validateText', () => {
     const probs = await validateText(parseText(text), kubernetesFormat);
     expect(probs.length).toBeGreaterThan(0);
     expect(probs.every((x) => x.doc === 1)).toBe(true);
+    expect(probs.every((x) => x.from > text.indexOf('---'))).toBe(true);
+  });
+
+  it('JSON-pointer segments are unescaped (~1 is /, ~0 is ~) to find the scalar', async () => {
+    const text = deployment('  labels:\n    app.kubernetes.io/version: 1.0\n    a~b: 2\n');
+    const probs = await validateText(parseText(text), kubernetesFormat);
+    expect(probs.map((x) => [x.code, x.path, x.from, x.to])).toEqual([
+      ['schema.type', ['metadata', 'labels', 'app.kubernetes.io/version'], text.indexOf('1.0'), text.indexOf('1.0') + 3],
+      ['schema.type', ['metadata', 'labels', 'a~b'], text.indexOf('a~b: 2') + 5, text.indexOf('a~b: 2') + 6],
+    ]);
   });
 
   it('int-or-string collapses to one “Must be an integer or string”', async () => {
@@ -118,14 +128,8 @@ describe('validateText', () => {
   it('errors under a merged value map to the nearest existing ancestor and never throw', async () => {
     const text = 'x-c: &c\n  restart: [1]\nservices:\n  api:\n    <<: *c\n    image: a\n';
     const probs = await validateText(parseText(text), composeFormat);
-    expect(probs.length).toBeGreaterThan(0);
-    for (const x of probs) {
-      expect(x.from).toBeGreaterThanOrEqual(0);
-      expect(x.to).toBeLessThanOrEqual(text.length);
-    }
-    const merged = probs.find((x) => x.path.join('.') === 'services.api.restart');
-    expect(merged).toBeDefined();
-    expect(merged!.from).toBe(text.indexOf('<<'));
+    expect(probs.map((x) => [x.code, x.path.join('.')])).toEqual([['schema.type', 'services.api.restart']]);
+    expect(probs[0]!.from).toBe(text.indexOf('<<')); // the `api` map, which starts at `<<`
   });
 
   it('Deployment with creationTimestamp: null produces zero schema problems', async () => {

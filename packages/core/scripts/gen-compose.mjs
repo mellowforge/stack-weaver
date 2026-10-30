@@ -3,63 +3,59 @@
 // JSON Schema. The download is cached in .cache/compose/<sha>/ and pinned by sha256 in
 // schema-sources.lock.json. Output: src/formats/compose/generated/ (gitignored).
 //
-//   node scripts/gen-compose.mjs [--force]
+//   node scripts/gen-compose.mjs [--force] [--update-lock]
+//
+// --force        regenerate even when the stamp says the output is up to date.
+// --update-lock  download the spec at COMMIT and (re)pin it in schema-sources.lock.json. Without
+//                it the lockfile is only read, and a missing or mismatched pin fails the run.
 //
 // Env: SW_SKIP_BUDGET=1 (report but do not fail on chunks over the 60 kB gzip per-chunk budget).
 import { createHash } from 'node:crypto';
-import { existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import { readFileSync, writeFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { emitSchemaModules, gzipSize } from './lib/emit.mjs';
+import { generateInto, upToDate } from './lib/output.mjs';
+import { expectNames, lockedFiles, readLock, syncSources, updateLockRequested, writeLockEntry } from './lib/sources.mjs';
 
 const COMMIT = '3a4a6995e4a971f6173dff9130cb3e38e6738651';
 const REPO = 'compose-spec/compose-spec';
 const FILE = 'schema/compose-spec.json';
+const NAME = 'compose-spec.json';
 const BUDGET = 60_000; // 60 kB (decimal, the stricter reading)
 const LOCK_KEY = 'compose';
 
 const root = join(dirname(fileURLToPath(import.meta.url)), '..');
 const cacheDir = join(root, '.cache', 'compose', COMMIT);
-const cachePath = join(cacheDir, 'compose-spec.json');
 const lockPath = join(root, 'schema-sources.lock.json');
 const outDir = join(root, 'src', 'formats', 'compose', 'generated');
-const stampPath = join(outDir, '.stamp');
 const force = process.argv.includes('--force');
 const skipBudget = process.env.SW_SKIP_BUDGET === '1';
 
-const sha256 = (data) => createHash('sha256').update(data).digest('hex');
-const url = `https://raw.githubusercontent.com/${REPO}/${COMMIT}/${FILE}`;
+const urlOf = (name) => {
+  if (name !== NAME) throw new Error(`unexpected compose source ${name}`);
+  return `https://raw.githubusercontent.com/${REPO}/${COMMIT}/${FILE}`;
+};
+const checkNames = (names) => expectNames(names, [NAME]);
 
-/** Ensures the spec is cached and matches the lockfile; returns the locked file entry. */
+/** Ensures the spec is cached and matches its pin; returns the `{ url, sha256 }` map. */
 async function fetchSource() {
-  const lock = existsSync(lockPath) ? JSON.parse(readFileSync(lockPath, 'utf8')) : {};
-  const want = lock[LOCK_KEY]?.version === COMMIT ? lock[LOCK_KEY].files?.['compose-spec.json']?.sha256 : undefined;
-  let data = existsSync(cachePath) ? readFileSync(cachePath) : undefined;
-  if (!data || (want && sha256(data) !== want)) {
-    const res = await fetch(url);
-    if (!res.ok) throw new Error(`download ${url} failed: ${res.status} ${res.statusText}`);
-    data = Buffer.from(await res.arrayBuffer());
-    mkdirSync(cacheDir, { recursive: true });
-    writeFileSync(cachePath, data);
-    console.log(`downloaded compose-spec.json (${data.length} bytes)`);
+  if (updateLockRequested()) {
+    const files = await syncSources({ names: [NAME], cacheDir, urlOf });
+    writeLockEntry(lockPath, LOCK_KEY, { version: COMMIT, source: `https://github.com/${REPO}/tree/${COMMIT}/schema`, files });
+    return files;
   }
-  const got = sha256(data);
-  if (want && got !== want) throw new Error(`sha256 mismatch for compose-spec.json: lockfile ${want}, downloaded ${got}`);
-  const files = { 'compose-spec.json': { url, sha256: got } };
-  const next = { ...lock, [LOCK_KEY]: { version: COMMIT, source: `https://github.com/${REPO}/tree/${COMMIT}/schema`, files } };
-  const text = `${JSON.stringify(next, null, 2)}\n`;
-  if (!existsSync(lockPath) || readFileSync(lockPath, 'utf8') !== text) {
-    writeFileSync(lockPath, text);
-    console.log(`wrote ${lockPath}`);
-  }
-  return files;
+  const pinned = lockedFiles(readLock(lockPath), { key: LOCK_KEY, version: COMMIT, urlOf, checkNames });
+  return syncSources({ names: [NAME], cacheDir, urlOf, pinned });
 }
 
 /** Hash of everything the output depends on, so unchanged inputs skip regeneration. */
 function inputStamp(files) {
   const h = createHash('sha256');
   h.update(JSON.stringify(files));
-  for (const f of ['scripts/gen-compose.mjs', 'scripts/lib/emit.mjs']) h.update(readFileSync(join(root, f)));
+  for (const f of ['scripts/gen-compose.mjs', 'scripts/lib/emit.mjs', 'scripts/lib/sources.mjs', 'scripts/lib/output.mjs']) {
+    h.update(readFileSync(join(root, f)));
+  }
   for (const pkg of ['ajv', 'ajv-formats']) h.update(readFileSync(join(root, 'node_modules', pkg, 'package.json')));
   h.update(skipBudget ? 'skip-budget' : 'budget');
   return h.digest('hex');
@@ -76,15 +72,14 @@ function assertNoRemoteRefs(node) {
   }
 }
 
-function generate() {
+/** Writes every output file into `outDir` (a fresh temporary directory, see generateInto). */
+function generate(outDir) {
   const started = performance.now();
-  const schema = JSON.parse(readFileSync(cachePath, 'utf8'));
+  const schema = JSON.parse(readFileSync(join(cacheDir, NAME), 'utf8'));
   assertNoRemoteRefs(schema);
   const header = `// Generated by scripts/gen-compose.mjs from compose-spec ${COMMIT}. Do not edit.\n`;
   const mod = emitSchemaModules(schema, { header });
 
-  rmSync(outDir, { recursive: true, force: true });
-  mkdirSync(outDir, { recursive: true });
   const sizes = [];
   for (const [suffix, js, dts] of [['schema', mod.schemaJs, mod.schemaDts], ['validate', mod.validateJs, mod.validateDts]]) {
     const file = `compose.${suffix}.js`;
@@ -106,10 +101,9 @@ function generate() {
 }
 
 const files = await fetchSource();
-const stamp = inputStamp(files);
-if (!force && existsSync(stampPath) && readFileSync(stampPath, 'utf8') === stamp && existsSync(join(outDir, 'compose.validate.js'))) {
+const input = inputStamp(files);
+if (!force && upToDate(outDir, input)) {
   console.log(`compose ${COMMIT.slice(0, 7)} schema up to date; use --force to regenerate`);
 } else {
-  generate();
-  writeFileSync(stampPath, stamp);
+  generateInto({ root, name: 'compose', outDir, input, write: generate });
 }

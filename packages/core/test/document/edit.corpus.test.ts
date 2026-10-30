@@ -100,6 +100,19 @@ function nextValue(v: unknown): ScalarValue {
   return null;
 }
 
+/**
+ * Scalars whose identity `set` (to the value they already hold) does not reproduce the source
+ * bytes, keyed `"<file> <path>"`, with the reason. Every other scalar must round-trip exactly.
+ */
+const IDENTITY_EXCEPTIONS: Record<string, string> = {
+  'compose-env-placeholders.yaml 0:volumes.db-data': 'an empty value is written as `null`',
+  'compose-networks-healthcheck.yaml 0:networks.backend': 'an empty value is written as `null`',
+  'k8s-configmap-block-scalars.yaml 0:data.description': 'a multi-line `>-` folded scalar is rewritten as literal `|-`',
+  'k8s-helm-empty-docs.yaml 0:': 'an empty document is written as `null`',
+  'k8s-helm-empty-docs.yaml 2:': 'an empty document is written as `null`',
+  'k8s-helm-empty-docs.yaml 4:': 'an empty document is written as `null`',
+};
+
 describe.each(files)('corpus %s', (file) => {
   const text = readFileSync(join(corpusDir, file), 'utf8');
   const p = parseText(text);
@@ -121,6 +134,41 @@ describe.each(files)('corpus %s', (file) => {
       const [from, to] = changedLines(text, r.text);
       expect(from, `${file} ${ref.path.join('.')}`).toBeGreaterThanOrEqual(lineOf(text, start));
       expect(to, `${file} ${ref.path.join('.')}`).toBeLessThanOrEqual(lastLine + 1);
+      expect(r.change.from, `${file} ${ref.path.join('.')}`).toBeGreaterThanOrEqual(start);
+      expect(r.change.to, `${file} ${ref.path.join('.')}`).toBeLessThanOrEqual(end);
+    }
+  });
+
+  it('set of every editable scalar to its current value keeps the text byte-identical', () => {
+    const changed: string[] = [];
+    for (const { ref, node } of entries) {
+      if (!isScalar(node) || canEdit(p, ref) !== undefined) continue;
+      const label = `${file} ${ref.doc}:${ref.path.join('.')}`;
+      const r = applyEdit(p, { op: 'set', at: ref, value: node.value as ScalarValue });
+      expect(r.ok, label).toBe(true);
+      if (r.ok && r.text !== text) changed.push(label);
+    }
+    expect(changed).toEqual(Object.keys(IDENTITY_EXCEPTIONS).filter((k) => k.startsWith(`${file} `)));
+  });
+
+  it('add / push on every non-empty block collection is a pure insertion', () => {
+    for (const { ref, node } of entries) {
+      if ((!isMap(node) && !isSeq(node)) || node.flow || node.items.length === 0) continue;
+      if (canEdit(p, ref) !== undefined) continue;
+      const label = `${file} ${ref.path.join('.')}`;
+      const op = isMap(node)
+        ? ({ op: 'add', at: ref, key: 'zz-added', value: 'v' } as const)
+        : ({ op: 'push', at: ref, value: 'zz-added' } as const);
+      const r = applyEdit(p, op);
+      expect(r.ok, label).toBe(true);
+      if (!r.ok) continue;
+      expect(r.change.from, label).toBe(r.change.to);
+      if (p.eol === '\r\n') expect(r.change.insert.replace(/\r\n/g, ''), label).not.toContain('\n');
+      const q = parseText(r.text);
+      const added = isMap(node)
+        ? getNode(q, { doc: ref.doc, path: [...ref.path, 'zz-added'] })
+        : getNode(q, { doc: ref.doc, path: [...ref.path, node.items.length] });
+      expect(isScalar(added) ? added.value : undefined, label).toBe(isMap(node) ? 'v' : 'zz-added');
     }
   });
 

@@ -3,17 +3,24 @@
 // OpenAPI v3 spec. Downloads are cached in .cache/k8s/<tag>/ and pinned by sha256 in
 // schema-sources.lock.json. Output: src/formats/kubernetes/generated/ (gitignored).
 //
-//   node scripts/gen-kubernetes.mjs [--force]
+//   node scripts/gen-kubernetes.mjs [--force] [--update-lock]
 //
-// Env: GITHUB_TOKEN (optional, for the api.github.com fallback when `gh` is unavailable),
-//      SW_SKIP_BUDGET=1 (report but do not fail on chunks over the 60 kB gzip per-chunk budget).
-import { execFileSync } from 'node:child_process';
+// --force        regenerate even when the stamp says the output is up to date.
+// --update-lock  list the GA spec files of TAG upstream, download them and (re)pin them in
+//                schema-sources.lock.json. Without it the lockfile is only read, and a missing or
+//                mismatched pin fails the run.
+//
+// Env: GITHUB_TOKEN (optional, for the api.github.com fallback when `gh` is not installed;
+//      --update-lock only), SW_SKIP_BUDGET=1 (report but do not fail on chunks over the 60 kB
+//      gzip per-chunk budget).
 import { createHash } from 'node:crypto';
-import { existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import { mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { emitSchemaModules, gzipSize } from './lib/emit.mjs';
 import { apiVersionOf, collectReachable, kindGvk, kindId, normalizeK8s, refsOf } from './lib/normalize-k8s.mjs';
+import { generateInto, upToDate } from './lib/output.mjs';
+import { listGithubDir, lockedFiles, readLock, syncSources, updateLockRequested, writeLockEntry } from './lib/sources.mjs';
 
 const TAG = 'v1.37.2';
 const REPO = 'kubernetes/kubernetes';
@@ -25,79 +32,49 @@ const root = join(dirname(fileURLToPath(import.meta.url)), '..');
 const cacheDir = join(root, '.cache', 'k8s', TAG);
 const lockPath = join(root, 'schema-sources.lock.json');
 const outDir = join(root, 'src', 'formats', 'kubernetes', 'generated');
-const stampPath = join(outDir, '.stamp');
 const force = process.argv.includes('--force');
 const skipBudget = process.env.SW_SKIP_BUDGET === '1';
 
 /** GA group-version files only: `api__v1_…` and `apis__<group>__v<N>_…` (no alpha/beta, no discovery). */
 const GA_FILE = /^(?:api__v\d+|apis__[^_]+__v\d+)_openapi\.json$/;
 
-const sha256 = (data) => createHash('sha256').update(data).digest('hex');
 const rawUrl = (name) => `https://raw.githubusercontent.com/${REPO}/${TAG}/${SPEC_DIR}/${name}`;
 
+/** The expected file list: the core `api__v1` file is present, and every file is a GA group-version file. */
+function checkNames(names) {
+  if (!names.includes('api__v1_openapi.json')) {
+    throw new Error(`expected api__v1_openapi.json among the ${names.length} source files`);
+  }
+  const odd = names.filter((n) => !GA_FILE.test(n));
+  if (odd.length > 0) throw new Error(`unexpected source files (not GA OpenAPI v3): ${odd.join(', ')}`);
+}
+
 async function listFiles() {
-  const path = `repos/${REPO}/contents/${SPEC_DIR}?ref=${TAG}`;
-  let entries;
-  try {
-    entries = JSON.parse(execFileSync('gh', ['api', path], { encoding: 'utf8', stdio: ['ignore', 'pipe', 'ignore'] }));
-  } catch {
-    const headers = { Accept: 'application/vnd.github+json', 'User-Agent': 'stack-weaver-gen' };
-    if (process.env.GITHUB_TOKEN) headers.Authorization = `Bearer ${process.env.GITHUB_TOKEN}`;
-    const res = await fetch(`https://api.github.com/${path}`, { headers });
-    if (!res.ok) throw new Error(`listing ${path} failed: ${res.status} ${res.statusText}`);
-    entries = await res.json();
-  }
-  return entries.map((e) => e.name).filter((n) => GA_FILE.test(n)).sort();
+  const entries = await listGithubDir(`repos/${REPO}/contents/${SPEC_DIR}?ref=${TAG}`);
+  return entries.map((e) => e?.name).filter((n) => typeof n === 'string' && GA_FILE.test(n)).sort();
 }
 
-async function download(name) {
-  const res = await fetch(rawUrl(name));
-  if (!res.ok) throw new Error(`download ${name} failed: ${res.status} ${res.statusText}`);
-  return Buffer.from(await res.arrayBuffer());
-}
-
-/** Ensures every source file is cached and matches the lockfile; returns the locked file map. */
+/**
+ * Ensures every source file is cached and matches its pin; returns the `{ url, sha256 }` map.
+ * Only `--update-lock` lists the files upstream and writes the lockfile.
+ */
 async function fetchSources() {
-  const lock = existsSync(lockPath) ? JSON.parse(readFileSync(lockPath, 'utf8')) : {};
-  const locked = lock[LOCK_KEY]?.version === TAG ? lock[LOCK_KEY].files : undefined;
-  const names = locked ? Object.keys(locked).sort() : await listFiles();
-  if (names.length === 0) throw new Error('no GA OpenAPI v3 files found');
-  mkdirSync(cacheDir, { recursive: true });
-
-  const files = {};
-  const queue = [...names];
-  const worker = async () => {
-    for (let name = queue.shift(); name; name = queue.shift()) {
-      const path = join(cacheDir, name);
-      const want = locked?.[name]?.sha256;
-      let data = existsSync(path) ? readFileSync(path) : undefined;
-      if (!data || (want && sha256(data) !== want)) {
-        data = await download(name);
-        writeFileSync(path, data);
-        console.log(`downloaded ${name} (${data.length} bytes)`);
-      }
-      const got = sha256(data);
-      if (want && got !== want) throw new Error(`sha256 mismatch for ${name}: lockfile ${want}, downloaded ${got}`);
-      files[name] = { url: rawUrl(name), sha256: got };
-    }
-  };
-  await Promise.all(Array.from({ length: 6 }, worker));
-
-  const sorted = Object.fromEntries(Object.keys(files).sort().map((n) => [n, files[n]]));
-  const next = { ...lock, [LOCK_KEY]: { version: TAG, source: `https://github.com/${REPO}/tree/${TAG}/${SPEC_DIR}`, files: sorted } };
-  const text = `${JSON.stringify(next, null, 2)}\n`;
-  if (!existsSync(lockPath) || readFileSync(lockPath, 'utf8') !== text) {
-    writeFileSync(lockPath, text);
-    console.log(`wrote ${lockPath}`);
+  if (updateLockRequested()) {
+    const names = await listFiles();
+    checkNames(names);
+    const files = await syncSources({ names, cacheDir, urlOf: rawUrl });
+    writeLockEntry(lockPath, LOCK_KEY, { version: TAG, source: `https://github.com/${REPO}/tree/${TAG}/${SPEC_DIR}`, files });
+    return files;
   }
-  return sorted;
+  const pinned = lockedFiles(readLock(lockPath), { key: LOCK_KEY, version: TAG, urlOf: rawUrl, checkNames });
+  return syncSources({ names: Object.keys(pinned).sort(), cacheDir, urlOf: rawUrl, pinned });
 }
 
 /** Hash of everything the output depends on, so unchanged inputs skip regeneration. */
 function inputStamp(files) {
   const h = createHash('sha256');
   h.update(JSON.stringify(files));
-  for (const f of ['scripts/gen-kubernetes.mjs', 'scripts/lib/normalize-k8s.mjs', 'scripts/lib/emit.mjs']) {
+  for (const f of ['scripts/gen-kubernetes.mjs', 'scripts/lib/normalize-k8s.mjs', 'scripts/lib/emit.mjs', 'scripts/lib/sources.mjs', 'scripts/lib/output.mjs']) {
     h.update(readFileSync(join(root, f)));
   }
   for (const pkg of ['ajv', 'ajv-formats']) h.update(readFileSync(join(root, 'node_modules', pkg, 'package.json')));
@@ -115,14 +92,14 @@ function mergeComponents(files) {
   return all;
 }
 
-function generate(files) {
+/** Writes every output file into `outDir` (a fresh temporary directory, see generateInto). */
+function generate(files, outDir) {
   const started = performance.now();
   const components = mergeComponents(files);
   const plain = normalizeK8s(components, { kindRoots: false });
   const rooted = normalizeK8s(components);
   const header = `// Generated by scripts/gen-kubernetes.mjs from Kubernetes ${TAG}. Do not edit.\n`;
 
-  rmSync(outDir, { recursive: true, force: true });
   mkdirSync(join(outDir, 'kinds'), { recursive: true });
 
   const kinds = [];
@@ -203,10 +180,9 @@ ${entries}
 }
 
 const files = await fetchSources();
-const stamp = inputStamp(files);
-if (!force && existsSync(stampPath) && readFileSync(stampPath, 'utf8') === stamp && existsSync(join(outDir, 'loaders.ts'))) {
+const input = inputStamp(files);
+if (!force && upToDate(outDir, input)) {
   console.log(`kubernetes ${TAG} schemas up to date (${Object.keys(files).length} source files); use --force to regenerate`);
 } else {
-  generate(files);
-  writeFileSync(stampPath, stamp);
+  generateInto({ root, name: 'kubernetes', outDir, input, write: (dir) => generate(files, dir) });
 }
