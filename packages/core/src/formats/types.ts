@@ -1,4 +1,4 @@
-import type { ParsedText } from '../document/types.js';
+import type { ParsedText, YamlValue } from '../document/types.js';
 
 /** A JSON Schema document as plain data. */
 export type JsonSchema = Record<string, unknown>;
@@ -38,16 +38,28 @@ export interface KindEntry {
   description: string;
 }
 
-/** Plain-language presentation hints for one schema property. */
+/**
+ * Plain-language presentation hints for one schema property. `recommended` and `advanced` set the
+ * property's tier in `addableAt`: `recommended: true` gives `'recommended'`; an entry without
+ * either flag gives `'common'`; `advanced: true`, or no entry at all, gives `'advanced'`.
+ */
 export interface GuideField {
+  /** Display label, replacing the property name. */
   label?: string;
+  /** Plain-language description, replacing the schema's own. */
   description?: string;
+  /** Offer the property in the `'recommended'` tier (takes precedence over `advanced`). */
   recommended?: boolean;
+  /** Offer the property in the `'advanced'` tier. */
   advanced?: boolean;
+  /** Sort order within a tier, ascending; properties without one sort after, by name. */
   order?: number;
+  /** Name of a preferred input widget; interpreted by the UI layer. */
   widget?: string;
+  /** Never offer the property in `addableAt`. */
   hidden?: boolean;
-  example?: unknown;
+  /** Starting value used as the `valueTemplate` when the property is added. */
+  example?: YamlValue;
 }
 
 /** A guide overlay: labels, intent groups and flags keyed by schema definition and property. */

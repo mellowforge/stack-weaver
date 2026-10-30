@@ -1,4 +1,4 @@
-import type { YamlPath } from '../document/types.js';
+import type { YamlPath, YamlValue } from '../document/types.js';
 import { guideField } from '../formats/guide.js';
 import type { Guide, GuideField, SchemaBundle } from '../formats/types.js';
 import { resolveAt, type ResolvedSchema } from './resolve.js';
@@ -19,7 +19,7 @@ export interface AddableItem {
   /** True when the schema requires the property (it is missing, otherwise it would not be listed). */
   required: boolean;
   /** Starting value: the guide example, else an empty value by schema type. */
-  valueTemplate: unknown;
+  valueTemplate: YamlValue;
 }
 
 const TIER_RANK: Record<Tier, number> = { recommended: 0, common: 1, advanced: 2 };
@@ -35,7 +35,7 @@ function firstSentence(text: string | undefined): string {
   return m ? m[0] : flat;
 }
 
-function template(r: ResolvedSchema | undefined): unknown {
+function template(r: ResolvedSchema | undefined): YamlValue {
   if (!r) return null;
   const s = r.schema;
   const t = s['type'];

@@ -2,11 +2,11 @@
 export { VERSION } from './version.js';
 
 // Document model
-export type { YamlPath, NodeRef, TextChange, YamlProblem, ParsedText } from './document/types.js';
+export type { YamlPath, NodeRef, TextChange, YamlProblem, ParsedText, ScalarValue, YamlValue } from './document/types.js';
 export { parseText } from './document/parse.js';
 export { getNode, refAtOffset, toLineCol } from './document/paths.js';
 export { applyEdit, canEdit } from './document/edit.js';
-export type { ScalarValue, EditOp, EditBlock, EditResult } from './document/edit.js';
+export type { EditOp, EditRefusal, EditResult } from './document/edit.js';
 export { diffText } from './document/diff.js';
 export { DocumentStore } from './document/store.js';
 export type { ChangeOrigin, StoreEvent, StoreOptions } from './document/store.js';

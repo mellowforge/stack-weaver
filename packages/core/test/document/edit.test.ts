@@ -180,9 +180,12 @@ describe('applyEdit: add', () => {
     );
   });
 
-  it('add refuses an existing key and non-map targets', () => {
+  it('add refuses an existing key (duplicate-key) and non-map targets (unsupported)', () => {
     expect(refusal('a:\n  b: 1\n', { op: 'add', at: at('a'), key: 'b', value: 2 })).toBe(
-      'unsupported',
+      'duplicate-key',
+    );
+    expect(refusal('a:\n  8080: 1\n', { op: 'add', at: at('a'), key: '8080', value: 2 })).toBe(
+      'duplicate-key',
     );
     expect(refusal('a: 1\n', { op: 'add', at: at('a'), key: 'b', value: 2 })).toBe('unsupported');
     expect(refusal('a:\n  - 1\n', { op: 'add', at: at('a'), key: 'b', value: 2 })).toBe(
@@ -449,7 +452,7 @@ describe('refusals and canEdit', () => {
     );
     const p = parseText(text);
     expect(canEdit(p, at('metadata', 'labels'))).toBe('flow');
-    expect(canEdit(p, at('metadata', 'labels', 'app'))).toBe(true);
+    expect(canEdit(p, at('metadata', 'labels', 'app'))).toBeUndefined();
   });
 
   it('refuses alias', () => {
@@ -465,7 +468,7 @@ describe('refusals and canEdit', () => {
     );
     expect(canEdit(p, env)).toBe('alias');
     expect(canEdit(p, at('services', 'api', '<<'))).toBe('alias');
-    expect(canEdit(p, at('services', 'api', 'image'))).toBe(true);
+    expect(canEdit(p, at('services', 'api', 'image'))).toBeUndefined();
   });
 
   it('delete refuses a node whose anchor is still referenced', () => {
@@ -509,5 +512,136 @@ describe('refusals and canEdit', () => {
     const out = edit('a:\n  b: old\n', { op: 'set', at: at('a', 'b'), value: 42 });
     const n = getNode(parseText(out), at('a', 'b')) as { value: unknown };
     expect(n.value).toBe(42);
+  });
+});
+
+describe('canEdit (EditRefusal | undefined)', () => {
+  it('returns undefined for editable scalars, block collections and empty {} / []', () => {
+    const p = parseText('a: {}\nb: []\nc: 1\nd:\n  e: 1\n');
+    for (const k of ['a', 'b', 'c', 'd']) expect(canEdit(p, at(k)), k).toBeUndefined();
+  });
+
+  it('keeps flow for non-empty flow collections and anything inside a flow collection', () => {
+    expect(canEdit(parseText('v: { a: 1 }\n'), at('v'))).toBe('flow');
+    expect(canEdit(parseText('v: { a: {} }\n'), at('v', 'a'))).toBe('flow');
+  });
+
+  it('add and push work where canEdit reports an empty {} / [] editable', () => {
+    expect(edit('a: {}\n', { op: 'add', at: at('a'), key: 'k', value: 1 })).toBe('a:\n  k: 1\n');
+    expect(edit('a: []\n', { op: 'push', at: at('a'), value: 1 })).toBe('a:\n  - 1\n');
+  });
+});
+
+describe('applyEdit never throws (A9)', () => {
+  class Box {
+    x = 1;
+  }
+  const cyclic: Record<string, unknown> = { a: 1 };
+  cyclic['self'] = cyclic;
+  const sparse: unknown[] = [1];
+  sparse[2] = 3;
+  const bad: [string, unknown][] = [
+    ['function', () => 1],
+    ['symbol', Symbol('s')],
+    ['bigint', 10n],
+    ['Date', new Date(0)],
+    ['class instance', new Box()],
+    ['Map', new Map([['a', 1]])],
+    ['undefined', undefined],
+    ['nested undefined', { a: { b: undefined } }],
+    ['undefined in an array', [1, undefined]],
+    ['sparse array', sparse],
+    ['cycle', cyclic],
+  ];
+
+  it.each(bad)('refuses a %s value for add and push with unsupported', (_, value) => {
+    const p = parseText('m:\n  a: 1\nl:\n  - 1\n');
+    expect(applyEdit(p, { op: 'add', at: at('m'), key: 'k', value: value as never })).toEqual({
+      ok: false,
+      reason: 'unsupported',
+    });
+    expect(applyEdit(p, { op: 'push', at: at('l'), value: value as never })).toEqual({
+      ok: false,
+      reason: 'unsupported',
+    });
+  });
+
+  it('refuses a non-scalar set value and malformed ops instead of throwing', () => {
+    const p = parseText('a: 1\n');
+    const no = { ok: false, reason: 'unsupported' };
+    expect(applyEdit(p, { op: 'set', at: at('a'), value: { x: 1 } as never })).toEqual(no);
+    expect(applyEdit(p, { op: 'set', at: at('a'), value: undefined as never })).toEqual(no);
+    expect(applyEdit(p, { op: 'add', at: at(), key: 5 as never, value: 1 })).toEqual(no);
+    expect(applyEdit(p, { op: 'bogus' } as never)).toEqual(no);
+    expect(() => applyEdit(p, { op: 'set', at: { doc: 0, path: null as never }, value: 1 })).not.toThrow();
+  });
+
+  it('accepts plain JSON-like values, including null-prototype objects and shared references', () => {
+    const shared = { x: 1 };
+    const out = edit('m:\n  a: 1\n', {
+      op: 'add',
+      at: at('m'),
+      key: 'k',
+      value: { one: shared, two: shared, bare: Object.assign(Object.create(null) as object, { z: true }) },
+    });
+    expect(out).toBe('m:\n  a: 1\n  k:\n    one:\n      x: 1\n    two:\n      x: 1\n    bare:\n      z: true\n');
+  });
+});
+
+describe('post-checks compare the edited data (A10)', () => {
+  it('refuses a delete that would change a keep-chomped sibling block scalar', () => {
+    const text = 'a:\n  s: |+\n    foo\n\n  t: 1';
+    expect(applyEdit(parseText(text), { op: 'delete', at: at('a', 't') })).toEqual({
+      ok: false,
+      reason: 'unsupported',
+    });
+  });
+
+  it('allows add into an anchored map whose alias sees the same change', () => {
+    expect(edit('x: &a\n  k: 1\ny: *a\n', { op: 'add', at: at('x'), key: 'j', value: 2 })).toBe(
+      'x: &a\n  k: 1\n  j: 2\ny: *a\n',
+    );
+  });
+});
+
+describe('midLine delete keeps comments (A11)', () => {
+  it('refuses when a comment sits between the deleted pair and the next one', () => {
+    const text = '- name: web # n\n  # pinned\n  image: nginx\n';
+    expect(applyEdit(parseText(text), { op: 'delete', at: at(0, 'name') })).toEqual({
+      ok: false,
+      reason: 'unsupported',
+    });
+  });
+
+  it('pulls the next pair up when only whitespace separates them', () => {
+    expect(edit('- name: web # n\n  image: nginx\n', { op: 'delete', at: at(0, 'name') })).toBe(
+      '- image: nginx\n',
+    );
+    expect(edit('-   name: web\n\n    image: nginx\n', { op: 'delete', at: at(0, 'name') })).toBe(
+      '-   image: nginx\n',
+    );
+  });
+});
+
+describe('addDocument adds exactly one document (A12)', () => {
+  it('refuses a snippet with several documents', () => {
+    expect(refusal('a: 1\n', { op: 'addDocument', yaml: 'b: 1\n---\nc: 1\n' })).toBe('unsupported');
+  });
+
+  it('returns parse-error when the snippet itself does not parse', () => {
+    expect(refusal('a: 1\n', { op: 'addDocument', yaml: 'b: [\n' })).toBe('parse-error');
+    expect(refusal('a: 1\n', { op: 'addDocument', yaml: 'b: *nope\n' })).toBe('parse-error');
+  });
+
+  it('refuses a snippet that ends its document early and starts another', () => {
+    expect(refusal('a: 1\n', { op: 'addDocument', yaml: 'b: 1\n...\nc: 1\n' })).toBe('unsupported');
+  });
+
+  it('keeps earlier documents unchanged after a keep-chomped block scalar at EOF', () => {
+    expect(edit('a: |+\n  x', { op: 'addDocument', yaml: 'b: 1\n' })).toBe('a: |+\n  x\n---\nb: 1\n');
+  });
+
+  it('adds an empty snippet as one empty document', () => {
+    expect(edit('a: 1\n', { op: 'addDocument', yaml: '' })).toBe('a: 1\n---\n\n');
   });
 });

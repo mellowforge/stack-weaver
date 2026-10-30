@@ -7,6 +7,16 @@ import type { Document, LineCounter } from 'yaml';
  */
 export type YamlPath = readonly (string | number)[];
 
+/** A scalar value: what a `set` edit can write. */
+export type ScalarValue = string | number | boolean | null;
+
+/**
+ * A JSON-like YAML value: a scalar, an array of values, or a plain object of values. Edits refuse
+ * anything else at runtime (functions, symbols, bigints, `Date`, `Map`, class instances,
+ * `undefined` at any depth, sparse arrays and cycles).
+ */
+export type YamlValue = ScalarValue | readonly YamlValue[] | { readonly [k: string]: YamlValue };
+
 /** Addresses a node: the document index within the text plus a path inside it. */
 export interface NodeRef {
   /** Zero-based index of the YAML document within the text. */
@@ -17,8 +27,11 @@ export interface NodeRef {
 
 /** A splice of the source text: replace `[from, to)` with `insert`. Offsets are UTF-16 indexes. */
 export interface TextChange {
+  /** Start of the replaced range in the old text (UTF-16 index, inclusive). */
   from: number;
+  /** End of the replaced range in the old text (UTF-16 index, exclusive); equals `from` for a pure insertion. */
   to: number;
+  /** The text that replaces `[from, to)`; empty for a pure deletion. */
   insert: string;
 }
 

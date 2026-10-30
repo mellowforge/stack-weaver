@@ -1,11 +1,11 @@
 import { Document, Scalar, parse, stringify, visit } from 'yaml';
-import type { ScalarValue } from './edit.js';
+import type { ScalarValue } from './types.js';
 
 const OPTIONS = { indent: 2, lineWidth: 0 } as const;
 
 /**
  * True when a plain (unquoted) rendering of `s` would not read back as the same string in a
- * YAML 1.1 parser. Kubernetes and compose tooling parse YAML 1.1, where `yes`, `on`, `0777` or
+ * YAML 1.1 parser. Some Kubernetes and compose tooling parse YAML 1.1, where `yes`, `on`, `0777` or
  * `2001-12-14` are not strings, so such values are quoted even though YAML 1.2 would not need it.
  */
 function retypesIn11(s: string): boolean {
@@ -24,7 +24,8 @@ const isQuoted = (out: string): boolean => out.startsWith('"') || out.startsWith
  * because the caller places it (after `key: `, after `- `, or on a fresh line it has indented);
  * every following line is prefixed with `indent` spaces. Nested levels use 2 spaces, lines are
  * never folded, lines are joined with `eol` and there is no trailing line ending. Strings are
- * quoted when a YAML 1.2 or YAML 1.1 parser would read the plain form as another type.
+ * quoted when a YAML 1.2 or YAML 1.1 parser would read the plain form as another type. An object
+ * referenced twice is written out twice, never as an anchor and alias.
  *
  * @param value - Any JSON-like value (also `Map`); collections render in block style.
  * @param indent - Column of the continuation lines.
@@ -32,7 +33,7 @@ const isQuoted = (out: string): boolean => out.startsWith('"') || out.startsWith
  * @returns The rendered YAML.
  */
 export function renderValue(value: unknown, indent: number, eol: '\n' | '\r\n'): string {
-  const doc = new Document(value);
+  const doc = new Document(value, { aliasDuplicateObjects: false });
   visit(doc, {
     Scalar(_, n) {
       if (typeof n.value === 'string' && retypesIn11(n.value)) n.type = Scalar.QUOTE_DOUBLE;

@@ -107,7 +107,7 @@ describe.each(files)('corpus %s', (file) => {
 
   it('set on every editable scalar changes only its own lines and re-parses to the value', () => {
     for (const { ref, node } of entries) {
-      if (!isScalar(node) || canEdit(p, ref) !== true) continue;
+      if (!isScalar(node) || canEdit(p, ref) !== undefined) continue;
       const value = nextValue(node.value);
       const r = applyEdit(p, { op: 'set', at: ref, value });
       expect(r.ok, `${file} ${ref.path.join('.')}`).toBe(true);
@@ -138,7 +138,7 @@ describe.each(files)('corpus %s', (file) => {
       const parentRef = { doc: ref.doc, path: ref.path.slice(0, -1) };
       // A pair whose value is a flow collection is deletable; only the parent being flow blocks.
       const own = canEdit(p, ref);
-      const blocked = (own !== true && own !== 'flow') || canEdit(p, parentRef) === 'flow';
+      const blocked = (own !== undefined && own !== 'flow') || canEdit(p, parentRef) === 'flow';
       if (blocked) {
         expect(r.ok, `${file} ${ref.path.join('.')}`).toBe(false);
         continue;
@@ -194,7 +194,7 @@ describe('corpus fallback ratio', () => {
       for (const { ref, node } of collect(p)) {
         if (!isScalar(node) && !isAlias(node)) continue;
         total++;
-        if (canEdit(p, ref) !== true) refused++;
+        if (canEdit(p, ref) !== undefined) refused++;
       }
     }
     console.log(`fallback ratio: ${refused}/${total} = ${((refused / total) * 100).toFixed(2)}%`);
