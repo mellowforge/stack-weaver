@@ -42,6 +42,8 @@ const unique = (keys: readonly string[]): string[] => [...new Set(keys)];
  * formats one root per top-level key of document 0.
  * @param labelFor - Label of a map key; called with `path: []` for a document root and the document's `kind`.
  * @param isUnknown - Whether a document with this `apiVersion` and `kind` has no schema.
+ * @param isManaged - Whether a widget edits the mapping at `ref` itself (`WidgetFactory.managesKeys`); such a
+ *   mapping is not an outline node, its parent's section shows the widget.
  * @internal
  */
 export function buildOutline(
@@ -50,6 +52,7 @@ export function buildOutline(
   labelFor: (ref: NodeRef, key: string) => string,
   messages: UiMessages,
   isUnknown: (doc: number, apiVersion: string, kind: string) => boolean = () => false,
+  isManaged: (ref: NodeRef) => boolean = () => false,
 ): readonly OutlineNode[] {
   const make = (ref: NodeRef, label: string, view: NodeView, data: unknown, depth: number): OutlineNode => {
     const readOnly: EditRefusal | undefined = view.type === 'alias' ? 'alias' : view.readOnly;
@@ -58,7 +61,7 @@ export function buildOutline(
       for (const key of unique(view.keys ?? [])) {
         const childRef: NodeRef = { doc: ref.doc, path: [...ref.path, key] };
         const cv = describeNode(p, childRef);
-        if (!cv || cv.type === 'scalar') continue;
+        if (!cv || cv.type === 'scalar' || (cv.type === 'map' && isManaged(childRef))) continue;
         children.push(make(childRef, labelFor(childRef, key), cv, isRecord(data) ? data[key] : undefined, depth + 1));
       }
     } else if (depth < MAX_DEPTH && view.type === 'seq') {
@@ -90,7 +93,7 @@ export function buildOutline(
     for (const key of unique(root.keys ?? [])) {
       const ref: NodeRef = { doc: 0, path: [key] };
       const view = describeNode(p, ref);
-      if (!view || view.type === 'scalar') continue;
+      if (!view || view.type === 'scalar' || (view.type === 'map' && isManaged(ref))) continue;
       out.push(make(ref, labelFor(ref, key), view, isRecord(data) ? data[key] : undefined, 1));
     }
     return out;

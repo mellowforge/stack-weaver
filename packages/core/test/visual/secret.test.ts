@@ -172,11 +172,12 @@ describe('Secret in the visual pane', () => {
     expect(row.querySelector('.sw-widget-secret-data')).not.toBeNull();
     expect(row.querySelector<HTMLTextAreaElement>('[data-sw-entry="password"]')!.value).toBe('passwörd');
 
-    // Opening `data` as a section does not give it an "Add key" either.
+    // `data` is not an outline node: its section would list the raw base64 values, bypassing the widget
+    // (found in the browser). Selecting it lands on the Secret, whose `data` row is the widget.
+    expect([...el.querySelectorAll('.sw-outline-item')].map((n) => n.textContent)).not.toContain('Data (shown decoded)');
     made.ctx.select({ doc: 0, path: ['data'] });
-    // The `password` row exists only in the data section, so the root section is gone when this passes.
-    await vi.waitFor(() => expect(el.querySelector('.sw-row[data-sw-key="password"]')).not.toBeNull());
-    expect(el.querySelector('.sw-row[data-sw-key="apiVersion"]')).toBeNull();
+    await vi.waitFor(() => expect(el.querySelector('.sw-row[data-sw-key="apiVersion"]')).not.toBeNull());
+    expect(el.querySelector('.sw-row[data-sw-key="password"]')).toBeNull();
     expect(el.querySelector('.sw-add-key-btn')).toBeNull();
     el.remove();
   });

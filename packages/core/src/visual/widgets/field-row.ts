@@ -72,6 +72,15 @@ export function createFieldSlots(ctx: EditorContext, registry: WidgetRegistry): 
   const envFor = createEnvs(ctx);
   return {
     field: (init) => createFieldRow(ctx, registry, envFor, init),
+    manages(ref) {
+      const key = ref.path[ref.path.length - 1];
+      const parsed = ctx.store.parsed.ok ? ctx.store.parsed : ctx.store.lastGood;
+      const env = parsed ? envFor(parsed, ref.doc) : undefined;
+      const child = env?.bundle ? env.resolve(ref.path) : undefined;
+      if (typeof key !== 'string' || !env || !child) return false;
+      const picked = pickWidget(child, guideFieldOf(ctx.guide(), env.resolve(ref.path.slice(0, -1)), key), registry);
+      return picked !== undefined && registry[picked.name]?.managesKeys === true;
+    },
     addSlot: (ref) => renderAddSlot(ctx, ref, document, registry),
     updateAddSlot,
     destroyAddSlot,

@@ -78,3 +78,11 @@ describe('buildOutline', () => {
     expect(roots[1]!.children.length).toBe(1);
   });
 });
+
+describe('buildOutline with managed mappings', () => {
+  it('leaves out a mapping that a widget edits itself, and keeps its siblings', () => {
+    const text = 'apiVersion: v1\nkind: Secret\nmetadata:\n  name: s\ndata:\n  a: Yg==\n';
+    const roots = buildOutline(parseText(text), fmt('documents'), labelFor, defaultUiMessages, undefined, (ref) => ref.path.join('/') === 'data');
+    expect(roots[0]!.children.map((c) => c.label)).toEqual(['metadata']);
+  });
+});

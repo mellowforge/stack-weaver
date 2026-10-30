@@ -39,6 +39,8 @@ export interface FieldRowHandle {
 export interface SectionSlots {
   /** The widget row for one child of the section, or `undefined` for the default text row. */
   field(row: FieldRowInit): FieldRowHandle | undefined;
+  /** Whether a widget edits the mapping at `ref` itself, so the outline does not offer it as a section. */
+  manages?(ref: NodeRef): boolean;
   /** The add control shown after the rows, or `undefined`. */
   addSlot(ref: NodeRef): HTMLElement | undefined;
   /** Re-reads the document for the element `addSlot` returned; called by every `update()`. */

@@ -177,7 +177,7 @@ export function createVisualPane(
     o.el.toggleAttribute('data-sw-readonly', broken || ctx.readOnly());
     if (parsed && format) requestBundles(parsed);
     nodes = parsed && format
-      ? buildOutline(parsed, format, makeLabelFor(ctx, parsed), ui, (_d, apiVersion, kind) => unknownKeys.has(kindKey(apiVersion, kind)))
+      ? buildOutline(parsed, format, makeLabelFor(ctx, parsed), ui, (_d, apiVersion, kind) => unknownKeys.has(kindKey(apiVersion, kind)), (r) => slots.manages?.(r) === true)
       : [];
     flat = new Map();
     const index = (list: readonly OutlineNode[]): void => {
