@@ -32,8 +32,8 @@ export interface FieldRowHandle {
 }
 
 /**
- * The hooks later tasks fill: a widget for a field, and the "add" control of a section.
- * Returning `undefined` from `field` keeps the plain read-only row.
+ * The section's hooks, supplied by `createFieldSlots`: a widget for a field, and the "add" control
+ * of a section. Returning `undefined` from `field` keeps the plain read-only row.
  * @internal
  */
 export interface SectionSlots {

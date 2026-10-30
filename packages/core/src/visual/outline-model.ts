@@ -16,7 +16,10 @@ export interface OutlineNode {
   readonly id: string;
   /** The node in the document. */
   readonly ref: NodeRef;
-  /** What the user reads: a document's kind label and name, a map key's label, or a sequence item's name. */
+  /**
+   * What the user reads: a document's kind label and name (`Document N`, numbered from 1, when it
+   * has no kind), a map key's label, or a sequence item's name (`Item N` when it has none).
+   */
   readonly label: string;
   /** Document root, mapping or sequence. */
   readonly type: 'document' | 'map' | 'seq';

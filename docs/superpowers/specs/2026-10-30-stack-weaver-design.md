@@ -300,16 +300,28 @@ const editor = createManifestEditor(el, {
   onModeChange?(mode): void,  onVariablesChange?(decls): void,  // onVariablesChange: Plan 3
 });
 editor.getValue(); editor.setValue(text); editor.getMode(); editor.setMode(m); editor.getProblems();
-editor.setReadOnly(b); editor.undo(); editor.redo(); editor.reveal(ref: NodeRef);
-editor.ready; /* Promise<void>: the code editor and the first schema are loaded */ editor.destroy();
+editor.getReadOnly(); editor.setReadOnly(b); editor.setTheme(t); editor.undo(); editor.redo(); editor.reveal(ref: NodeRef);
+editor.ready; /* Promise<void>, see below */ editor.destroy();
 ```
 
+- **`editor.ready`:** resolves once the format is resolved, the code editor is mounted and the first validation has
+  finished. Rejects if the code editor or built-in formats fail to load (the failure is also shown in the editor).
+  Does not resolve if a schema load never settles.
 - **Plan 2 rulings that change the text above:**
-  - `GuideField.tier` (`'recommended' | 'advanced'`) replaces the two booleans `recommended` and `advanced`.
+  - `GuideField.tier` (`'recommended' | 'common' | 'advanced'`) replaces the two booleans `recommended` and
+    `advanced`. Defaults: a property with no guide entry is `'advanced'`; an entry without `tier` is `'common'`.
+  - The options, callbacks and named types are readonly properties: `theme?: EditorTheme` (`ResolvedTheme | 'auto'`),
+    `messages?: EditorMessages`, and `onChange`, `onProblemsChange` and `onModeChange` are function properties.
+    `value`, `mode`, `readOnly` and `theme` have setters; the other options are read once, at creation.
+    `onModeChange` also fires for `setMode`, and when an "Edit in code" or "Jump to error" link opens Split from
+    Visual. `setMode` and `setValue` are no-ops when the value is current.
   - `GuideField.options` gives suggested values. Upstream Kubernetes schemas have no enums for fields such as
     `restartPolicy`, so the guide supplies the list, and the widget suggests it without restricting input.
   - `WidgetFactory.managesKeys` says a mapping widget adds, shows and removes its own keys (the Secret `data`
-    widget). The section then shows no "Add key", and the outline does not list the mapping as a section.
+    widget). The mapping is then not an outline node or a section of its own: the widget is a row in its parent's
+    section, and no "Add key" is offered for it.
+  - `EditOp` gains `renameKey` (`{ op: 'renameKey', at, key }`, `at` addressing the pair's value): it replaces only
+    the key's source range, so a renamed key keeps its place and comments.
   - Recipes are offered only for an **empty document**. Once there is text, the "Start from a template" cards go away.
   - `variables` and `onVariablesChange` are not built yet: they stay listed here for Plan 3.
 - **CSS tokens** (custom properties on `.sw-editor`, all public API): `--sw-bg`, `--sw-fg`, `--sw-muted`,

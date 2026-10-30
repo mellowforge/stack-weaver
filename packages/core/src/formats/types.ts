@@ -134,7 +134,11 @@ export interface Recipe {
   readonly description: string;
   /** The YAML text the recipe inserts; it should validate against its format. */
   readonly yaml: string;
-  /** The value that most needs replacing (for example the container image); revealed after the recipe is chosen. */
+  /**
+   * The value that most needs replacing (for example the container image). After the recipe is
+   * chosen it is selected in the code pane and the outline; in Visual and Split modes its field's
+   * widget also gets keyboard focus (in Code mode focus stays where it is).
+   */
   readonly focus?: NodeRef;
 }
 

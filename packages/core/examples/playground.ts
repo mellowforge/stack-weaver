@@ -66,7 +66,10 @@ function mount(format: string, value: string): void {
     },
   };
   editor = createManifestEditor($('editor'), opts);
-  void editor.ready.then(() => log('ready'));
+  editor.ready.then(
+    () => log('ready'),
+    (err: unknown) => log(`ready rejected: ${String(err)}`),
+  );
   (window as unknown as { editor: ManifestEditor }).editor = editor;
 }
 
@@ -75,7 +78,7 @@ $<HTMLSelectElement>('format').addEventListener('change', (e) => mount((e.target
 $('theme').addEventListener('click', () => {
   theme = theme === 'light' ? 'dark' : 'light';
   document.body.dataset.theme = theme;
-  mount($<HTMLSelectElement>('format').value, editor?.getValue() ?? '');
+  editor?.setTheme(theme);
 });
 $('sample-k8s').addEventListener('click', () => editor?.setValue(K8S));
 $('sample-compose').addEventListener('click', () => editor?.setValue(COMPOSE));

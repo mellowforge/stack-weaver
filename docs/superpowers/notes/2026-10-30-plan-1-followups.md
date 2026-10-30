@@ -22,6 +22,21 @@ The editor UI (Plan 2) took most of the "API hardening" list. Done means shipped
 - **`EditResult`** does not return the new `parsed` or the ref of the created node.
 - **Consider replacing `YamlProblem` with `Problem`.**
 
+## Plan 4: API hardening before wrappers
+Deferred by ruling R10 from the Plan 2 milestone review (type-design analysis). Do these in one dedicated task at the
+start of Plan 4, before the wrappers freeze the API:
+- Reshape `WidgetContext` (snapshot fields, a `parsed()` accessor, a `commit` return value), and make `WidgetFactory`
+  a descriptor.
+- `UiMessages`: renames, plurals and a formatter.
+- Adapter: an async `mount`, a `complete(offset, explicit)` signature, `CodeDiagnostic.code` and `source`, and async
+  hover.
+- `NodeView` and `CursorContext` as discriminated unions.
+- Rename the controller type (`ManifestEditorController`), add `update(patch)` and `setFormat`.
+- Decouple `ParsedText.docs` from `yaml`.
+- The `Recipe.format` invariant, a typed `GuideField.widget` grammar, and a `Problem.code` template type.
+- Move field-name knowledge into guide data (CR-S8): the `name` item labels, the ref-key sibling `name`, and the
+  Secret/ConfigMap data keys.
+
 ## Plan 4 (wrappers and release)
 - **Changesets:** restore `.changeset/config.json` `fixed: [["@stack-weaver/core","@stack-weaver/angular","@stack-weaver/react"]]` when the wrappers are added. It is set to `[]` until then.
 - **`@changesets/cli`:** kept at ^2.31.1 to match grid-master. Revisit ^3 there.
@@ -33,7 +48,7 @@ The editor UI (Plan 2) took most of the "API hardening" list. Done means shipped
 - Deleting a pair whose value has comments between items is refused ("edit in code"), not restructured.
 - Remaining per-task minors (kept in the SDD ledger at the time):
   - `edit.ts` size and helper split;
-  - store listener exceptions and re-entrancy semantics;
+  - store re-entrancy semantics (a throwing listener is now logged and isolated);
   - generator rmSync and parallel-run race;
   - no-op int32/int64/double/byte formats;
   - lenient quantity regex;
@@ -46,7 +61,7 @@ Each was found in a per-task review and judged not worth blocking the task. Grou
 
 **Document model and edits (`document/`)**
 - `edit.ts` is about 690 lines and a split candidate. `anchorsReferencedElsewhere` is unreachable (yaml scopes anchors per document), so it is an undocumented `alias` refusal: remove it or document it.
-- Deleting document 0 when document 1 has no `---` (after `...`) is a false refusal, and deleting document 0 drops a comment on the next `---` line.
+- Deleting document 0 when document 1 has no `---` (after `...`) is a false refusal.
 - `describe.ts`: `keyText` is "[object Object]" for non-scalar keys, and the flow ancestor walk is O(depth^2).
 - Test gaps: "set and delete return no `at`" only exercises `set`, and there is no `readOnly` test for a path under an alias.
 
@@ -64,25 +79,24 @@ Each was found in a per-task review and judged not worth blocking the task. Grou
 - Pack check should require the `.d.ts` files of the editors subpath, and the editors entry twin-regex skips type imports (confirm `verbatimModuleSyntax`).
 
 **Editor shell, sync and problems**
-- `ready` rejects unhandled if the host does not await it (blank code pane, no message), and it never resolves if the first schema load never settles (note it in the TSDoc).
-- A pending-cleanup race after `clear()`; a pane update that throws skips `onChange`; a validation wrapper that throws skips the publish; the sticky `auto` format is unpinned.
+- A pending-cleanup race after `clear()`; a validation wrapper that throws skips the publish; the sticky `auto` format is unpinned.
 - `onProblems` calls `section.update` and bypasses the debounce. A problem click with no outline node does nothing.
 - The `onProblemsChange`-after-destroy assertion is vacuous.
 
 **Visual pane and outline**
 - An unknown CRD flashes as editable before its schema load resolves.
-- Removing the last section hides the body, so `title.focus()` fails and focus falls to the body. No test for destroy while the picker is open.
-- The breadcrumb is not an `ol` and its label may duplicate; `null` and an empty string render alike; `Entry.level` is unused.
+- Removing the last section hides the body, so `title.focus()` fails and focus falls to the body.
+- The breadcrumb is not an `ol` and its label may duplicate; `null` and an empty string render alike.
 - Selecting an outline node does not move the code pane's selection (only "Open", problem clicks and `reveal` do): decide whether it should.
 - Lighthouse reports `label-content-name-mismatch` on outline tree items that have children: the accessible name is the label while the visible text includes the nested group. The scores are 100 in light and 99 in dark.
 
 **Widgets**
-- Clearing a number or quantity box commits nothing and leaves an empty box. A renamed key moves to the end of the map. "Add key" with an empty name gives no feedback.
-- `createWidgetContext` defaults `isReadOnly` to the static `init.readOnly` (only `field-row` passes the live getter), and the rename rollback ignores its own failure.
+- Clearing a number or quantity box commits nothing and leaves an empty box. "Add key" with an empty name gives no feedback.
+- `createWidgetContext` defaults `isReadOnly` to the static `init.readOnly` (only `field-row` passes the live getter).
 - Composite `aria-label`s are baked at build; widgets use the global `document`; the scalar check and the `{label}` helper are duplicated; `current()` duplicates the lookup in the section code.
 - References: `suggest*` ignore `metadata.namespace` (undocumented); `ref-key` hard-codes the sibling `name` (a guide param later); the datalist filters by the current value; `pickWidget` runs twice per field (row and slot).
 
 **Accessibility and styling**
 - The real CodeMirror content's accessible name is not checked by the a11y test (it uses the fake adapter), and the live-region text change is not asserted.
 - The focus-visible source scan is regex-based (best effort), and the breadcrumb spacing test is text-only.
-- Control borders and decorative borders are now separate tokens (`--sw-control-border`, `--sw-border`). Dashed slots and the picker still use `--sw-border`; revisit if a design needs them stronger.
+- Control borders and decorative borders are now separate tokens (`--sw-control-border`, `--sw-border`). Only the picker panel still uses `--sw-border`; the dashed add slot uses `--sw-control-border` (R9). Revisit the picker if a design needs it stronger.

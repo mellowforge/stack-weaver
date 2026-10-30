@@ -29,7 +29,11 @@ export interface EditorContext {
   problems(): readonly Problem[];
   /** The loaded schema bundle for document `doc`, if already loaded. */
   bundleFor(doc: number): SchemaBundle | undefined;
-  /** Loads (once) the schema bundle for document `doc`; `undefined` for an unknown kind or after destroy. */
+  /**
+   * Loads the schema bundle for document `doc`; `undefined` for an unknown kind, a failed load or
+   * after destroy. Never rejects. A loaded bundle is cached (per kind, until the format changes);
+   * a failed load is recorded in {@link bundleError} and tried again by the next call.
+   */
   loadBundle(doc: number): Promise<SchemaBundle | undefined>;
   /** The error from the last failed schema load for document `doc`, or `undefined` (never loaded, loaded, or unknown kind). */
   bundleError(doc: number): unknown;

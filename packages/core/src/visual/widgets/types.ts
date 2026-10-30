@@ -55,11 +55,11 @@ export interface WidgetInstance {
  * Builds a widget for a field.
  *
  * A factory for a mapping may carry `managesKeys: true` to say that the widget adds, shows and
- * removes the mapping's keys itself; the section of that mapping then offers no free-form
- * "Add key" of its own.
+ * removes the mapping's keys itself. The mapping is then not an outline node or a section of its
+ * own: the widget is a row in its parent's section, and no "Add key" is offered for the mapping.
  */
 export type WidgetFactory = ((ctx: WidgetContext) => WidgetInstance) & {
-  /** True when the widget manages the keys of its mapping (no "Add key" in the section). */
+  /** True when the widget manages the keys of its mapping: it is a row in the parent's section, with no outline node and no "Add key" for the mapping. */
   readonly managesKeys?: boolean;
 };
 

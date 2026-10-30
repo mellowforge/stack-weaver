@@ -45,12 +45,17 @@ const editor = createManifestEditor(document.getElementById('editor')!, {
   onProblemsChange: (problems) => console.log(problems.length),
 });
 
-await editor.ready; // the code editor and the first schema are loaded
+await editor.ready;
 editor.getValue();
 editor.setValue(text); // a no-op when the text is unchanged; otherwise applied as a minimal diff
 editor.setMode('code');
 editor.destroy();
 ```
+
+`ready` resolves once the format is resolved, the code editor is mounted and the first validation has finished.
+It rejects if the code editor or built-in formats fail to load (the failure is also shown in the editor). It does
+not resolve if a schema load never settles. You do not have to await it: a rejection you never handle is not
+reported as unhandled.
 
 The built-in formats and the CodeMirror adapter load on demand, so the main entry stays free of schemas and
 CodeMirror. Give the host element a height: the editor fills it, with a 320px minimum.
@@ -62,7 +67,7 @@ CodeMirror. Give the host element a height: the editor fills it, with a 320px mi
 | `format` | `'kubernetes'`, `'compose'`, or `'auto'` to detect it from the text. |
 | `value`, `mode` | The initial text, and `'visual'`, `'split'` (the default) or `'code'`. |
 | `readOnly` | Blocks edits in both panes. Change it later with `setReadOnly`. |
-| `theme` | `'light'`, `'dark'`, or `'auto'` to follow `prefers-color-scheme`. |
+| `theme` | `'light'`, `'dark'`, or `'auto'` (the default) to follow `prefers-color-scheme`. Change it later with `setTheme`. |
 | `codeEditor` | A `CodeEditorAdapter`. The default is the CodeMirror adapter. |
 | `formats` | Extra `FormatDefinition`s, for a format of your own. |
 | `guide` | Guide overrides keyed by format id (`{ kubernetes: { fields: { ... } } }`), merged over the format's built-in guide: labels, descriptions, tiers and widgets. |
@@ -71,16 +76,21 @@ CodeMirror. Give the host element a height: the editor fills it, with a 320px mi
 | `messages` | `{ ui?, schema? }`: translations, see below. |
 | `onChange(value, { origin })` | Called after every change. `origin` is `'visual'`, `'code'`, `'api'` (`setValue`) or `'history'` (undo and redo). |
 | `onProblemsChange(problems)` | Called when the validation result changes. |
-| `onModeChange(mode)` | Called when the user, or `setMode`, switches mode. |
+| `onModeChange(mode)` | Called when the mode changes: by the user, by `setMode`, or when an "Edit in code" or "Jump to error" link opens Split from Visual. |
 
-The controller also has `getMode()`, `getProblems()`, `undo()`, `redo()` and `reveal(ref)`, which selects a node
-(`{ doc, path }`) in both panes.
+`value`, `mode`, `readOnly` and `theme` are initial values with setters (`setValue`, `setMode`, `setReadOnly`,
+`setTheme`). The other options are read once, when the editor is created. `setValue` and `setMode` do nothing (and
+call no callback) when the value is already current. A callback that throws is logged and does not stop the editor.
+
+The controller also has `getMode()`, `getProblems()`, `getReadOnly()`, `undo()`, `redo()` and `reveal(ref)`, which
+selects a node (`{ doc, path }`) in both panes.
 
 ### Starter recipes
 
 When the document is empty the editor offers "Start from a template" cards: Web app, Background worker, Scheduled
 job and Config and secret for Kubernetes, and Web app, App with Postgres and App with Redis for compose.
-Choosing one inserts valid YAML and puts focus on the first value that needs replacing. Add your own:
+Choosing one inserts valid YAML and selects the value that most needs replacing (the recipe's `focus`); in Visual
+and Split modes that field's input also gets keyboard focus. Add your own:
 
 ```ts
 createManifestEditor(el, {
@@ -110,7 +120,10 @@ To use another editor (Monaco, say), implement `CodeEditorAdapter`: `mount(el, i
 `getText`, `applyChange`, `setDiagnostics`, `reveal`, `getSelection`, `setReadOnly`, `setTheme`, `focus` and
 `destroy`. The `init` object gives your editor the initial text, `onChange`, the completion and hover callbacks,
 and `onUndo` and `onRedo`. Route the undo keys to those two callbacks and do not install an undo history of your
-own, so there is one history for both panes.
+own, so there is one history for both panes. Keep the text byte for byte (never normalize line endings), and use
+offsets into that text everywhere, where `\r\n` counts as two characters; the CodeMirror adapter translates
+CodeMirror's positions, which count a line break as one. If `mount` throws, the code pane shows an error message
+instead and `ready` rejects.
 
 ### Theming
 
@@ -159,29 +172,38 @@ schema's shape. The built-in names are `string`, `number`, `integer`, `boolean`,
 ```ts
 import type { WidgetFactory } from '@stack-weaver/core';
 
-const colour: WidgetFactory = (ctx) => {
-  const input = document.createElement('input');
-  input.id = ctx.id; // the row's label points at this id
-  input.type = 'color';
-  input.addEventListener('change', () => ctx.commit(input.value));
+const approvedImage: WidgetFactory = (ctx) => {
+  const select = document.createElement('select');
+  select.id = ctx.id; // the row's label points at this id
+  for (const image of ['nginx:1.27', 'redis:7.4']) select.add(new Option(image, image));
+  select.addEventListener('change', () => ctx.commit(select.value));
   return {
-    el: input,
+    el: select,
     update: (value, readOnly) => {
-      input.value = String(value ?? '#000000');
-      input.disabled = readOnly;
+      select.value = String(value ?? '');
+      select.disabled = readOnly;
     },
-    focus: () => input.focus(),
+    focus: () => select.focus(),
   };
 };
 
 createManifestEditor(el, {
-  widgets: { colour },
-  guide: { kubernetes: { fields: { 'io.k8s.api.core.v1.Pod#color': { widget: 'colour' } } } },
+  widgets: { 'approved-image': approvedImage },
+  guide: { kubernetes: { fields: { 'io.k8s.api.core.v1.Container#image': { widget: 'approved-image' } } } },
 });
 ```
 
-A widget for a mapping that adds and removes its own keys sets `managesKeys: true` on the factory, as the Secret
-`data` widget does, so its section shows no "Add key".
+Guide keys come in two shapes. `guide.fields` is keyed by `<schema definition>#<property>`: the definition that
+holds the property, so a container's image is `io.k8s.api.core.v1.Container#image` and a Deployment's replica count
+is `io.k8s.api.apps.v1.DeploymentSpec#replicas`. `guide.kinds` is keyed by kind key, `<apiVersion>/<kind>` as
+`kindKey(apiVersion, kind)` builds it, such as `apps/v1/Deployment`.
+
+A widget that edits a whole mapping and adds and removes its keys itself sets `managesKeys: true` on the factory,
+as the Secret `data` widget does. The mapping is then not an outline node or a section of its own: the widget is a
+row in its parent's section, and no "Add key" is offered for it.
+
+If a widget throws, its field falls back to read-only text with a note and an "Edit in code" link, and the error is
+logged with `console.error`.
 
 ## Development
 
