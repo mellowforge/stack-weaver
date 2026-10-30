@@ -15,7 +15,12 @@ const PACKAGES = [
   {
     dir: 'packages/core',
     attw: ['--profile', 'esm-only'],
-    required: ['dist/index.js', 'dist/index.d.ts'],
+    required: [
+      'dist/index.js',
+      'dist/index.d.ts',
+      'dist/formats/kubernetes/index.js',
+      'dist/formats/compose/index.js',
+    ],
   },
 ];
 const ALWAYS = ['package.json', 'README.md', 'LICENSE'];
