@@ -11,6 +11,13 @@ describe('stack-weaver.css', () => {
     expect(css.length).toBeLessThan(64 * 1024);
   });
 
+  it('fills a host that has a fixed height instead of overflowing it', () => {
+    // Found in the browser: a 560px host rendered a 711px editor that spilled over the next sibling.
+    const layout = [...css.matchAll(/\.sw-editor \{([^}]*)\}/g)].map((m) => m[1]).join('\n');
+    expect(layout).toMatch(/\n\s*height:\s*100%;/);
+    expect(layout).toMatch(/min-height:\s*320px;/);
+  });
+
   it('defines no top-level rule selector twice', () => {
     const body = css.replace(/\/\*[\s\S]*?\*\//g, '');
     const selectors: string[] = [];

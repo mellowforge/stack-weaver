@@ -37,6 +37,7 @@
   flex-direction: column;
   container-type: inline-size;
   box-sizing: border-box;
+  height: 100%;
   min-height: 320px;
   color: var(--sw-fg);
   background: var(--sw-bg);
