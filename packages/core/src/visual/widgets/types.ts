@@ -30,8 +30,11 @@ export interface WidgetContext {
    * @returns The reason the edit was refused, or `undefined` when it was made.
    */
   commit(value: ScalarValue): EditRefusal | undefined;
-  /** Applies an edit to the document (for composite widgets). A `set` joins the undo group of its node. */
-  edit(op: EditOp): EditResult;
+  /**
+   * Applies an edit to the document (for composite widgets). A `set` joins the undo group of its
+   * node unless `opts.group` says otherwise. Refused with `unsupported` while the field is read-only.
+   */
+  edit(op: EditOp, opts?: { group?: string }): EditResult;
 }
 
 /** A mounted widget. */

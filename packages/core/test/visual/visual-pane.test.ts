@@ -220,8 +220,9 @@ describe('visual pane', () => {
     await vi.advanceTimersByTimeAsync(400);
     expect(editor.getProblems().some((p) => p.path.join('/') === 'spec/replicas')).toBe(true);
     editor.setMode('visual');
-    expect(el.querySelector('.sw-section .sw-row[data-sw-key="replicas"] .sw-row-problems')?.textContent).not.toBe('');
-    expect(el.querySelector('.sw-section .sw-row[data-sw-key="replicas"] .sw-row-problems')).not.toBeNull();
+    const list = el.querySelector('.sw-section .sw-row[data-sw-key="replicas"] .sw-row-problems');
+    expect(list).not.toBeNull();
+    expect(list!.textContent).not.toBe('');
   });
 
   it('a pending render then pointerdown then click on an outline item still selects it', async () => {

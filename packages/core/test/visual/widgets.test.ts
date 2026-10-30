@@ -206,6 +206,19 @@ describe('text widgets', () => {
     const input = q<HTMLInputElement>('input', w.el);
     type(input, 'z');
     expect(q<HTMLElement>('.sw-field-error', w.el).textContent).toBe(defaultUiMessages.editRefused);
+    w.update(null, false); // the document did not change: an unfocused box shows the document again
+    expect(input.value).toBe('');
+    expect(q<HTMLElement>('.sw-field-error', w.el).textContent).toBe('');
+  });
+
+  it('a read-only context refuses writes', () => {
+    const { store, w } = setup('string', 'name: a\n', ['name'], { type: 'string' }, { readOnly: true });
+    const edit = vi.spyOn(store, 'edit');
+    const input = q<HTMLInputElement>('input', w.el);
+    input.disabled = false; // a host widget could ignore `disabled`
+    type(input, 'b');
+    expect(edit).not.toHaveBeenCalled();
+    expect(store.text).toBe('name: a\n');
   });
 });
 
@@ -221,6 +234,21 @@ describe('choice widgets', () => {
     refresh();
     expect(select.value).toBe('Sometimes');
     expect(qa('option', select).length).toBe(4);
+  });
+
+  it('a refused choice reverts the control', () => {
+    const { store, w } = setup('enum', 'p: Never\n', ['p'], { enum: ['Always', 'Never'] });
+    vi.spyOn(store, 'edit').mockReturnValue({ ok: false, reason: 'flow' });
+    const select = q<HTMLSelectElement>('select', w.el);
+    select.value = 'Always';
+    select.dispatchEvent(new Event('change', { bubbles: true }));
+    expect(select.value).toBe('Never');
+    const b = setup('boolean', 'on: true\n', ['on'], { type: 'boolean' });
+    vi.spyOn(b.store, 'edit').mockReturnValue({ ok: false, reason: 'flow' });
+    const box = q<HTMLInputElement>('input[type=checkbox]', b.w.el);
+    box.checked = false;
+    box.dispatchEvent(new Event('change', { bubbles: true }));
+    expect(box.checked).toBe(true);
   });
 
   it('boolean toggles a checkbox', () => {
@@ -282,6 +310,28 @@ describe('composite widgets', () => {
     expect(edit.mock.calls.at(-1)![0]).toEqual({ op: 'delete', at: { doc: 0, path: ['labels', 'b'] } });
     expect(Object.keys(data()['labels'] as object).sort()).toEqual(['c', 'z']);
     expect(qa('.sw-list-item', w.el).length).toBe(2);
+  });
+
+  it('a rename is one undo step', () => {
+    const { store, w } = setup('key-value', LABELS, ['labels'], STRING_MAP);
+    const before = store.text;
+    const key = q<HTMLInputElement>('.sw-list-item .sw-kv-key', w.el);
+    key.value = 'z';
+    key.dispatchEvent(new Event('change', { bubbles: true }));
+    expect(store.text).not.toBe(before);
+    store.undo();
+    expect(store.text).toBe(before);
+  });
+
+  it('a rename rolls the add back when the delete fails', () => {
+    const { store, w } = setup('key-value', LABELS, ['labels'], STRING_MAP);
+    const real = store.edit.bind(store);
+    vi.spyOn(store, 'edit').mockImplementation((op, o) => (op.op === 'delete' && op.at.path.at(-1) === 'a' ? { ok: false, reason: 'flow' } : real(op, o)));
+    const key = q<HTMLInputElement>('.sw-list-item .sw-kv-key', w.el);
+    key.value = 'z';
+    key.dispatchEvent(new Event('change', { bubbles: true }));
+    expect((toData(store.parsed, 0) as { labels: Record<string, string> }).labels).toEqual({ a: '1', b: 'two' });
+    expect(key.value).toBe('a');
   });
 
   it('key-value ignores an add with an empty key', () => {

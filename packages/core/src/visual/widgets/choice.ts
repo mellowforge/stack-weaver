@@ -15,7 +15,9 @@ export const enumWidget: WidgetFactory = (ctx) => {
   let options: ScalarValue[] = [];
   let signature = '';
 
+  let last: YamlValue = ctx.value;
   const show = (value: YamlValue): void => {
+    last = value;
     const scalar: ScalarValue | undefined = value === null || ['string', 'number', 'boolean'].includes(typeof value) ? (value as ScalarValue) : undefined;
     const next: ScalarValue[] = [...listed];
     const missing = scalar !== undefined && !next.some((v) => Object.is(v, scalar)) ? scalar : undefined;
@@ -34,6 +36,7 @@ export const enumWidget: WidgetFactory = (ctx) => {
     if (picked === undefined) return;
     const refused = ctx.commit(picked);
     error.textContent = refused ? ctx.messages.editRefused : '';
+    if (refused) show(last);
   });
 
   show(ctx.value);
@@ -60,6 +63,7 @@ export const booleanWidget: WidgetFactory = (ctx) => {
   box.addEventListener('change', () => {
     const refused = ctx.commit(box.checked);
     error.textContent = refused ? ctx.messages.editRefused : '';
+    if (refused) box.checked = !box.checked;
   });
   return {
     el,

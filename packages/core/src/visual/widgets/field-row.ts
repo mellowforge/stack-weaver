@@ -134,7 +134,9 @@ function createFieldRow(ctx: EditorContext, registry: WidgetRegistry, envFor: (p
     if (mode === 'widget' && picked && child) {
       const factory = registry[picked.name]!;
       try {
-        const wctx = createWidgetContext(ctx.store, {
+        const wctx = createWidgetContext(
+          ctx.store,
+          {
           id,
           label,
           description,
@@ -144,7 +146,7 @@ function createFieldRow(ctx: EditorContext, registry: WidgetRegistry, envFor: (p
           readOnly: readOnlyNow,
           ...(picked.param !== undefined && { param: picked.param }),
           messages: ui,
-        });
+        }, () => readOnlyNow);
         widget = factory(wctx);
       } catch (err) {
         console.error(`stack-weaver: the "${picked.name}" widget failed`, err);

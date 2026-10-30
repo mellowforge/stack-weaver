@@ -1,6 +1,7 @@
 import type { EditResult } from '../../document/edit.js';
 import type { YamlValue } from '../../document/types.js';
 import { h } from '../../editor/dom.js';
+import { groupKey } from './context.js';
 import type { WidgetContext, WidgetFactory } from './types.js';
 
 const isScalar = (v: unknown): v is string | number | boolean | null => v === null || ['string', 'number', 'boolean'].includes(typeof v);
@@ -155,11 +156,15 @@ export const keyValueWidget: WidgetFactory = (ctx) => {
         return;
       }
       const moved = isScalar(current[name] ?? '') ? value.value : (current[name] as YamlValue);
-      if (!f.fail(ctx.edit({ op: 'add', at: ctx.ref, key: next, value: moved }), ui.keyExists)) {
+      const group = `${groupKey(ctx.ref)}/rename`; // one undo step for the add and the delete
+      if (!f.fail(ctx.edit({ op: 'add', at: ctx.ref, key: next, value: moved }, { group }), ui.keyExists)) {
         key.value = name;
         return;
       }
-      f.fail(ctx.edit({ op: 'delete', at: at(name) }));
+      if (!f.fail(ctx.edit({ op: 'delete', at: at(name) }, { group }))) {
+        ctx.edit({ op: 'delete', at: at(next) }, { group }); // roll the add back
+        key.value = name;
+      }
     });
     const remove = removeButton(ctx, `${ctx.label} ${name}`, () => {
       f.fail(ctx.edit({ op: 'delete', at: at(name) }));

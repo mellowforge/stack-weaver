@@ -1,4 +1,4 @@
-import type { EditOp } from '../../document/edit.js';
+import type { EditOp, EditResult } from '../../document/edit.js';
 import type { DocumentStore } from '../../document/store.js';
 import type { NodeRef } from '../../document/types.js';
 import type { WidgetContext } from './types.js';
@@ -10,8 +10,16 @@ export const groupKey = (ref: NodeRef): string => `visual:${ref.doc}:${ref.path.
  * Builds the {@link WidgetContext} of one field over `store`.
  * @internal
  */
-export function createWidgetContext(store: DocumentStore, init: Omit<WidgetContext, 'parsed' | 'commit' | 'edit'>): WidgetContext {
-  const edit = (op: EditOp) => store.edit(op, op.op === 'set' ? { group: groupKey(op.at) } : undefined);
+export function createWidgetContext(
+  store: DocumentStore,
+  init: Omit<WidgetContext, 'parsed' | 'commit' | 'edit'>,
+  isReadOnly: () => boolean = () => init.readOnly,
+): WidgetContext {
+  const edit = (op: EditOp, opts?: { group?: string }): EditResult => {
+    if (isReadOnly()) return { ok: false, reason: 'unsupported' };
+    const group = opts?.group ?? (op.op === 'set' ? groupKey(op.at) : undefined);
+    return store.edit(op, group === undefined ? undefined : { group });
+  };
   return {
     ...init,
     parsed: () => store.parsed,

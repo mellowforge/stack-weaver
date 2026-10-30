@@ -110,7 +110,8 @@ describe('field rows', () => {
     click('spec');
     expect(row('replicas').querySelector('.sw-row-note')!.textContent).toContain('every alias');
     expect(row('minReadySeconds').querySelector('.sw-row-note')?.textContent ?? '').not.toContain('every alias');
-    expect(row('minReadySeconds').querySelector<HTMLInputElement>('input')?.disabled ?? true).toBe(true);
+    expect(row('minReadySeconds').querySelector('input')).toBeNull(); // an alias has no widget
+    expect(row('minReadySeconds').querySelector<HTMLButtonElement>('.sw-row-remove')!.disabled).toBe(true);
   });
 
   it('nested object field renders a card that selects the child node', async () => {
