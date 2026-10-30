@@ -57,6 +57,7 @@
     "prebuild": "node scripts/gen-version.mjs && node scripts/gen-kubernetes.mjs && node scripts/gen-compose.mjs",
     "build": "node scripts/copy-generated.mjs && tsc -p tsconfig.build.json && node scripts/copy-css.mjs",
     "pretest": "node scripts/gen-version.mjs && node scripts/gen-kubernetes.mjs && node scripts/gen-compose.mjs",
+    "dev": "vite",
     "test": "vitest run",
     "pretypecheck": "node scripts/gen-version.mjs && node scripts/gen-kubernetes.mjs && node scripts/gen-compose.mjs",
     "typecheck": "tsc --noEmit -p tsconfig.json"
@@ -73,7 +74,8 @@
     "@codemirror/language": "^6.13.1",
     "@codemirror/lint": "^6.9.7",
     "@codemirror/state": "^6.7.6",
-    "@codemirror/view": "^6.43.15"
+    "@codemirror/view": "^6.43.15",
+    "@lezer/highlight": "^1.2.5"
   },
   "devDependencies": {
     "@codemirror/autocomplete": "^6.20.4",
@@ -83,9 +85,11 @@
     "@codemirror/lint": "^6.9.7",
     "@codemirror/state": "^6.7.6",
     "@codemirror/view": "^6.43.15",
+    "@lezer/highlight": "^1.2.5",
     "@types/node": "^26.6.6",
     "happy-dom": "^21.0.4",
     "typescript": "^7.0.2",
+    "vite": "^8.3.5",
     "vitest": "^5.0.5"
   },
   "publishConfig": {

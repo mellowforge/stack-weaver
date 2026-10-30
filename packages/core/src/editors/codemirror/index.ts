@@ -1,7 +1,7 @@
 import { autocompletion, type Completion, type CompletionContext, type CompletionResult } from '@codemirror/autocomplete';
 import { defaultKeymap } from '@codemirror/commands';
 import { yaml } from '@codemirror/lang-yaml';
-import { defaultHighlightStyle, syntaxHighlighting } from '@codemirror/language';
+import { syntaxHighlighting } from '@codemirror/language';
 import { setDiagnostics, type Diagnostic } from '@codemirror/lint';
 import { Annotation, Compartment, EditorSelection, EditorState, Prec, type Extension } from '@codemirror/state';
 import {
@@ -13,6 +13,7 @@ import {
   lineNumbers,
   type Tooltip,
 } from '@codemirror/view';
+import { swHighlightStyle } from './highlight.js';
 import { hoverTooltipFor } from './hover.js';
 import type { CodeCompletion } from '../../assist/complete.js';
 import type { CodeDiagnostic, CodeEditorAdapter, CodeEditorInit, CodeEditorInstance } from '../adapter.js';
@@ -99,7 +100,7 @@ export function codemirrorAdapter(opts: CodemirrorAdapterOptions = {}): CodeEdit
           lineNumbers(),
           drawSelection(),
           highlightActiveLine(),
-          syntaxHighlighting(defaultHighlightStyle, { fallback: true }),
+          syntaxHighlighting(swHighlightStyle),
           yaml(),
           EditorView.contentAttributes.of({ 'aria-label': init.ariaLabel }),
           readOnlyCompartment.of(readOnlyExtension(init.readOnly)),
