@@ -9,11 +9,13 @@ import { createFakeAdapter } from '../helpers/fake-adapter.js';
 const K8S = 'apiVersion: v1\nkind: Service\n';
 
 let el: HTMLElement;
+const originalMatchMedia = window.matchMedia;
 beforeEach(() => {
   el = document.createElement('div');
   document.body.append(el);
 });
 afterEach(() => {
+  window.matchMedia = originalMatchMedia;
   el.remove();
   vi.restoreAllMocks();
 });
@@ -248,5 +250,81 @@ describe('lifecycle', () => {
     await ctx.loadBundle(1);
     expect(loadSchema).toHaveBeenCalledTimes(1);
     expect(ctx.bundleFor(1)?.id).toBe('b');
+  });
+
+  const failing = (loadSchema: FormatDefinition['loadSchema']): FormatDefinition => ({
+    id: 'bad',
+    label: 'Bad',
+    version: '1',
+    rootModel: 'mapping',
+    detect: () => false,
+    kinds: () => [],
+    loadSchema,
+    guide: { groups: [], kinds: {}, fields: {} },
+  });
+
+  it('a rejecting loadSchema is recorded, logged once, and never unhandled', async () => {
+    const boom = new Error('boom');
+    const log = vi.spyOn(console, 'error').mockImplementation(() => {});
+    const unhandled = vi.fn();
+    process.on('unhandledRejection', unhandled);
+    const { ctx } = await mount({ format: 'bad', formats: [failing(() => Promise.reject(boom))], value: 'a: 1\n' });
+    await ctx.loadBundle(0);
+    await new Promise((r) => setTimeout(r, 0));
+    process.off('unhandledRejection', unhandled);
+    expect(unhandled).not.toHaveBeenCalled();
+    expect(ctx.bundleError(0)).toBe(boom);
+    expect(ctx.bundleFor(0)).toBeUndefined();
+    await expect(ctx.loadBundle(0)).resolves.toBeUndefined();
+    expect(log).toHaveBeenCalledTimes(1);
+  });
+
+  it('a synchronously throwing loadSchema is recorded the same way', async () => {
+    const boom = new Error('sync boom');
+    vi.spyOn(console, 'error').mockImplementation(() => {});
+    const { ctx } = await mount({
+      format: 'bad',
+      formats: [failing(() => { throw boom; })],
+      value: 'a: 1\n',
+    });
+    await expect(ctx.loadBundle(0)).resolves.toBeUndefined();
+    expect(ctx.bundleError(0)).toBe(boom);
+  });
+
+  it('an unknown kind is not an error', async () => {
+    const { ctx } = await mount({ format: 'bad', formats: [failing(async () => undefined)], value: 'a: 1\n' });
+    await expect(ctx.loadBundle(0)).resolves.toBeUndefined();
+    expect(ctx.bundleError(0)).toBeUndefined();
+  });
+});
+
+describe('code pane stays in step with the store', () => {
+  it('format resolution on setValue into an empty auto editor does not duplicate text', async () => {
+    const { editor, fake } = await mount();
+    const apply = vi.spyOn(fake, 'applyChange');
+    editor.setValue('services:\n  web:\n    image: nginx\n');
+    expect(fake.getText()).toBe(editor.getValue());
+    expect(apply).toHaveBeenCalledTimes(1);
+  });
+
+  it('explicit-format setValue keeps the adapter in step', async () => {
+    const { editor, fake } = await mount({ format: 'kubernetes' });
+    editor.setValue(K8S);
+    expect(fake.getText()).toBe(K8S);
+  });
+
+  it('applies exactly one splice per non-code change and none for typing (safety net never fires)', async () => {
+    const { editor, fake } = await mount();
+    const apply = vi.spyOn(fake, 'applyChange');
+    fake.type('a: 1\n');
+    expect(apply).toHaveBeenCalledTimes(0);
+    editor.setValue('services:\n  web:\n    image: nginx\n'); // also resolves the format
+    expect(apply).toHaveBeenCalledTimes(1);
+    expect(editor.undo()).toBe(true);
+    expect(apply).toHaveBeenCalledTimes(2);
+    expect(editor.redo()).toBe(true);
+    expect(apply).toHaveBeenCalledTimes(3);
+    for (const [change] of apply.mock.calls) expect(change.insert.length).toBeLessThan(editor.getValue().length);
+    expect(fake.getText()).toBe(editor.getValue());
   });
 });

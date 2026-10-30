@@ -124,6 +124,7 @@ export function createEditorWithContext(
     problems: () => problems,
     bundleFor: cache.bundleFor,
     loadBundle: cache.loadBundle,
+    bundleError: cache.bundleError,
     revealRange: (r: TextRange) => codePane.revealRange(r),
     select: (ref) => {
       if (!codePane.reveal(ref)) visualPane.reveal(ref);
@@ -178,14 +179,15 @@ export function createEditorWithContext(
     cache.clear();
     shell.setBadge(next ? badgeText(next) : ui.formatNone);
     for (const p of panes) p.update(null);
-    void ctx.loadBundle(0); // prefetch the first document's schema
+    ctx.loadBundle(0).catch(() => {}); // prefetch the first document's schema; failures are recorded by the cache
   }
   shell.setBadge(ui.formatNone);
 
   const unsubscribe = store.subscribe((e: StoreEvent) => {
     if (destroyed) return;
-    if (formatOption === 'auto' && !format && formatsLoaded) applyFormat(resolveFormat('auto', store.parsed, formatList));
+    // Panes first: a format change re-syncs them, and they must already hold this change.
     for (const p of panes) p.update(e);
+    if (formatOption === 'auto' && !format && formatsLoaded) applyFormat(resolveFormat('auto', store.parsed, formatList));
     refreshHistory();
     options.onChange?.(e.text, { origin: e.origin });
   });

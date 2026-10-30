@@ -30,6 +30,8 @@ export interface EditorContext {
   bundleFor(doc: number): SchemaBundle | undefined;
   /** Loads (once) the schema bundle for document `doc`; `undefined` for an unknown kind or after destroy. */
   loadBundle(doc: number): Promise<SchemaBundle | undefined>;
+  /** The error from the last failed schema load for document `doc`, or `undefined` (never loaded, loaded, or unknown kind). */
+  bundleError(doc: number): unknown;
   /** Scrolls the code editor to `r` and selects it. */
   revealRange(r: TextRange): void;
   /** Reveals `ref` in the panes. */
@@ -98,8 +100,9 @@ export function createBundleCache(deps: {
   store: DocumentStore;
   format: () => FormatDefinition | undefined;
   isDestroyed: () => boolean;
-}): Pick<EditorContext, 'bundleFor' | 'loadBundle'> & { clear(): void } {
+}): Pick<EditorContext, 'bundleFor' | 'loadBundle' | 'bundleError'> & { clear(): void } {
   const loaded = new Map<string, SchemaBundle | undefined>();
+  const errors = new Map<string, unknown>();
   const pending = new Map<string, Promise<SchemaBundle | undefined>>();
   const parsedNow = (): ParsedText => (deps.store.parsed.ok ? deps.store.parsed : (deps.store.lastGood ?? deps.store.parsed));
   const keyOf = (doc: number): string | undefined => {
@@ -111,6 +114,10 @@ export function createBundleCache(deps: {
       const key = keyOf(doc);
       return key === undefined ? undefined : loaded.get(key);
     },
+    bundleError(doc) {
+      const key = keyOf(doc);
+      return key === undefined ? undefined : errors.get(key);
+    },
     async loadBundle(doc) {
       const format = deps.format();
       const key = keyOf(doc);
@@ -118,13 +125,28 @@ export function createBundleCache(deps: {
       if (loaded.has(key)) return loaded.get(key);
       let p = pending.get(key);
       if (!p) {
-        p = format.loadSchema(parsedNow(), doc).then(
+        let load: Promise<SchemaBundle | undefined>;
+        try {
+          load = Promise.resolve(format.loadSchema(parsedNow(), doc));
+        } catch (err) {
+          load = Promise.reject(err);
+        }
+        p = load.then(
           (bundle) => {
             // A load that finishes after destroy or a format change must not be cached.
-            if (!deps.isDestroyed() && deps.format() === format) loaded.set(key, bundle);
+            if (!deps.isDestroyed() && deps.format() === format) {
+              loaded.set(key, bundle);
+              errors.delete(key);
+            }
             return bundle;
           },
-          () => undefined,
+          (err: unknown) => {
+            if (!deps.isDestroyed() && deps.format() === format && !errors.has(key)) {
+              console.error(`stack-weaver: loading the schema for "${key}" failed`, err);
+            }
+            if (!deps.isDestroyed() && deps.format() === format) errors.set(key, err);
+            return undefined;
+          },
         );
         pending.set(key, p);
         void p.finally(() => pending.delete(key));
@@ -134,6 +156,7 @@ export function createBundleCache(deps: {
     },
     clear() {
       loaded.clear();
+      errors.clear();
       pending.clear();
     },
   };
