@@ -636,7 +636,7 @@
   gap: var(--sw-gap);
   margin-top: var(--sw-gap);
   padding: var(--sw-gap);
-  border: 1px dashed var(--sw-border);
+  border: 1px dashed var(--sw-control-border);
   border-radius: var(--sw-radius);
 }
 

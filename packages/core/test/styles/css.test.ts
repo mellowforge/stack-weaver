@@ -27,6 +27,16 @@ describe('stack-weaver.css', () => {
     expect(missing).toEqual([]);
   });
 
+  it('draws the border of every control with --sw-control-border, not the decorative --sw-border', () => {
+    const bordersOf = (selector: string): string[] =>
+      [...css.matchAll(/(^|\n)([^{}\n][^{}]*)\{([^}]*)\}/g)]
+        .filter((m) => m[2]!.split(',').some((x) => x.trim() === selector))
+        .flatMap((m) => [...m[3]!.matchAll(/border:\s*[^;]*var\((--sw-[a-z-]+)\)/g)].map((b) => b[1]!));
+    for (const selector of ['.sw-input', '.sw-btn', '.sw-mode-switch', '.sw-recipe', '.sw-recipes-blank', '.sw-picker-card', '.sw-add-slot']) {
+      expect(bordersOf(selector), selector).toEqual(['--sw-control-border']);
+    }
+  });
+
   it('defines no top-level rule selector twice', () => {
     const body = css.replace(/\/\*[\s\S]*?\*\//g, '');
     const selectors: string[] = [];

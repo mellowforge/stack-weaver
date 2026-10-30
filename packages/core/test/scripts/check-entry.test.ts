@@ -30,6 +30,14 @@ describe('check-entry walkEntry', () => {
     expect(violations[0]).toContain('@codemirror/view');
   });
 
+  it('flags a bare @lezer/* import', () => {
+    write('index.js', "import './a.js';\n");
+    write('a.js', "import { tags } from '@lezer/highlight';\n");
+    const { violations } = walkEntry(join(dir, 'index.js'));
+    expect(violations).toHaveLength(1);
+    expect(violations[0]).toContain('@lezer/highlight');
+  });
+
   it('flags a re-export from @codemirror/*', () => {
     write('index.js', "export { EditorView } from '@codemirror/view';\n");
     expect(walkEntry(join(dir, 'index.js')).violations).toHaveLength(1);

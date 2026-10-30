@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 /**
  * Walks the static import graph of dist/index.js (relative specifiers only) and fails
- * if it reaches generated schemas, a format subpath, the editors folder or a bare @codemirror/* import. Prints the gzipped size of the graph.
+ * if it reaches generated schemas, a format subpath, the editors folder or a bare @codemirror/* or @lezer/* import. Prints the gzipped size of the graph.
  */
 import { readFileSync, existsSync } from 'node:fs';
 import { dirname, resolve, relative, sep } from 'node:path';
@@ -29,7 +29,7 @@ export function walkEntry(entry) {
     const source = readFileSync(file, 'utf8');
     for (const match of source.matchAll(SPECIFIER)) {
       const spec = match[1];
-      if (spec.startsWith('@codemirror/')) {
+      if (spec.startsWith('@codemirror/') || spec.startsWith('@lezer/')) {
         violations.push(`${posix} imports ${spec}`);
         continue;
       }
