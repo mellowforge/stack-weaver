@@ -40,6 +40,14 @@ export type { AddableItem } from './engine/addable.js';
 export { kindCatalog } from './engine/catalog.js';
 export type { CatalogGroup, KindCatalog } from './engine/catalog.js';
 
+// Code-mode assist (DOM-free)
+export { cursorContext } from './assist/context.js';
+export type { CursorContext } from './assist/context.js';
+export { completionsFor } from './assist/complete.js';
+export type { CodeCompletion, CompletionInput } from './assist/complete.js';
+export { hoverAt, breadcrumbAt } from './assist/hover.js';
+export type { HoverInfo } from './assist/hover.js';
+
 // Validation
 export { validateText } from './validation/validate.js';
 export type { Severity, Problem, ProblemSource } from './validation/problems.js';

@@ -27,7 +27,8 @@ function isObj(v: unknown): v is Record<string, unknown> {
   return typeof v === 'object' && v !== null && !Array.isArray(v);
 }
 
-function firstSentence(text: string | undefined): string {
+/** @internal Shared with the assist engine; not part of the public API. */
+export function firstSentence(text: string | undefined): string {
   if (!text) return '';
   const flat = text.replace(/\s+/g, ' ').trim();
   const m = /^.*?[.!?](?=\s|$)/.exec(flat);
@@ -56,8 +57,11 @@ function tierOf(g: GuideField | undefined): Tier {
   return g === undefined ? 'advanced' : (g.tier ?? 'common');
 }
 
-/** The guide entry for `prop`, found under the resolved definition first, then under the one that declared it. */
-function fieldHint(guide: Guide, parent: ResolvedSchema, prop: string): GuideField | undefined {
+/**
+ * The guide entry for `prop`, found under the resolved definition first, then under the one that declared it.
+ * @internal Shared with the assist engine; not part of the public API.
+ */
+export function fieldHint(guide: Guide, parent: ResolvedSchema, prop: string): GuideField | undefined {
   return guideField(guide, parent.defName, prop) ?? guideField(guide, parent.declaredIn?.[prop], prop);
 }
 

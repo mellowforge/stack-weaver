@@ -40,6 +40,7 @@ describe('@stack-weaver/core', () => {
         'DocumentStore', 'VERSION', 'kindKey', 'valueTemplateAt', 'addableAt', 'applyEdit', 'canEdit', 'defaultMessages', 'describeNode', 'detectFormat', 'diffText',
         'getFormat', 'getNode', 'guideField', 'kindCatalog', 'mergeGuide', 'parseText', 'refAtOffset',
         'registerFormat', 'resolveAt', 'toData', 'toLineCol', 'validateText',
+        'cursorContext', 'completionsFor', 'hoverAt', 'breadcrumbAt',
       ].sort(),
     );
   });
