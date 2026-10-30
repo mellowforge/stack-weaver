@@ -133,7 +133,7 @@ export interface FormatDefinition {
   readonly rootModel: 'documents' | 'mapping';
   /**
    * True when the parsed text looks like this format (empty documents should not count).
-   * `ParsedText.docs` exposes `yaml`'s `Document.Parsed`; treat it as an advanced escape hatch.
+   * See `ParsedText.docs` for the `yaml` typing of the parsed documents.
    */
   detect(p: ParsedText): boolean;
   /**

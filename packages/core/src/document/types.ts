@@ -54,7 +54,11 @@ export interface ParsedText {
   text: string;
   /** True when no document has errors. */
   ok: boolean;
-  /** Parsed documents, with source tokens kept for range-based edits. */
+  /**
+   * Parsed documents, with source tokens kept for range-based edits. Typed as `yaml`'s
+   * `Document.Parsed`: an advanced escape hatch that couples callers to the `yaml` package.
+   * Prefer `toData`, `describeNode` and `getNode`, which cover what a UI needs.
+   */
   docs: Document.Parsed[];
   /** Line counter used to map offsets to line/column. */
   lineCounter: LineCounter;
