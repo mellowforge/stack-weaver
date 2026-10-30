@@ -288,18 +288,36 @@ in the problems panel (frame 3) and in the top-bar count. Each one links to the 
 const editor = createManifestEditor(el, {
   format: 'kubernetes' | 'compose' | 'auto',
   value?: string,  mode?: 'visual' | 'split' | 'code',
-  readOnly?: boolean,
-  codeEditor?: CodeEditorAdapter,          // default: CodeMirror adapter
-  formats?: FormatDefinition[],  guide?: Partial<Guide>,  recipes?: Recipe[],
-  variables?: { store: 'x-variables' } | { store: 'external'; value: VariableDecl[] },
-  widgets?: WidgetRegistry,  messages?: Partial<Messages>,   // i18n of UI strings
-  onChange?(value: string, meta: { origin: 'visual' | 'code' | 'api' }): void,
+  readOnly?: boolean,  theme?: 'light' | 'dark' | 'auto',
+  codeEditor?: CodeEditorAdapter,          // default: CodeMirror adapter, loaded on demand
+  formats?: FormatDefinition[],  recipes?: Recipe[],
+  guide?: Record<formatId, GuideOverride>, // per-format overrides, merged over the format's guide
+  variables?: { store: 'x-variables' } | { store: 'external'; value: VariableDecl[] },  // Plan 3
+  widgets?: WidgetRegistry,
+  messages?: { ui?: Partial<UiMessages>; schema?: Partial<SchemaMessages> },  // i18n
+  onChange?(value: string, meta: { origin: ChangeOrigin }): void,  // 'visual' | 'code' | 'api' | 'history'
   onProblemsChange?(problems: Problem[]): void,
-  onModeChange?(mode): void,  onVariablesChange?(decls): void,
+  onModeChange?(mode): void,  onVariablesChange?(decls): void,  // onVariablesChange: Plan 3
 });
-editor.getValue(); editor.setValue(text); editor.setMode(m); editor.getProblems();
-editor.undo(); editor.redo(); editor.reveal(path); editor.destroy();
+editor.getValue(); editor.setValue(text); editor.getMode(); editor.setMode(m); editor.getProblems();
+editor.setReadOnly(b); editor.undo(); editor.redo(); editor.reveal(ref: NodeRef);
+editor.ready; /* Promise<void>: the code editor and the first schema are loaded */ editor.destroy();
 ```
+
+- **Plan 2 rulings that change the text above:**
+  - `GuideField.tier` (`'recommended' | 'advanced'`) replaces the two booleans `recommended` and `advanced`.
+  - `GuideField.options` gives suggested values. Upstream Kubernetes schemas have no enums for fields such as
+    `restartPolicy`, so the guide supplies the list, and the widget suggests it without restricting input.
+  - `WidgetFactory.managesKeys` says a mapping widget adds, shows and removes its own keys (the Secret `data`
+    widget). The section then shows no "Add key", and the outline does not list the mapping as a section.
+  - Recipes are offered only for an **empty document**. Once there is text, the "Start from a template" cards go away.
+  - `variables` and `onVariablesChange` are not built yet: they stay listed here for Plan 3.
+- **CSS tokens** (custom properties on `.sw-editor`, all public API): `--sw-bg`, `--sw-fg`, `--sw-muted`,
+  `--sw-border` (decorative dividers and the editor frame), `--sw-control-border` (the border of an input, select,
+  textarea or button, at least 3:1 against `--sw-bg`), `--sw-accent`, `--sw-on-accent`, `--sw-error`,
+  `--sw-warning`, `--sw-info`, `--sw-focus` (at least 3:1), `--sw-radius`, `--sw-gap`, `--sw-font`, `--sw-mono`.
+  The optional `--sw-selection` and `--sw-active-line` style the code pane. The dark theme is
+  `data-sw-theme='dark'`, which the editor sets from the `theme` option.
 
 - **Keystroke and controlled-value contract:** `onChange` fires on every committed change, synchronously.
   `setValue` is a **no-op if the text equals the current text**. A different text is treated as an external

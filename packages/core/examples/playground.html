@@ -1,0 +1,35 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>stack-weaver playground</title>
+    <style>
+      body { margin: 0; padding: 16px; font-family: system-ui, sans-serif; background: #f6f8fa; color: #1f2328; }
+      body[data-theme='dark'] { background: #010409; color: #e6edf3; }
+      .bar { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; margin-bottom: 12px; }
+      #editor { height: 560px; }
+      #log { margin-top: 12px; height: 140px; overflow: auto; padding: 8px; font: 12px ui-monospace, monospace; background: rgba(128, 128, 128, 0.12); white-space: pre-wrap; }
+    </style>
+  </head>
+  <body>
+    <main>
+    <div class="bar">
+      <label>Mode
+        <select id="mode"><option>split</option><option>visual</option><option>code</option></select>
+      </label>
+      <label>Format
+        <select id="format"><option>auto</option><option>kubernetes</option><option>compose</option></select>
+      </label>
+      <button id="theme" type="button">Toggle theme</button>
+      <button id="sample-k8s" type="button">setValue sample (Kubernetes)</button>
+      <button id="sample-compose" type="button">setValue sample (compose)</button>
+      <button id="readonly" type="button">Toggle read-only</button>
+      <button id="clear" type="button">Clear</button>
+    </div>
+    <div id="editor"></div>
+    <div id="log" role="log" aria-label="Event log"></div>
+    <script type="module" src="./playground.ts"></script>
+    </main>
+  </body>
+</html>
