@@ -47,7 +47,9 @@
     "CHANGELOG.md"
   ],
   "scripts": {
+    "prebuild": "node scripts/gen-kubernetes.mjs",
     "build": "tsc -p tsconfig.build.json && node scripts/copy-generated.mjs",
+    "pretest": "node scripts/gen-kubernetes.mjs",
     "test": "vitest run",
     "typecheck": "tsc --noEmit -p tsconfig.json"
   },
