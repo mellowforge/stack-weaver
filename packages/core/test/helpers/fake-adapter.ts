@@ -46,17 +46,30 @@ export function createFakeAdapter(): CodeEditorAdapter & { last?: FakeInstance }
         selection = next;
         init.onSelectionChange?.(selection);
       };
-      const mapPos = (pos: number, c: TextChange): number =>
-        pos <= c.from ? pos : pos >= c.to ? pos + c.insert.length - (c.to - c.from) : c.from + c.insert.length;
+      // As CodeMirror maps positions: inside a replaced range `assoc < 0` gives its start and
+      // `assoc >= 0` its end; at an insertion point `assoc < 0` stays before the inserted text.
+      const mapPos = (pos: number, c: TextChange, assoc: number): number => {
+        if (pos < c.from) return pos;
+        if (pos > c.to || (pos === c.to && c.to > c.from)) return pos + c.insert.length - (c.to - c.from);
+        if (pos === c.from && c.to > c.from) return c.from;
+        return assoc < 0 ? c.from : c.from + c.insert.length;
+      };
+      // A caret maps with assoc -1; a range maps its start with +1 and its end with -1, as CodeMirror does.
+      const mapSelection = (s: TextRange, c: TextChange): TextRange =>
+        s.from === s.to ? { from: mapPos(s.from, c, -1), to: mapPos(s.from, c, -1) } : { from: mapPos(s.from, c, 1), to: mapPos(s.to, c, -1) };
       const isMac = /Mac|iP(hone|ad|od)/.test(el.ownerDocument.defaultView?.navigator.platform ?? '');
       const clamp = (n: number): number => Math.min(Math.max(n, 0), text.length);
+      /** The exact text `type` asked for: a textarea may normalize line breaks in `value`, the fake must not. */
+      let typed: string | undefined;
       // The user's input path, like a real <textarea>: read-only refuses the edit (and restores the value).
       area.addEventListener('input', () => {
+        const next = typed ?? area.value;
+        typed = undefined;
         if (readOnly || destroyed) {
           area.value = text;
           return;
         }
-        text = area.value;
+        text = next;
         selection = { from: text.length, to: text.length };
         init.onChange(text);
       });
@@ -80,7 +93,7 @@ export function createFakeAdapter(): CodeEditorAdapter & { last?: FakeInstance }
         getText: () => text,
         applyChange(c) {
           text = text.slice(0, c.from) + c.insert + text.slice(c.to);
-          selection = { from: mapPos(selection.from, c), to: mapPos(selection.to, c) };
+          selection = mapSelection(selection, c);
           render();
         },
         setDiagnostics(d) {
@@ -124,6 +137,7 @@ export function createFakeAdapter(): CodeEditorAdapter & { last?: FakeInstance }
           return revealed;
         },
         type(next) {
+          typed = next;
           area.value = next;
           area.dispatchEvent(new Event('input', { bubbles: true }));
         },

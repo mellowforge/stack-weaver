@@ -1,5 +1,6 @@
 import { LineCounter, parseAllDocuments, visit } from 'yaml';
 import type { Document } from 'yaml';
+import { detectEol } from './eol.js';
 import type { ParsedText, YamlProblem } from './types.js';
 
 /**
@@ -51,8 +52,5 @@ export function parseText(text: string): ParsedText {
     warnings.push(...doc.warnings.map(toProblem));
   }
 
-  const nl = text.indexOf('\n');
-  const eol = nl > 0 && text[nl - 1] === '\r' ? '\r\n' : '\n';
-
-  return { text, ok: errors.length === 0, docs, lineCounter, errors, warnings, eol };
+  return { text, ok: errors.length === 0, docs, lineCounter, errors, warnings, eol: detectEol(text) };
 }

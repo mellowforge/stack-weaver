@@ -3,19 +3,14 @@ import { defaultKeymap } from '@codemirror/commands';
 import { yaml } from '@codemirror/lang-yaml';
 import { syntaxHighlighting } from '@codemirror/language';
 import { setDiagnostics, type Diagnostic } from '@codemirror/lint';
-import { Annotation, Compartment, EditorSelection, EditorState, Prec, type Extension } from '@codemirror/state';
-import {
-  drawSelection,
-  EditorView,
-  highlightActiveLine,
-  hoverTooltip,
-  keymap,
-  lineNumbers,
-  type Tooltip,
-} from '@codemirror/view';
+import { Annotation, Compartment, EditorSelection, EditorState, Prec, Text, type Extension } from '@codemirror/state';
+import { drawSelection, EditorView, highlightActiveLine, hoverTooltip, keymap, lineNumbers } from '@codemirror/view';
 import { swHighlightStyle } from './highlight.js';
-import { hoverTooltipFor } from './hover.js';
+import { hoverSource } from './hover.js';
+import { stateToCm, stateToText, toCm } from './offsets.js';
 import type { CodeCompletion } from '../../assist/complete.js';
+import { detectEol } from '../../document/eol.js';
+import type { TextChange } from '../../document/types.js';
 import type { CodeDiagnostic, CodeEditorAdapter, CodeEditorInit, CodeEditorInstance } from '../adapter.js';
 
 /** Options for {@link codemirrorAdapter}. */
@@ -26,6 +21,21 @@ export interface CodemirrorAdapterOptions {
 
 /** Tags transactions made by `applyChange` so the update listener does not report them as user edits. */
 const External = Annotation.define<boolean>();
+
+/** `text` as a CodeMirror document whose only line separator is `eol`. */
+const docText = (text: string, eol: string): Text => Text.of(text.split(eol));
+
+/**
+ * Where text offset `pos` goes through the splice `c` (`length` is the inserted length), as
+ * CodeMirror maps positions: inside the replaced range, `assoc < 0` gives its start and `assoc >= 0`
+ * its end; at an insertion point, `assoc < 0` stays before the inserted text.
+ */
+function mapOffset(pos: number, c: { from: number; to: number; length: number }, assoc: number): number {
+  if (pos < c.from) return pos;
+  if (pos > c.to || (pos === c.to && c.to > c.from)) return pos + c.length - (c.to - c.from);
+  if (pos === c.from && c.to > c.from) return c.from;
+  return assoc < 0 ? c.from : c.from + c.length;
+}
 
 /** Colours come from `--sw-*` custom properties so the host's tokens (and dark mode) apply. */
 function themeExtension(theme: 'light' | 'dark'): Extension {
@@ -61,6 +71,7 @@ export function codemirrorAdapter(opts: CodemirrorAdapterOptions = {}): CodeEdit
     mount(el: HTMLElement, init: CodeEditorInit): CodeEditorInstance {
       const readOnlyCompartment = new Compartment();
       const themeCompartment = new Compartment();
+      const separatorCompartment = new Compartment();
       let destroyed = false;
 
       const readOnlyExtension = (readOnly: boolean): Extension => [
@@ -71,24 +82,22 @@ export function codemirrorAdapter(opts: CodemirrorAdapterOptions = {}): CodeEdit
 
       const completionSource = init.complete
         ? async (context: CompletionContext): Promise<CompletionResult | null> => {
-            const result = await init.complete?.(context.state.doc.toString(), context.pos, context.explicit);
+            const s = context.state;
+            const result = await init.complete?.(s.sliceDoc(), stateToText(s, context.pos), context.explicit);
             if (!result) return null;
-            return { from: result.from, options: result.options.map(toCompletion), validFor: /^[\w.\-/]*$/ };
+            return { from: stateToCm(s, result.from), options: result.options.map(toCompletion), validFor: /^[\w.\-/]*$/ };
           }
         : undefined;
 
-      const hover = init.hover;
-      const hoverExtension = hover
-        ? hoverTooltip((view, pos): Tooltip | null => {
-            const info = hover(view.state.doc.toString(), pos);
-            if (!info) return null;
-            return hoverTooltipFor(info, view.dom.ownerDocument);
-          })
-        : [];
+      const hoverExtension = init.hover ? hoverTooltip(hoverSource(init.hover)) : [];
 
       const state = EditorState.create({
-        doc: init.text,
+        doc: docText(init.text, detectEol(init.text)),
         extensions: [
+          // The text's own line ending is the only separator, so `sliceDoc()` gives the text back byte for byte.
+          separatorCompartment.of(EditorState.lineSeparator.of(detectEol(init.text))),
+          // Pasted or dropped text uses the document's line ending, so it is not kept as characters inside a line.
+          EditorView.clipboardInputFilter.of((text, s) => text.replace(/\r\n?|\n/g, s.lineBreak)),
           Prec.high(
             keymap.of([
               { key: 'Mod-z', run: () => (init.onUndo(), true), preventDefault: true },
@@ -108,12 +117,13 @@ export function codemirrorAdapter(opts: CodemirrorAdapterOptions = {}): CodeEdit
           autocompletion(completionSource ? { override: [completionSource] } : { override: [] }),
           hoverExtension,
           EditorView.updateListener.of((update) => {
+            const s = update.state;
             if (update.docChanged && update.transactions.some((tr) => tr.docChanged && !tr.annotation(External))) {
-              init.onChange(update.state.doc.toString());
+              init.onChange(s.sliceDoc());
             }
-            if (update.selectionSet) {
-              const { from, to } = update.state.selection.main;
-              init.onSelectionChange?.({ from, to });
+            if (update.selectionSet && update.transactions.some((tr) => tr.selection && !tr.annotation(External))) {
+              const { from, to } = s.selection.main;
+              init.onSelectionChange?.({ from: stateToText(s, from), to: stateToText(s, to) });
             }
           }),
           ...(opts.extensions ?? []),
@@ -121,26 +131,69 @@ export function codemirrorAdapter(opts: CodemirrorAdapterOptions = {}): CodeEdit
       });
       const view = new EditorView({ state, parent: el });
 
-      return {
-        getText: () => view.state.doc.toString(),
-        applyChange(change) {
+      /**
+       * Applies a splice given in text offsets. When the result's line ending differs from the
+       * separator (an empty document receiving CRLF text, say), the document is rebuilt under the
+       * new separator in one transaction; the selection is mapped through the splice in text offsets.
+       */
+      function applyChange(change: TextChange): void {
+        const s = view.state;
+        const old = s.sliceDoc();
+        let from = Math.min(Math.max(change.from, 0), old.length);
+        let to = Math.min(Math.max(change.to, from), old.length);
+        let insert = change.insert;
+        const next = old.slice(0, from) + insert + old.slice(to);
+        const eol = detectEol(next);
+        if (next.includes('\n') && eol !== s.lineBreak) {
+          const doc = docText(next, eol);
+          const c = { from, to, length: insert.length };
+          const { anchor, head } = s.selection.main;
+          const [a, b] = [stateToText(s, anchor), stateToText(s, head)];
+          const empty = a === b;
+          const mapA = mapOffset(a, c, empty ? -1 : a <= b ? 1 : -1);
+          const mapB = empty ? mapA : mapOffset(b, c, a <= b ? -1 : 1);
           view.dispatch({
-            changes: { from: change.from, to: change.to, insert: change.insert },
+            changes: { from: 0, to: s.doc.length, insert: doc },
+            selection: EditorSelection.range(toCm(doc, eol, mapA), toCm(doc, eol, mapB)),
+            effects: separatorCompartment.reconfigure(EditorState.lineSeparator.of(eol)),
             annotations: External.of(true),
           });
-        },
+          return;
+        }
+        if (s.lineBreak === '\r\n') {
+          // Never cut a `\r\n` in two, nor make one across the edge of the splice: widen to whole line breaks.
+          const end = (): number => from + insert.length;
+          const at = (t: string, i: number): string => t.charAt(i);
+          if ((at(old, from - 1) === '\r' && at(old, from) === '\n') || (at(next, from - 1) === '\r' && at(next, from) === '\n')) {
+            from--;
+            insert = old.charAt(from) + insert;
+          }
+          if ((at(old, to - 1) === '\r' && at(old, to) === '\n') || (at(next, end() - 1) === '\r' && at(next, end()) === '\n')) {
+            insert += old.charAt(to);
+            to++;
+          }
+        }
+        view.dispatch({
+          changes: { from: stateToCm(s, from), to: stateToCm(s, to), insert: docText(insert, s.lineBreak) },
+          annotations: External.of(true),
+        });
+      }
+
+      return {
+        getText: () => view.state.sliceDoc(),
+        applyChange,
         setDiagnostics(d: readonly CodeDiagnostic[]) {
-          const length = view.state.doc.length;
+          const s = view.state;
           const mapped: Diagnostic[] = d.map((x) => {
-            const from = Math.min(Math.max(x.from, 0), length);
-            return { from, to: Math.min(Math.max(x.to, from), length), severity: x.severity, message: x.message };
+            const from = stateToCm(s, x.from);
+            return { from, to: Math.max(stateToCm(s, x.to), from), severity: x.severity, message: x.message };
           });
-          view.dispatch(setDiagnostics(view.state, mapped));
+          view.dispatch(setDiagnostics(s, mapped));
         },
         reveal(range, revealOpts) {
-          const length = view.state.doc.length;
-          const from = Math.min(Math.max(range.from, 0), length);
-          const to = Math.min(Math.max(range.to, from), length);
+          const s = view.state;
+          const from = stateToCm(s, range.from);
+          const to = Math.max(stateToCm(s, range.to), from);
           const target = EditorSelection.range(from, to);
           view.dispatch({
             ...(revealOpts?.select ? { selection: target } : {}),
@@ -148,8 +201,9 @@ export function codemirrorAdapter(opts: CodemirrorAdapterOptions = {}): CodeEdit
           });
         },
         getSelection() {
-          const { from, to } = view.state.selection.main;
-          return { from, to };
+          const s = view.state;
+          const { from, to } = s.selection.main;
+          return { from: stateToText(s, from), to: stateToText(s, to) };
         },
         setReadOnly(readOnly) {
           view.dispatch({ effects: readOnlyCompartment.reconfigure(readOnlyExtension(readOnly)) });

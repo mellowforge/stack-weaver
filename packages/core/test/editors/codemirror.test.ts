@@ -18,18 +18,28 @@ const until = async (check: () => boolean): Promise<void> => {
   for (let i = 0; i < 100 && !check(); i++) await new Promise((r) => setTimeout(r, 10));
 };
 
+// The contract speaks in offsets of the text (`\r\n` is two characters); CodeMirror counts every line break as one.
+const toCm = (view: EditorView, offset: number): number =>
+  view.state.lineBreak === '\r\n' ? offset - (view.state.sliceDoc(0).slice(0, offset).split('\r\n').length - 1) : offset;
+const fromCm = (view: EditorView, pos: number): number =>
+  view.state.lineBreak === '\r\n' ? pos + view.state.doc.lineAt(pos).number - 1 : pos;
+
 runAdapterContract('codemirror adapter', () => ({
   adapter: codemirrorAdapter(),
   type: (m, s) => {
     const view = viewOf(m);
     view.dispatch({ changes: { from: view.state.doc.length, insert: s }, userEvent: 'input.type' });
   },
-  setCaret: (m, offset) => viewOf(m).dispatch({ selection: EditorSelection.cursor(offset) }),
+  setCaret: (m, offset) => {
+    const view = viewOf(m);
+    view.dispatch({ selection: EditorSelection.cursor(toCm(view, offset)) });
+  },
   keyTarget: (m) => viewOf(m).contentDOM,
   diagnostics: (m) => {
+    const view = viewOf(m);
     const out: CodeDiagnostic[] = [];
-    forEachDiagnostic(viewOf(m).state, (d, from, to) => {
-      if (d.severity !== 'hint') out.push({ from, to, severity: d.severity, message: d.message });
+    forEachDiagnostic(view.state, (d, from, to) => {
+      if (d.severity !== 'hint') out.push({ from: fromCm(view, from), to: fromCm(view, to), severity: d.severity, message: d.message });
     });
     return out;
   },

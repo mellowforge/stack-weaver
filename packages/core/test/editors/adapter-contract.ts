@@ -244,5 +244,123 @@ export function runAdapterContract(name: string, makeHarness: () => ContractHarn
       m.inst.destroy();
       expect(el.childElementCount).toBe(0);
     });
+
+    it('applyChange while read-only changes the text and does not call onChange', () => {
+      const init = base('a: 1\n');
+      const m = mount(init);
+      m.inst.setReadOnly(true);
+      m.inst.applyChange({ from: 3, to: 4, insert: '2' });
+      expect(m.inst.getText()).toBe('a: 2\n');
+      expect(init.onChange).not.toHaveBeenCalled();
+    });
+
+    it('a caret inside a replaced range maps to the start of the change', () => {
+      const m = mount(base('x'.repeat(20)));
+      h.setCaret(m, 7);
+      m.inst.applyChange({ from: 5, to: 10, insert: 'ab' });
+      expect(m.inst.getSelection()).toEqual({ from: 5, to: 5 });
+    });
+
+    it('a caret at the end of a replaced range moves after the replacement', () => {
+      const m = mount(base('x'.repeat(20)));
+      h.setCaret(m, 10);
+      m.inst.applyChange({ from: 5, to: 10, insert: 'ab' });
+      expect(m.inst.getSelection()).toEqual({ from: 7, to: 7 });
+    });
+
+    it('a selection straddling a replaced range keeps its outside end', () => {
+      const m = mount(base('x'.repeat(20)));
+      m.inst.reveal({ from: 3, to: 7 }, { select: true });
+      m.inst.applyChange({ from: 5, to: 10, insert: 'ab' });
+      expect(m.inst.getSelection()).toEqual({ from: 3, to: 5 });
+      m.inst.reveal({ from: 6, to: 12 }, { select: true });
+      m.inst.applyChange({ from: 5, to: 8, insert: 'cd' });
+      expect(m.inst.getSelection()).toEqual({ from: 7, to: 11 });
+    });
+
+    describe('CRLF text', () => {
+      const CRLF = 'a: 1\r\nb: 2\r\n';
+
+      it('getText round-trips CRLF byte for byte', () => {
+        const m = mount(base(CRLF));
+        expect(m.inst.getText()).toBe(CRLF);
+      });
+
+      it('typing keeps CRLF in the text passed to onChange', () => {
+        const init = base(CRLF);
+        const m = mount(init);
+        h.type(m, 'c');
+        expect(init.onChange).toHaveBeenLastCalledWith(`${CRLF}c`);
+        expect(m.inst.getText()).toBe(`${CRLF}c`);
+      });
+
+      it('applyChange uses offsets into the CRLF text', () => {
+        const init = base(CRLF);
+        const m = mount(init);
+        m.inst.applyChange({ from: 9, to: 10, insert: '3' });
+        expect(m.inst.getText()).toBe('a: 1\r\nb: 3\r\n');
+        m.inst.applyChange({ from: 12, to: 12, insert: 'c: 4\r\n' });
+        expect(m.inst.getText()).toBe('a: 1\r\nb: 3\r\nc: 4\r\n');
+        m.inst.applyChange({ from: 0, to: 6, insert: '' });
+        expect(m.inst.getText()).toBe('b: 3\r\nc: 4\r\n');
+        expect(init.onChange).not.toHaveBeenCalled();
+      });
+
+      it('applyChange that splits a CRLF pair still gives the spliced text', () => {
+        const m = mount(base(CRLF));
+        m.inst.applyChange({ from: 5, to: 5, insert: '\r\nx: 0\r' });
+        expect(m.inst.getText()).toBe('a: 1\r\r\nx: 0\r\nb: 2\r\n');
+      });
+
+      it('an empty document becomes CRLF through applyChange, then typing keeps CRLF', () => {
+        const init = base('');
+        const m = mount(init);
+        m.inst.applyChange({ from: 0, to: 0, insert: CRLF });
+        expect(m.inst.getText()).toBe(CRLF);
+        h.setCaret(m, 9);
+        expect(m.inst.getSelection()).toEqual({ from: 9, to: 9 });
+        h.type(m, 'c');
+        expect(init.onChange).toHaveBeenLastCalledWith(`${CRLF}c`);
+      });
+
+      it('a CRLF document becomes LF through applyChange', () => {
+        const m = mount(base(CRLF));
+        m.inst.applyChange({ from: 0, to: CRLF.length, insert: 'a: 1\nb: 2\n' });
+        expect(m.inst.getText()).toBe('a: 1\nb: 2\n');
+      });
+
+      it('diagnostics use CRLF offsets and are clamped to the text', () => {
+        const m = mount(base(CRLF));
+        m.inst.setDiagnostics([
+          { from: 9, to: 10, severity: 'error', message: 'two' },
+          { from: 6, to: 999, severity: 'warning', message: 'past end' },
+        ]);
+        expect(h.diagnostics(m).map((d) => [d.from, d.to, d.message]).sort()).toEqual([
+          [6, 12, 'past end'],
+          [9, 10, 'two'],
+        ]);
+      });
+
+      it('selection offsets are CRLF offsets', () => {
+        const onSelectionChange = vi.fn();
+        const m = mount(base(CRLF, { onSelectionChange }));
+        h.setCaret(m, 9);
+        expect(m.inst.getSelection()).toEqual({ from: 9, to: 9 });
+        expect(onSelectionChange).toHaveBeenLastCalledWith({ from: 9, to: 9 });
+        m.inst.reveal({ from: 6, to: 10 }, { select: true });
+        expect(m.inst.getSelection()).toEqual({ from: 6, to: 10 });
+        h.setCaret(m, 9);
+        m.inst.applyChange({ from: 0, to: 0, insert: 'x: 0\r\n' });
+        expect(m.inst.getSelection()).toEqual({ from: 15, to: 15 });
+      });
+
+      it('complete receives the CRLF text and a CRLF offset', async () => {
+        const complete = vi.fn(() => ({ from: 6, options: [{ label: 'beta', apply: 'beta' }] }));
+        const m = mount(base('a: 1\r\nb', { complete }));
+        h.setCaret(m, 7);
+        expect(await h.completions(m)).toEqual(['beta']);
+        expect(complete).toHaveBeenCalledWith('a: 1\r\nb', 7, true);
+      });
+    });
   });
 }
