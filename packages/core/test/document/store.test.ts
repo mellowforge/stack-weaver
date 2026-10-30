@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 import type { EditOp } from '../../src/document/edit.js';
 import { DocumentStore, type StoreEvent } from '../../src/document/store.js';
 
@@ -246,5 +246,21 @@ describe('DocumentStore: grouped visual edits', () => {
     store.edit(setA(9), { group: 'g' });
     store.undo();
     expect(store.text).toBe('a: 8\nb: 2\n');
+  });
+
+  it('a throwing listener is logged and does not stop the others or the edit', () => {
+    const log = vi.spyOn(console, 'error').mockImplementation(() => {});
+    const store = new DocumentStore('a: 1\n');
+    const after = vi.fn();
+    store.subscribe(() => {
+      throw new Error('listener failed');
+    });
+    store.subscribe(after);
+    const r = store.edit(setA(2));
+    expect(r.ok).toBe(true);
+    expect(store.text).toBe('a: 2\n');
+    expect(after).toHaveBeenCalledTimes(1);
+    expect(log).toHaveBeenCalledWith('stack-weaver: a store listener threw', expect.any(Error));
+    log.mockRestore();
   });
 });

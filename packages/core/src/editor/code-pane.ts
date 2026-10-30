@@ -16,7 +16,10 @@ import { h } from './dom.js';
  * @internal
  */
 export interface CodePane extends Pane {
-  /** Resolves once the adapter is mounted (or the pane was destroyed first). */
+  /**
+   * Resolves once the adapter is mounted (or the pane was destroyed first). Rejects when the
+   * adapter fails to load or mount, after logging it and showing `codeEditorFailed` in the pane.
+   */
   readonly ready: Promise<void>;
   /** The mounted instance, if any. */
   instance(): CodeEditorInstance | undefined;
@@ -116,6 +119,19 @@ export function createCodePane(
     o.el.append(crumb);
     inst.setDiagnostics(diagnostics);
     showCrumb(inst.getSelection().from);
+  }).catch((err: unknown) => {
+    if (destroyed) return; // nobody is left to tell
+    // The adapter did not load or did not mount: say so in the pane instead of leaving it blank.
+    const failed = inst;
+    inst = undefined;
+    try {
+      failed?.destroy();
+    } catch {
+      // Already broken; the pane is cleared below either way.
+    }
+    console.error('stack-weaver: the code editor failed to load', err);
+    o.el.replaceChildren(h(o.el.ownerDocument, 'p', { class: 'sw-field-error sw-pane-error', role: 'alert' }, [ui.codeEditorFailed]));
+    throw err;
   });
 
   return {

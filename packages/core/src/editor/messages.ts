@@ -132,6 +132,14 @@ export interface UiMessages {
   secretInvalidBase64: string;
   /** Warning on a Secret value whose text has a carriage return, which cannot be edited visually without changing it. */
   secretCarriageReturn: string;
+  /** Shown in the code pane when the code editor could not be loaded or mounted. */
+  codeEditorFailed: string;
+  /** Format badge text, and the visual pane's empty message, when the built-in formats could not be loaded. */
+  formatsFailed: string;
+  /** Note on a section whose schema could not be loaded, so its fields are read-only. */
+  schemaFailed: string;
+  /** Note on a field whose input widget failed, so it is shown read-only. */
+  widgetFailed: string;
 }
 
 /** The English UI strings. */
@@ -202,4 +210,8 @@ export const defaultUiMessages: UiMessages = {
   confirmNo: 'Cancel',
   secretInvalidBase64: 'This value is not base64-encoded text, so it is shown as stored and cannot be edited here.',
   secretCarriageReturn: 'This value has Windows line endings, so it is shown as is and cannot be edited here without changing them.',
+  codeEditorFailed: 'The code editor could not be loaded. Reload the page to try again.',
+  formatsFailed: 'Formats could not be loaded',
+  schemaFailed: 'Schema could not be loaded; fields are read-only here.',
+  widgetFailed: 'This field’s input failed, so it is shown read-only.',
 };

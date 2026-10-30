@@ -138,7 +138,10 @@ export class DocumentStore {
     return true;
   }
 
-  /** Subscribes to changes; returns an unsubscribe function. */
+  /**
+   * Subscribes to changes; returns an unsubscribe function. Listeners run in subscription order; a
+   * listener that throws is logged (`console.error`) and the rest still run.
+   */
   subscribe(fn: (e: StoreEvent) => void): () => void {
     this.#listeners.add(fn);
     return () => {
@@ -182,6 +185,13 @@ export class DocumentStore {
     this.#parsed = parseText(text);
     if (this.#parsed.ok) this.#lastGood = this.#parsed;
     const event: StoreEvent = { text, change, origin, parsed: this.#parsed };
-    for (const fn of [...this.#listeners]) fn(event);
+    // The text has already changed: one listener's failure must not keep the others from hearing of it.
+    for (const fn of [...this.#listeners]) {
+      try {
+        fn(event);
+      } catch (err) {
+        console.error('stack-weaver: a store listener threw', err);
+      }
+    }
   }
 }

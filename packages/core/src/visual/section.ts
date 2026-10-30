@@ -124,13 +124,16 @@ export function mountSection(ctx: EditorContext, ref: NodeRef, slots: SectionSlo
     noteEl.hidden = true;
   }
 
+  /** The section's note: why it is read-only (a node that cannot be edited visually, or a schema that failed to load), with the way to the code. */
   function showNote(view: NodeView, broken: boolean): void {
     noteEl.replaceChildren();
     noteEl.hidden = true;
-    if (!view.readOnly || broken) return;
+    if (broken) return; // the banner already explains, and the ranges belong to the last good text
+    const texts = [...(view.readOnly ? [ui.readOnlyNode] : []), ...(ctx.bundleError(ref.doc) !== undefined ? [ui.schemaFailed] : [])];
+    if (texts.length === 0) return;
     const link = h(doc, 'button', { type: 'button', class: 'sw-link' }, [ui.editInCode]);
     link.addEventListener('click', () => ctx.editInCode(view.keyRange ?? view.range));
-    noteEl.append(h(doc, 'span', {}, [ui.readOnlyNode]), ' ', link);
+    noteEl.append(...texts.flatMap((t) => [h(doc, 'span', {}, [t]), ' ']), link);
     noteEl.hidden = false;
   }
 

@@ -7,6 +7,7 @@ import { kindKey } from '../formats/guide.js';
 import type { FormatDefinition, Guide, SchemaBundle } from '../formats/types.js';
 import type { SchemaMessages } from '../validation/messages.js';
 import type { Problem } from '../validation/problems.js';
+import { loadBuiltinFormats } from './formats.js';
 import type { UiMessages } from './messages.js';
 
 /**
@@ -74,6 +75,10 @@ export const loaders = {
   async loadDefaultAdapter(): Promise<CodeEditorAdapter> {
     const m = await import('../editors/codemirror/index.js');
     return m.codemirrorAdapter();
+  },
+  /** Loads the built-in formats on demand. */
+  loadBuiltinFormats(): Promise<FormatDefinition[]> {
+    return loadBuiltinFormats();
   },
 };
 

@@ -126,6 +126,26 @@ function createFieldRow(ctx: EditorContext, registry: WidgetRegistry, envFor: (p
     link.addEventListener('click', () => ctx.editInCode(lastView.range));
     return link;
   };
+  // Shown while the widget failed (its factory or its `update` threw): the field is read-only text.
+  const failEl = h(doc, 'p', { class: 'sw-row-note sw-row-failed', hidden: true });
+  rowEl.insertBefore(failEl, errorEl);
+  let failed = false;
+  let widgetName = '';
+
+  /** Drops a widget that threw and shows the value as read-only text instead (with `failEl`). */
+  function widgetFailed(err: unknown): void {
+    console.error(`stack-weaver: the "${widgetName}" widget failed`, err);
+    failed = true;
+    try {
+      widget?.destroy?.();
+    } catch {
+      // It already failed; the body is cleared below either way.
+    }
+    widget = undefined;
+    dropBody();
+    valueEl = h(doc, 'span', { class: 'sw-row-value' });
+    body.append(valueEl);
+  }
 
   function dropBody(): void {
     widget?.destroy?.();
@@ -143,7 +163,9 @@ function createFieldRow(ctx: EditorContext, registry: WidgetRegistry, envFor: (p
 
   function build(mode: Mode, picked: { name: string; param?: string } | undefined, child: ResolvedSchema | undefined, description: string, value: YamlValue, view: NodeView, options: readonly string[] | undefined): void {
     dropBody();
+    failed = false;
     if (mode === 'widget' && picked && child) {
+      widgetName = picked.name;
       const factory = registry[picked.name]!;
       try {
         const wctx = createWidgetContext(
@@ -163,6 +185,7 @@ function createFieldRow(ctx: EditorContext, registry: WidgetRegistry, envFor: (p
         widget = factory(wctx);
       } catch (err) {
         console.error(`stack-weaver: the "${picked.name}" widget failed`, err);
+        failed = true;
       }
       if (widget) {
         body.append(widget.el);
@@ -220,10 +243,22 @@ function createFieldRow(ctx: EditorContext, registry: WidgetRegistry, envFor: (p
     label = gf?.label ?? itemName ?? sectionLabel;
     const description = gf?.description ?? child?.description ?? '';
 
+    // The same widget is not rebuilt after it failed: it would only fail again on every update.
     if (nextKey !== modeKey) {
       modeKey = nextKey;
       build(mode, picked, child, description, value, view, gf?.options);
     }
+    if (widget) {
+      try {
+        widget.update(value, readOnly);
+      } catch (err) {
+        widgetFailed(err);
+      }
+    }
+    // Filled only while it applies, so no hidden control sits in the row.
+    if (failed && !failEl.hasChildNodes()) failEl.append(ui.widgetFailed, ' ', editInCode());
+    else if (!failed && failEl.hasChildNodes()) failEl.replaceChildren();
+    failEl.hidden = !failed;
 
     labelEl.textContent = label;
     removeBtn.setAttribute('aria-label', ui.removeField.replace('{label}', label));
@@ -248,7 +283,6 @@ function createFieldRow(ctx: EditorContext, registry: WidgetRegistry, envFor: (p
       const text = ui.openSection.replace('{label}', label);
       if (cardBtn.textContent !== text) cardBtn.textContent = text;
     }
-    widget?.update(value, readOnly);
 
     const sig = problems.map((p) => `${p.severity}\u0000${p.message}`).join('\u0001');
     if (sig !== problemsSig) {

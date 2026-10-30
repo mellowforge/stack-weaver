@@ -29,7 +29,7 @@ const NO_SLOTS: SectionSlots = { field: () => undefined, addSlot: () => undefine
 export function createVisualPane(
   ctx: EditorContext,
   o: { el: HTMLElement; slots?: SectionSlots },
-): Pane & { refresh(): void; focusField(ref: NodeRef): boolean } {
+): Pane & { refresh(): void; focusField(ref: NodeRef): boolean; setNotice(text: string | undefined): void } {
   const doc = o.el.ownerDocument;
   const ui = ctx.messages.ui;
   const slots = o.slots ?? NO_SLOTS;
@@ -90,7 +90,11 @@ export function createVisualPane(
     return typeof apiVersion === 'string' && typeof kind === 'string' ? kindKey(apiVersion, kind) : undefined;
   };
 
-  /** Starts each schema load once; labels and unknown kinds are known when it resolves. */
+  /**
+   * Starts each schema load once; labels and unknown kinds are known when it resolves. A load that
+   * failed is started again by a later render (not by the render that shows the failure, which
+   * would retry in a loop).
+   */
   function requestBundles(parsed: ParsedText): void {
     const f = ctx.format();
     if (!f) return;
@@ -102,8 +106,10 @@ export function createVisualPane(
       const stamp = generation;
       void ctx.loadBundle(d).then((bundle) => {
         if (destroyed || stamp !== generation) return;
-        if (!bundle && f.rootModel === 'documents' && ctx.bundleError(d) === undefined) unknownKeys.add(key);
-        render(); // not flush: a pending 100 ms code debounce must keep running
+        const failed = !bundle && ctx.bundleError(d) !== undefined;
+        if (!bundle && f.rootModel === 'documents' && !failed) unknownKeys.add(key);
+        render(); // not flush: a pending code debounce must keep running
+        if (failed) requested.delete(key);
       });
     }
   }
@@ -276,6 +282,10 @@ export function createVisualPane(
     },
     refresh() {
       if (!destroyed && stale && !o.el.hidden) flush();
+    },
+    setNotice(text) {
+      // Replaces the empty-state message, for example when the formats failed to load.
+      empty.textContent = text ?? ui.visualEmpty;
     },
     setReadOnly() {
       flush();

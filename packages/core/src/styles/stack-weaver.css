@@ -530,6 +530,12 @@
   display: none;
 }
 
+.sw-pane-error {
+  margin: 0;
+  padding: var(--sw-gap);
+  font-size: inherit;
+}
+
 .sw-list-items {
   display: flex;
   flex-direction: column;

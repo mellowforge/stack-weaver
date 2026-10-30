@@ -10,7 +10,7 @@ import type { Problem } from '../validation/problems.js';
 import { createCodePane } from './code-pane.js';
 import { createBundleCache, loaders } from './context.js';
 import type { EditorContext, Pane } from './context.js';
-import { badgeText, loadBuiltinFormats, mergeFormats, resolveFormat } from './formats.js';
+import { badgeText, mergeFormats, resolveFormat } from './formats.js';
 import { defaultUiMessages } from './messages.js';
 import type { UiMessages } from './messages.js';
 import { createProblemScheduler, problemCountText } from './problems.js';
@@ -186,20 +186,25 @@ export function createEditorWithContext(
       if (mode !== 'visual') ctx.revealRange({ from: p.from, to: p.to });
     },
   });
-  const guarded = (fn: () => void): void => {
+  /** Runs `fn`; a throw is logged as "stack-weaver: <what> threw" so the caller's own work goes on. */
+  const guarded = (what: string, fn: () => void): void => {
     try {
       fn();
     } catch (err) {
-      console.error('stack-weaver: a problems callback threw', err);
+      console.error(`stack-weaver: ${what} threw`, err);
     }
+  };
+  /** Updates every pane; one pane's failure must not keep the others (or `onChange`) from the change. */
+  const updatePanes = (e: StoreEvent | null): void => {
+    for (const p of panes) guarded(p === codePane ? 'the code pane' : 'the visual pane', () => p.update(e));
   };
   const scheduler = createProblemScheduler(ctx, (next) => {
     problems = next;
     shell.setProblemCount(problemCountText(ui, next.length));
     panel.update(next);
     codePane.setProblems(next);
-    for (const fn of [...problemListeners]) guarded(() => fn(next));
-    if (options.onProblemsChange) guarded(() => options.onProblemsChange?.(next));
+    for (const fn of [...problemListeners]) guarded('a problems callback', () => fn(next));
+    if (options.onProblemsChange) guarded('a problems callback', () => options.onProblemsChange?.(next));
   });
   const recipes = createRecipeCards(ctx, {
     root: shell.recipesEl,
@@ -223,8 +228,8 @@ export function createEditorWithContext(
     mode = m;
     focusGen++;
     shell.setMode(m);
-    visualPane.refresh();
-    options.onModeChange?.(m);
+    guarded('the visual pane', () => visualPane.refresh());
+    if (options.onModeChange) guarded('an onModeChange callback', () => options.onModeChange?.(m));
   }
 
   function applyFormat(next: FormatDefinition | undefined): void {
@@ -232,8 +237,8 @@ export function createEditorWithContext(
     format = next;
     cache.clear();
     shell.setBadge(next ? badgeText(next) : ui.formatNone);
-    for (const p of panes) p.update(null);
-    void scheduler.run(); // a new format means new problems, now rather than in 150 ms
+    updatePanes(null);
+    void scheduler.run(); // a new format means new problems: now, rather than after the debounce
     recipes.refresh();
   }
   shell.setBadge(ui.formatNone);
@@ -242,7 +247,7 @@ export function createEditorWithContext(
     if (destroyed) return;
     focusGen++;
     // Panes first: a format change re-syncs them, and they must already hold this change.
-    for (const p of panes) p.update(e);
+    updatePanes(e);
     if (formatOption === 'auto' && formatsLoaded) {
       const p = store.parsed;
       // Under `auto` the format follows the text: it is detected once there is some, and dropped when the text is
@@ -254,7 +259,7 @@ export function createEditorWithContext(
     scheduler.schedule();
     recipes.refresh();
     refreshHistory();
-    options.onChange?.(e.text, { origin: e.origin });
+    if (options.onChange) guarded('an onChange callback', () => options.onChange?.(e.text, { origin: e.origin }));
   });
 
   // One undo history: Mod-z / Mod-Shift-z / Mod-y go to the store from anywhere except the code
@@ -278,15 +283,32 @@ export function createEditorWithContext(
   mq?.addEventListener?.('change', onScheme);
 
   const needBuiltins = formatOption === 'auto' || !hostFormats.some((f) => f.id === formatOption);
-  const formatReady = (needBuiltins ? loadBuiltinFormats() : Promise.resolve([])).then((builtins) => {
-    if (destroyed) return;
-    formatList = mergeFormats(builtins, hostFormats);
-    formatsLoaded = true;
-    applyFormat(resolveFormat(formatOption, store.parsed, formatList));
-    recipes.refresh(); // `applyFormat` does nothing when the format stays unresolved
+  const formatReady = (needBuiltins ? loaders.loadBuiltinFormats() : Promise.resolve([])).then(
+    (builtins) => {
+      if (destroyed) return;
+      formatList = mergeFormats(builtins, hostFormats);
+      formatsLoaded = true;
+      applyFormat(resolveFormat(formatOption, store.parsed, formatList));
+      recipes.refresh(); // `applyFormat` does nothing when the format stays unresolved
+    },
+    (err: unknown) => {
+      if (destroyed) return; // nobody is left to tell
+      // Without formats the editor still edits text: say so where the format and the form would be.
+      console.error('stack-weaver: loading the built-in formats failed', err);
+      shell.setBadge(ui.formatsFailed);
+      visualPane.setNotice(ui.formatsFailed);
+      throw err;
+    },
+  );
+  // Ready also means the first validation has been published (or dropped by a destroy). It runs
+  // even when a load failed (the failure is already shown), and `ready` then rejects with it.
+  const ready = Promise.allSettled([formatReady, codePane.ready]).then(async (results) => {
+    await scheduler.run();
+    const failure = results.find((r): r is PromiseRejectedResult => r.status === 'rejected');
+    if (failure) throw failure.reason;
   });
-  // Ready also means the first validation has been published (or dropped by a destroy).
-  const ready = Promise.all([formatReady, codePane.ready]).then(() => scheduler.run());
+  // Hosts that never await `ready` must not get an unhandled rejection: the failure was shown and logged.
+  ready.catch(() => {});
 
   refreshHistory();
   shell.setReadOnly(readOnly);
