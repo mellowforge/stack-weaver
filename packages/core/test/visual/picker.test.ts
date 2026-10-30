@@ -2,6 +2,8 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { toData } from '../../src/document/data.js';
 import { parseText } from '../../src/document/parse.js';
+import { valueTemplateAt } from '../../src/engine/addable.js';
+import { resolveAt } from '../../src/engine/resolve.js';
 import { kindCatalog } from '../../src/engine/catalog.js';
 import { createEditorWithContext } from '../../src/editor/editor.js';
 import type { ManifestEditorOptions } from '../../src/editor/editor.js';
@@ -93,6 +95,38 @@ describe('Add resource picker', () => {
     expect(document.activeElement).toBe(trigger());
   });
 
+  it('Escape works when focus has left the dialog', async () => {
+    await mount();
+    await open();
+    (document.activeElement as HTMLElement).blur();
+    expect(document.activeElement).toBe(document.body);
+    document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true, cancelable: true }));
+    expect(dialog()).toBeNull();
+    expect(document.activeElement).toBe(trigger());
+  });
+
+  it('the dialog is focusable and the background is inert only while it is open', async () => {
+    await mount();
+    const root = el.querySelector('.sw-editor')!;
+    const others = () => [...root.children].filter((c) => !c.classList.contains('sw-picker-backdrop'));
+    expect(others().some((c) => c.hasAttribute('inert'))).toBe(false);
+    await open();
+    expect(dialog()!.getAttribute('tabindex')).toBe('-1');
+    expect(others().length).toBeGreaterThan(0);
+    expect(others().every((c) => c.hasAttribute('inert'))).toBe(true);
+    key(dialog()!, { key: 'Escape' });
+    expect(others().some((c) => c.hasAttribute('inert'))).toBe(false);
+  });
+
+  it('Tab from the dialog itself enters the dialog', async () => {
+    await mount();
+    await open();
+    dialog()!.focus();
+    const e = new KeyboardEvent('keydown', { key: 'Tab', bubbles: true, cancelable: true });
+    dialog()!.dispatchEvent(e);
+    expect(dialog()!.contains(document.activeElement) && document.activeElement !== dialog()).toBe(true);
+  });
+
   it('Tab is trapped', async () => {
     await mount();
     await open();
@@ -120,9 +154,8 @@ describe('Add resource picker', () => {
     expect(document.activeElement).toBe(trigger());
     const docs = parseText(editor.getValue()).docs;
     expect(docs).toHaveLength(2);
-    const bundle = (await loadKubernetesKind('apps/v1', 'Deployment'))!;
-    const entry = kubernetesFormat.kinds().find((k) => k.kind === 'Deployment')!;
-    expect(editor.getValue()).toBe(`${SVC}---\n${skeletonFor(entry, bundle, ctx.guide(), '\n')}`);
+    expect(editor.getValue().startsWith(`${SVC}---\napiVersion: apps/v1\nkind: Deployment\nmetadata:\n  name: deployment\n`)).toBe(true);
+    expect(editor.getValue().endsWith('\n')).toBe(true);
     expect(select).toHaveBeenCalledWith({ doc: 1, path: [] });
   });
 
@@ -131,7 +164,7 @@ describe('Add resource picker', () => {
     await open();
     dialog()!.querySelector<HTMLElement>('[data-sw-kind="v1/Service"]')!.click();
     await vi.waitFor(() => expect(editor.getValue()).toContain('kind: Service'));
-    expect(parseText(editor.getValue()).ok).toBe(true);
+    expect(editor.getValue()).toBe('apiVersion: v1\nkind: Service\nmetadata:\n  name: service\n');
   });
 
   it('the skeleton validates with zero errors except placeholders', async () => {
@@ -144,8 +177,11 @@ describe('Add resource picker', () => {
     expect(value['apiVersion']).toBe('apps/v1');
     expect(value['kind']).toBe('Deployment');
     expect((value['metadata'] as Record<string, unknown>)['name']).toBe('deployment');
-    const required = ((bundle.schema as any).$defs[entry.defName].required ?? []) as string[];
-    const placeholders = required.map((p) => `/${p}`);
+    const required = resolveAt(bundle, [], value)!.required.filter((p) => !['apiVersion', 'kind', 'metadata'].includes(p));
+    for (const p of required) expect(value).toHaveProperty(p);
+    expect(Object.keys(value).sort()).toEqual(['apiVersion', 'kind', 'metadata', ...required].sort());
+    const isEmpty = (v: unknown) => v === null || v === '' || (Array.isArray(v) && v.length === 0) || (typeof v === 'object' && v !== null && !Array.isArray(v) && Object.keys(v).length === 0);
+    const placeholders = required.filter((p) => isEmpty(valueTemplateAt(bundle, kubernetesFormat.guide, [p], value))).map((p) => `/${p}`);
     const errors = bundle.validate(value).filter((e) => !placeholders.some((p) => e.instancePath === p || e.instancePath.startsWith(`${p}/`)));
     expect(errors).toEqual([]);
   });
@@ -178,6 +214,7 @@ describe('removing a section', () => {
     expect(edit).not.toHaveBeenCalled();
     confirmGroup()!.querySelector<HTMLButtonElement>('.sw-confirm-yes')!.click();
     expect(edit).toHaveBeenCalledWith({ op: 'deleteDocument', doc: 1 });
+    expect(document.activeElement).toBe(el.querySelector('.sw-section-title'));
     expect(parseText(editor.getValue()).docs.filter((d) => d.contents !== null)).toHaveLength(1);
     expect(editor.getValue()).not.toContain('Deployment');
   });

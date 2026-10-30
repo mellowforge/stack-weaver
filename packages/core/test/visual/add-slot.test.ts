@@ -1,5 +1,6 @@
 // @vitest-environment happy-dom
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { describeNode } from '../../src/document/describe.js';
 import { toData } from '../../src/document/data.js';
 import type { NodeRef } from '../../src/document/types.js';
 import { createEditorWithContext } from '../../src/editor/editor.js';
@@ -121,7 +122,9 @@ describe('add-here slot', () => {
     const link = slot.querySelector<HTMLButtonElement>('.sw-add-error .sw-link')!;
     expect(link.textContent).toBe(ctx.messages.ui.editInCode);
     link.click();
-    expect(reveal).toHaveBeenCalled();
+    expect(reveal).toHaveBeenCalledTimes(1);
+    const view = describeNode(ctx.store.parsed, { doc: 0, path: ['spec'] })!;
+    expect(reveal).toHaveBeenCalledWith(view.keyRange ?? view.range);
   });
 
   it('is disabled where the node cannot be edited visually', async () => {

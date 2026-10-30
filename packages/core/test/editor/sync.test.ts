@@ -52,8 +52,11 @@ describe('split sync with the real CodeMirror adapter', () => {
   });
 
   it('Mod-z in code undoes a visual edit', async () => {
-    const { ctx, view } = await mount();
+    const { ctx, editor, view } = await mount();
+    editor.reveal({ doc: 0, path: ['spec'] });
+    const shown = () => el.querySelector<HTMLInputElement>('.sw-section .sw-row[data-sw-key="replicas"] input')?.value;
     ctx.store.edit({ op: 'set', at: replicasAt, value: 3 });
+    expect(shown()).toBe('3');
     const undo = vi.spyOn(ctx.store, 'undo');
 
     view.contentDOM.dispatchEvent(
@@ -63,6 +66,7 @@ describe('split sync with the real CodeMirror adapter', () => {
     expect(undo).toHaveBeenCalledTimes(1);
     expect(ctx.store.text).toBe(DEPLOY);
     expect(view.state.doc.toString()).toBe(DEPLOY);
+    expect(shown()).toBe('2'); // the visual pane shows the restored value too
   });
 
   it('code edit appears in visual after 100 ms', async () => {

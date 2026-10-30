@@ -13,16 +13,18 @@ export interface RemoveControl {
   setTarget(target: { ref: NodeRef; label: string } | undefined): void;
 }
 
+let nextRemove = 0;
+
 /**
  * Removes the shown section: a document root with `deleteDocument`, anything else with `delete`.
  * The button first asks "Remove {label}?" inline, with Remove and Cancel buttons (focus moves to
- * Cancel); nothing is edited until Remove is pressed. A mapping root (compose) has nothing to remove.
+ * Cancel); nothing is edited until Remove is pressed. After a removal `onRemoved` runs, so the host can move focus. A mapping root (compose) has nothing to remove.
  * @internal
  */
-export function createRemoveControl(ctx: EditorContext, doc: Document = document): RemoveControl {
+export function createRemoveControl(ctx: EditorContext, doc: Document = document, onRemoved: () => void = () => {}): RemoveControl {
   const ui = ctx.messages.ui;
   const button = h(doc, 'button', { type: 'button', class: 'sw-btn sw-section-remove' }, [ui.removeSection]);
-  const question = h(doc, 'span', { class: 'sw-confirm-text', id: `sw-confirm-${Math.random().toString(36).slice(2, 8)}` });
+  const question = h(doc, 'span', { class: 'sw-confirm-text', id: `sw-confirm-${nextRemove++}` });
   const yes = h(doc, 'button', { type: 'button', class: 'sw-btn sw-confirm-yes' }, [ui.confirmYes]);
   const no = h(doc, 'button', { type: 'button', class: 'sw-btn sw-confirm-no' }, [ui.confirmNo]);
   const confirm = h(doc, 'div', { class: 'sw-section-confirm', role: 'group', 'aria-labelledby': question.id, hidden: true }, [question, yes, no]);
@@ -53,8 +55,10 @@ export function createRemoveControl(ctx: EditorContext, doc: Document = document
     const { ref } = target;
     const r = ctx.store.edit(ref.path.length === 0 ? { op: 'deleteDocument', doc: ref.doc } : { op: 'delete', at: ref });
     showConfirm(false);
-    if (!r.ok) errorEl.textContent = ui.editRefused;
-    button.focus();
+    if (!r.ok) {
+      errorEl.textContent = ui.editRefused;
+      button.focus();
+    } else onRemoved();
   });
 
   return {

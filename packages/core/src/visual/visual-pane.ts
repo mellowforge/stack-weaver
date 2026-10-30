@@ -48,9 +48,9 @@ export function createVisualPane(ctx: EditorContext, o: { el: HTMLElement; slots
   };
   const banner = createBanner(doc, ui, jump);
   const outline = createOutline(doc, { label: ui.outlineLabel, onSelect: (n) => choose(n.ref) });
-  const title = h(doc, 'h2', { class: 'sw-section-title' });
+  const title = h(doc, 'h2', { class: 'sw-section-title', tabindex: '-1' });
   const crumbs = h(doc, 'nav', { class: 'sw-section-crumbs', 'aria-label': ui.breadcrumbLabel });
-  const removal = createRemoveControl(ctx, doc);
+  const removal = createRemoveControl(ctx, doc, () => title.focus());
   const header = h(doc, 'header', { class: 'sw-section-header' }, [title, crumbs, removal.el]);
   const content = h(doc, 'div', { class: 'sw-section-content' });
   const host = h(doc, 'div', { class: 'sw-section-host' }, [header, content]);

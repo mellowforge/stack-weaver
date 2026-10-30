@@ -31,6 +31,8 @@ export interface AddResource {
   destroy(): void;
 }
 
+let nextPicker = 0;
+
 const FOCUSABLE = 'button:not([disabled]), input:not([disabled])';
 
 /**
@@ -58,13 +60,13 @@ export function createAddResource(ctx: EditorContext, doc: Document = document):
     const cardFor = (entry: KindEntry): Card =>
       curatedByKey.get(kindKey(entry.apiVersion, entry.kind)) ?? { entry, label: entry.kind, description: firstSentence(entry.description) };
 
-    const titleId = `sw-picker-title-${Math.random().toString(36).slice(2, 8)}`;
+    const titleId = `sw-picker-title-${nextPicker++}`;
     const title = h(doc, 'h2', { class: 'sw-picker-title', id: titleId }, [ui.pickerTitle]);
     const closeBtn = h(doc, 'button', { type: 'button', class: 'sw-btn sw-picker-close', 'aria-label': ui.pickerClose }, ['×']);
     const search = h(doc, 'input', { type: 'search', class: 'sw-input sw-picker-search', 'aria-label': ui.pickerSearch, autocomplete: 'off' });
     const results = h(doc, 'div', { class: 'sw-picker-results' });
     const errorEl = h(doc, 'p', { class: 'sw-field-error sw-picker-error', role: 'alert' });
-    const dialog = h(doc, 'div', { class: 'sw-picker', role: 'dialog', 'aria-modal': 'true', 'aria-labelledby': titleId }, [
+    const dialog = h(doc, 'div', { class: 'sw-picker', role: 'dialog', tabindex: '-1', 'aria-modal': 'true', 'aria-labelledby': titleId }, [
       h(doc, 'div', { class: 'sw-picker-head' }, [title, closeBtn]),
       search,
       results,
@@ -116,7 +118,15 @@ export function createAddResource(ctx: EditorContext, doc: Document = document):
         const bundle = await format?.loadSchema(parseText(`apiVersion: ${entry.apiVersion}\nkind: ${entry.kind}\n`), 0);
         if (!close) return; // closed while the schema loaded
         if (!bundle) throw new Error(`no schema for ${kindKey(entry.apiVersion, entry.kind)}`);
-        const r = ctx.store.edit({ op: 'addDocument', yaml: skeletonFor(entry, bundle, ctx.guide(), ctx.store.parsed.eol) });
+        const yaml = skeletonFor(entry, bundle, ctx.guide(), ctx.store.parsed.eol);
+        if (ctx.store.text.trim() === '') {
+          // A blank text has nothing to append to: replace it, so no empty first document and no leading `---`.
+          close();
+          ctx.store.setText(yaml, 'api');
+          ctx.select({ doc: 0, path: [] });
+          return;
+        }
+        const r = ctx.store.edit({ op: 'addDocument', yaml });
         if (!r.ok) {
           errorEl.textContent = ui.editRefused;
           return;
@@ -131,7 +141,8 @@ export function createAddResource(ctx: EditorContext, doc: Document = document):
       }
     }
 
-    backdrop.addEventListener('keydown', (e) => {
+    // Bound on the document, not the dialog: focus can leave the dialog (a click on its text).
+    const onKeydown = (e: KeyboardEvent): void => {
       if (e.key === 'Escape') {
         e.preventDefault();
         e.stopPropagation();
@@ -144,27 +155,39 @@ export function createAddResource(ctx: EditorContext, doc: Document = document):
       const last = items[items.length - 1];
       if (!first || !last) return;
       const active = doc.activeElement;
-      if (e.shiftKey && (active === first || !dialog.contains(active))) {
+      if (e.shiftKey && (active === first || !dialog.contains(active) || active === dialog)) {
         e.preventDefault();
         last.focus();
-      } else if (!e.shiftKey && (active === last || !dialog.contains(active))) {
+      } else if (!e.shiftKey && (active === last || !dialog.contains(active) || active === dialog)) {
         e.preventDefault();
         first.focus();
       }
-    });
+    };
     backdrop.addEventListener('mousedown', (e) => {
       if (e.target === backdrop) close?.();
     });
     closeBtn.addEventListener('click', () => close?.());
     search.addEventListener('input', renderResults);
 
+    const host = el.closest('.sw-editor') ?? doc.body;
+    const inerted: Element[] = [];
     close = () => {
       close = undefined;
+      doc.removeEventListener('keydown', onKeydown, true);
+      for (const n of inerted) n.removeAttribute('inert');
       backdrop.remove();
       el.focus();
     };
     renderResults();
-    (el.closest('.sw-editor') ?? doc.body).append(backdrop);
+    // Everything else in the host is inert while the dialog is open (APG Dialog (Modal)).
+    for (const n of [...host.children]) {
+      if (!n.hasAttribute('inert')) {
+        n.setAttribute('inert', '');
+        inerted.push(n);
+      }
+    }
+    host.append(backdrop);
+    doc.addEventListener('keydown', onKeydown, true);
     search.focus();
   }
 
