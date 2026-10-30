@@ -126,7 +126,7 @@ export function renderAddSlot(ctx: EditorContext, ref: NodeRef, doc: Document = 
     const link = h(doc, 'button', { type: 'button', class: 'sw-link' }, [ui.editInCode]);
     link.addEventListener('click', () => {
       const view = describeNode(ctx.store.parsed.ok ? ctx.store.parsed : (ctx.store.lastGood ?? ctx.store.parsed), ref);
-      if (view) ctx.revealRange(view.keyRange ?? view.range);
+      if (view) ctx.editInCode(view.keyRange ?? view.range);
     });
     errorEl.append(link);
   };

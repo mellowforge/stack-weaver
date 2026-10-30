@@ -129,7 +129,7 @@ export function mountSection(ctx: EditorContext, ref: NodeRef, slots: SectionSlo
     noteEl.hidden = true;
     if (!view.readOnly || broken) return;
     const link = h(doc, 'button', { type: 'button', class: 'sw-link' }, [ui.editInCode]);
-    link.addEventListener('click', () => ctx.revealRange(view.keyRange ?? view.range));
+    link.addEventListener('click', () => ctx.editInCode(view.keyRange ?? view.range));
     noteEl.append(h(doc, 'span', {}, [ui.readOnlyNode]), ' ', link);
     noteEl.hidden = false;
   }

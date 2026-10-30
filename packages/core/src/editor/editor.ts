@@ -140,6 +140,12 @@ export function createEditorWithContext(
     loadBundle: cache.loadBundle,
     bundleError: cache.bundleError,
     revealRange: (r: TextRange) => codePane.revealRange(r),
+    editInCode: (r: TextRange) => {
+      if (destroyed) return;
+      if (mode === 'visual') setMode('split'); // the code pane is hidden: show it next to the form
+      codePane.revealRange(r);
+      codePane.instance()?.focus();
+    },
     select: (ref) => {
       codePane.reveal(ref);
       visualPane.reveal(ref);

@@ -32,8 +32,14 @@ export interface EditorContext {
   loadBundle(doc: number): Promise<SchemaBundle | undefined>;
   /** The error from the last failed schema load for document `doc`, or `undefined` (never loaded, loaded, or unknown kind). */
   bundleError(doc: number): unknown;
-  /** Scrolls the code editor to `r` and selects it. */
+  /** Scrolls the code editor to `r` and selects it, without changing the mode (the outline and the problems panel follow along). */
   revealRange(r: TextRange): void;
+  /**
+   * Takes the user to `r` in the code: in Visual mode, switches to Split first (firing
+   * `onModeChange`); then selects `r` and focuses the code editor. Every "Edit in code" and "Jump
+   * to error" control uses this.
+   */
+  editInCode(r: TextRange): void;
   /** Reveals `ref` in the panes. */
   select(ref: NodeRef): void;
   /** Selects `ref` in the visual pane, waits for its schema, then focuses the field's widget (nothing happens in code mode). */

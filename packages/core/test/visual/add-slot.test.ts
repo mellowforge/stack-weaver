@@ -115,7 +115,7 @@ describe('add-here slot', () => {
   it('refused add (flow) shows "edit in code" link', async () => {
     const { ctx } = await mount();
     vi.spyOn(ctx.store, 'edit').mockReturnValue({ ok: false, reason: 'flow' });
-    const reveal = vi.spyOn(ctx, 'revealRange');
+    const reveal = vi.spyOn(ctx, 'editInCode');
     const slot = slotFor(ctx, ['spec']);
     const first = slot.querySelector<HTMLElement>('[data-sw-add]')!;
     first.click();

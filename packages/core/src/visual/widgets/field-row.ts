@@ -123,7 +123,7 @@ function createFieldRow(ctx: EditorContext, registry: WidgetRegistry, envFor: (p
 
   const editInCode = (): HTMLButtonElement => {
     const link = h(doc, 'button', { type: 'button', class: 'sw-link' }, [ui.editInCode]);
-    link.addEventListener('click', () => ctx.revealRange(lastView.range));
+    link.addEventListener('click', () => ctx.editInCode(lastView.range));
     return link;
   };
 

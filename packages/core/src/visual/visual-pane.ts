@@ -46,8 +46,9 @@ export function createVisualPane(
   let stale = false;
 
   const jump = (): void => {
-    const first = ctx.problems().find((p) => p.code === 'yaml.syntax') ?? ctx.store.parsed.errors[0];
-    if (first) ctx.revealRange({ from: first.from, to: first.to });
+    // The parse's own errors are always for the current text; published problems can lag a debounce behind it.
+    const first = ctx.store.parsed.errors[0] ?? ctx.problems().find((p) => p.code === 'yaml.syntax');
+    if (first) ctx.editInCode({ from: first.from, to: first.to });
   };
   const banner = createBanner(doc, ui, jump);
   const outline = createOutline(doc, {
@@ -123,7 +124,7 @@ export function createVisualPane(
     const view = parsed ? describeNode(parsed, node.ref) : undefined;
     const link = h(doc, 'button', { type: 'button', class: 'sw-link', disabled: broken || !view }, [ui.editInCode]);
     link.addEventListener('click', () => {
-      if (view) ctx.revealRange(view.range);
+      if (view) ctx.editInCode(view.range);
     });
     card = h(doc, 'div', { class: 'sw-unknown-kind' }, [h(doc, 'p', {}, [ui.unknownKind]), link]);
     content.append(card);
