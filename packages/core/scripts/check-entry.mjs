@@ -1,14 +1,14 @@
 #!/usr/bin/env node
 /**
  * Walks the static import graph of dist/index.js (relative specifiers only) and fails
- * if it reaches generated schemas or a format subpath. Prints the gzipped size of the graph.
+ * if it reaches generated schemas, a format subpath, the editors folder or a bare @codemirror/* import. Prints the gzipped size of the graph.
  */
 import { readFileSync, existsSync } from 'node:fs';
 import { dirname, resolve, relative, sep } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { gzipSync } from 'node:zlib';
 
-const FORBIDDEN = ['/generated/', '/formats/kubernetes/', '/formats/compose/'];
+const FORBIDDEN = ['/generated/', '/formats/kubernetes/', '/formats/compose/', '/editors/'];
 const SPECIFIER = /(?:^|[;\s}])(?:import|export)\s+(?:[^'"()]*?\s+from\s+)?['"]([^'"]+)['"]/g;
 
 export function walkEntry(entry) {
@@ -29,6 +29,10 @@ export function walkEntry(entry) {
     const source = readFileSync(file, 'utf8');
     for (const match of source.matchAll(SPECIFIER)) {
       const spec = match[1];
+      if (spec.startsWith('@codemirror/')) {
+        violations.push(`${posix} imports ${spec}`);
+        continue;
+      }
       if (!spec.startsWith('.')) continue;
       queue.push(resolve(dirname(file), spec));
     }

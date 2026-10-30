@@ -37,6 +37,10 @@
     "./formats/compose": {
       "types": "./dist/formats/compose/index.d.ts",
       "import": "./dist/formats/compose/index.js"
+    },
+    "./editors/codemirror": {
+      "types": "./dist/editors/codemirror/index.d.ts",
+      "import": "./dist/editors/codemirror/index.js"
     }
   },
   "sideEffects": false,
@@ -59,8 +63,25 @@
     "ajv-formats": "^3.0.1",
     "yaml": "^2.9.1"
   },
+  "peerDependencies": {
+    "@codemirror/autocomplete": "^6.20.4",
+    "@codemirror/commands": "^6.11.1",
+    "@codemirror/lang-yaml": "^6.1.3",
+    "@codemirror/language": "^6.13.1",
+    "@codemirror/lint": "^6.9.7",
+    "@codemirror/state": "^6.7.6",
+    "@codemirror/view": "^6.43.15"
+  },
   "devDependencies": {
+    "@codemirror/autocomplete": "^6.20.4",
+    "@codemirror/commands": "^6.11.1",
+    "@codemirror/lang-yaml": "^6.1.3",
+    "@codemirror/language": "^6.13.1",
+    "@codemirror/lint": "^6.9.7",
+    "@codemirror/state": "^6.7.6",
+    "@codemirror/view": "^6.43.15",
     "@types/node": "^26.6.6",
+    "happy-dom": "^21.0.4",
     "typescript": "^7.0.2",
     "vitest": "^5.0.5"
   },

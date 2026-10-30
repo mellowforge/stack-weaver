@@ -1,0 +1,197 @@
+// Shared contract suite (not a test file): run it from each adapter's test file.
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import type { CodeDiagnostic, CodeEditorAdapter, CodeEditorInit, CodeEditorInstance } from '../../src/editors/adapter.js';
+
+/** A mounted editor plus the element it lives in. */
+export interface Mounted {
+  readonly el: HTMLElement;
+  readonly inst: CodeEditorInstance;
+}
+
+/** Adapter-specific ways to act like a user and to look inside the editor. */
+export interface ContractHarness {
+  readonly adapter: CodeEditorAdapter;
+  /** Simulates the user typing `s` at the end of the text (calls `onChange`). */
+  type(m: Mounted, s: string): void;
+  /** Places the caret without going through `applyChange`. */
+  setCaret(m: Mounted, offset: number): void;
+  /** Simulates the platform's undo shortcut. */
+  pressUndo(m: Mounted): void;
+  /** Simulates the platform's redo shortcut. */
+  pressRedo(m: Mounted): void;
+  /** The diagnostics currently shown. */
+  diagnostics(m: Mounted): CodeDiagnostic[];
+  /** Asks for completions at the caret and resolves to the labels offered. */
+  completions(m: Mounted): Promise<string[]>;
+  /** The accessible name of the editing surface. */
+  ariaLabel(m: Mounted): string | null;
+}
+
+export function runAdapterContract(name: string, makeHarness: () => ContractHarness): void {
+  describe(`CodeEditorAdapter contract: ${name}`, () => {
+    let h: ContractHarness;
+    let el: HTMLElement;
+    let live: Mounted[];
+
+    const base = (text: string, over: Partial<CodeEditorInit> = {}) => ({
+      text,
+      readOnly: false,
+      theme: 'light' as const,
+      ariaLabel: 'YAML code',
+      onChange: vi.fn<(t: string) => void>(),
+      onUndo: vi.fn<() => void>(),
+      onRedo: vi.fn<() => void>(),
+      ...over,
+    });
+    const mount = (init: ReturnType<typeof base>): Mounted => {
+      const m = { el, inst: h.adapter.mount(el, init) };
+      live.push(m);
+      return m;
+    };
+
+    beforeEach(() => {
+      h = makeHarness();
+      el = document.createElement('div');
+      document.body.appendChild(el);
+      live = [];
+    });
+    afterEach(() => {
+      for (const m of live) m.inst.destroy();
+      el.remove();
+    });
+
+    it('mount shows initial text', () => {
+      const m = mount(base('a: 1\n'));
+      expect(m.inst.getText()).toBe('a: 1\n');
+    });
+
+    it('user typing calls onChange with the full text', () => {
+      const init = base('a: 1');
+      const m = mount(init);
+      h.type(m, '0');
+      expect(init.onChange).toHaveBeenCalledTimes(1);
+      expect(init.onChange).toHaveBeenCalledWith('a: 10');
+      expect(m.inst.getText()).toBe('a: 10');
+    });
+
+    it('applyChange does not call onChange', () => {
+      const init = base('a: 1');
+      const m = mount(init);
+      m.inst.applyChange({ from: 3, to: 4, insert: '22' });
+      expect(m.inst.getText()).toBe('a: 22');
+      expect(init.onChange).not.toHaveBeenCalled();
+    });
+
+    it('applyChange keeps a selection outside the change', () => {
+      const init = base('x'.repeat(60));
+      const m = mount(init);
+      h.setCaret(m, 40);
+      m.inst.applyChange({ from: 5, to: 5, insert: 'abc' });
+      expect(m.inst.getSelection()).toEqual({ from: 43, to: 43 });
+      expect(init.onChange).not.toHaveBeenCalled();
+    });
+
+    it('onSelectionChange reports the new selection', () => {
+      const onSelectionChange = vi.fn();
+      const m = mount(base('hello world', { onSelectionChange }));
+      h.setCaret(m, 4);
+      expect(onSelectionChange).toHaveBeenLastCalledWith({ from: 4, to: 4 });
+    });
+
+    it('setDiagnostics replaces diagnostics', () => {
+      const m = mount(base('a: 1\nb: 2\n'));
+      m.inst.setDiagnostics([{ from: 0, to: 1, severity: 'error', message: 'one' }]);
+      expect(h.diagnostics(m)).toEqual([{ from: 0, to: 1, severity: 'error', message: 'one' }]);
+      m.inst.setDiagnostics([
+        { from: 5, to: 6, severity: 'warning', message: 'two' },
+        { from: 7, to: 8, severity: 'info', message: 'three' },
+      ]);
+      expect(h.diagnostics(m).map((d) => [d.severity, d.message])).toEqual([
+        ['warning', 'two'],
+        ['info', 'three'],
+      ]);
+      m.inst.setDiagnostics([]);
+      expect(h.diagnostics(m)).toEqual([]);
+    });
+
+    it('reveal with select sets the selection', () => {
+      const m = mount(base('one\ntwo\nthree\n'));
+      m.inst.reveal({ from: 4, to: 7 }, { select: true });
+      expect(m.inst.getSelection()).toEqual({ from: 4, to: 7 });
+    });
+
+    it('reveal without select leaves the selection alone', () => {
+      const m = mount(base('one\ntwo\nthree\n'));
+      h.setCaret(m, 2);
+      m.inst.reveal({ from: 4, to: 7 });
+      expect(m.inst.getSelection()).toEqual({ from: 2, to: 2 });
+    });
+
+    it('setReadOnly blocks typing', () => {
+      const init = base('a');
+      const m = mount(init);
+      m.inst.setReadOnly(true);
+      h.type(m, 'b');
+      expect(m.inst.getText()).toBe('a');
+      expect(init.onChange).not.toHaveBeenCalled();
+      m.inst.setReadOnly(false);
+      h.type(m, 'b');
+      expect(m.inst.getText()).toBe('ab');
+    });
+
+    it('readOnly at mount blocks typing', () => {
+      const m = mount(base('a', { readOnly: true }));
+      h.type(m, 'b');
+      expect(m.inst.getText()).toBe('a');
+    });
+
+    it('Mod-z calls onUndo and does not change text', () => {
+      const init = base('a: 1');
+      const m = mount(init);
+      h.type(m, '2');
+      h.pressUndo(m);
+      expect(init.onUndo).toHaveBeenCalledTimes(1);
+      expect(init.onRedo).not.toHaveBeenCalled();
+      expect(m.inst.getText()).toBe('a: 12');
+    });
+
+    it('Mod-Shift-z calls onRedo and does not change text', () => {
+      const init = base('a: 1');
+      const m = mount(init);
+      h.pressRedo(m);
+      expect(init.onRedo).toHaveBeenCalledTimes(1);
+      expect(init.onUndo).not.toHaveBeenCalled();
+      expect(m.inst.getText()).toBe('a: 1');
+    });
+
+    it('complete results are offered', async () => {
+      const complete = vi.fn(() => ({
+        from: 0,
+        options: [{ label: 'apiVersion', apply: 'apiVersion: ', detail: 'required' }, { label: 'kind', apply: 'kind: ' }],
+      }));
+      const m = mount(base('', { complete }));
+      const labels = await h.completions(m);
+      expect(labels).toEqual(['apiVersion', 'kind']);
+      expect(complete).toHaveBeenCalledWith('', 0, true);
+    });
+
+    it('sets the accessible name', () => {
+      const m = mount(base('a', { ariaLabel: 'Manifest YAML' }));
+      expect(h.ariaLabel(m)).toBe('Manifest YAML');
+    });
+
+    it('setTheme does not disturb text or throw', () => {
+      const m = mount(base('a'));
+      m.inst.setTheme('dark');
+      m.inst.setTheme('light');
+      expect(m.inst.getText()).toBe('a');
+    });
+
+    it('destroy removes DOM', () => {
+      const m = mount(base('a'));
+      expect(el.childElementCount).toBeGreaterThan(0);
+      m.inst.destroy();
+      expect(el.childElementCount).toBe(0);
+    });
+  });
+}

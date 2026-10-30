@@ -19,6 +19,7 @@ const PACKAGES = [
     required: [
       'dist/index.js',
       'dist/index.d.ts',
+      'dist/editors/codemirror/index.js',
       'dist/formats/kubernetes/index.js',
       'dist/formats/compose/index.js',
       'dist/formats/kubernetes/generated/kinds.json',

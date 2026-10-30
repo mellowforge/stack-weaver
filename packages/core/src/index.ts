@@ -53,3 +53,12 @@ export { validateText } from './validation/validate.js';
 export type { Severity, Problem, ProblemSource } from './validation/problems.js';
 export { defaultMessages } from './validation/messages.js';
 export type { SchemaMessages, MessageFn } from './validation/messages.js';
+
+// Code editor adapter interface (the CodeMirror implementation lives in "@stack-weaver/core/editors/codemirror")
+export type {
+  CodeDiagnostic,
+  CodeCompletionResult,
+  CodeEditorInit,
+  CodeEditorInstance,
+  CodeEditorAdapter,
+} from './editors/adapter.js';

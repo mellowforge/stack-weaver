@@ -6,14 +6,14 @@ import * as api from '../src/index.js';
 import { VERSION } from '../src/index.js';
 
 const src = fileURLToPath(new URL('../src/', import.meta.url));
-const FORBIDDEN = ['/generated/', '/formats/kubernetes/', '/formats/compose/'];
+const FORBIDDEN = ['/generated/', '/formats/kubernetes/', '/formats/compose/', '/editors/'];
 
 // Source-level twin of scripts/check-entry.mjs (which walks dist/): kept separate so the
 // test needs no build output and no untyped .mjs import.
 function entryGraph(entry: string): { files: string[]; violations: string[] } {
   const seen = new Set<string>();
   const queue = [entry];
-  const re = /(?:^|[;\s}])(?:import|export)\s+(?:[^'"()]*?\s+from\s+)?['"]([^'"]+)['"]/g;
+  const re = /(?:^|[;\s}])(?:import|export)\s+(?!type\s)(?:[^'"()]*?\s+from\s+)?['"]([^'"]+)['"]/g;
   while (queue.length) {
     const file = queue.pop() as string;
     if (seen.has(file)) continue;
