@@ -38,6 +38,7 @@ describe('kubernetes guide', () => {
       for (const [n, d] of Object.entries((schema.$defs ?? {}) as Record<string, unknown>)) defs.set(n, d);
       if (!defs.has(k.defName)) defs.set(k.defName, schema);
     });
+    expect(Object.keys(guide.fields).length).toBeGreaterThan(0);
     for (const key of Object.keys(guide.fields)) {
       const [def, prop] = key.split('#') as [string, string];
       expect(hasProp(defs.get(def), prop), key).toBe(true);
@@ -56,6 +57,7 @@ describe('compose guide', () => {
   it('every guide field exists in the compose schema', async () => {
     const bundle = await composeFormat.loadSchema(undefined as never, 0);
     const defs = (bundle?.schema.$defs ?? {}) as Record<string, unknown>;
+    expect(Object.keys(guide.fields).length).toBeGreaterThan(0);
     for (const key of Object.keys(guide.fields)) {
       const [def, prop] = key.split('#') as [string, string];
       expect(hasProp(defs[def], prop, defs), key).toBe(true);
