@@ -7,17 +7,22 @@ import { resolveAt } from '../../src/engine/resolve.js';
 import { kindCatalog } from '../../src/engine/catalog.js';
 import { createEditorWithContext } from '../../src/editor/editor.js';
 import type { ManifestEditorOptions } from '../../src/editor/editor.js';
+import { defaultUiMessages as ui } from '../../src/editor/messages.js';
 import { kubernetesFormat } from '../../src/formats/kubernetes/index.js';
+import type { FormatDefinition } from '../../src/formats/types.js';
 import { loadKubernetesKind } from '../../src/formats/kubernetes/loader.js';
 import { skeletonFor } from '../../src/visual/skeleton.js';
 import { createFakeAdapter } from '../helpers/fake-adapter.js';
 
 let el: HTMLElement;
+let editors: { destroy(): void }[];
 beforeEach(() => {
   el = document.createElement('div');
   document.body.append(el);
+  editors = [];
 });
 afterEach(() => {
+  for (const e of editors) e.destroy();
   el.remove();
   vi.restoreAllMocks();
 });
@@ -27,9 +32,33 @@ const SVC = 'apiVersion: v1\nkind: Service\nmetadata:\n  name: s\n';
 
 async function mount(options: ManifestEditorOptions = {}) {
   const made = createEditorWithContext(el, { codeEditor: createFakeAdapter(), format: 'kubernetes', mode: 'visual', value: DEPLOY, ...options });
+  editors.push(made.editor);
   await made.editor.ready;
   await new Promise((r) => setTimeout(r, 0));
   return made;
+}
+
+/** A Kubernetes format whose schema loads wait for `release()` once `hold()` was called. */
+function gatedKubernetes(): { format: FormatDefinition; hold(): void; release(): void; fail(err: unknown): void } {
+  let gate: { promise: Promise<void>; resolve(): void; reject(e: unknown): void } | undefined;
+  const format: FormatDefinition = {
+    ...kubernetesFormat,
+    async loadSchema(p, d) {
+      if (gate) await gate.promise;
+      return kubernetesFormat.loadSchema(p, d);
+    },
+  };
+  return {
+    format,
+    hold() {
+      let resolve!: () => void;
+      let reject!: (e: unknown) => void;
+      const promise = new Promise<void>((res, rej) => ((resolve = res), (reject = rej)));
+      gate = { promise, resolve, reject };
+    },
+    release: () => gate?.resolve(),
+    fail: (err) => gate?.reject(err),
+  };
 }
 const trigger = () => el.querySelector<HTMLButtonElement>('.sw-add-resource')!;
 const dialog = () => document.querySelector<HTMLElement>('[role=dialog]');
@@ -157,6 +186,81 @@ describe('Add resource picker', () => {
     expect(editor.getValue().startsWith(`${SVC}---\napiVersion: apps/v1\nkind: Deployment\nmetadata:\n  name: deployment\n`)).toBe(true);
     expect(editor.getValue().endsWith('\n')).toBe(true);
     expect(select).toHaveBeenCalledWith({ doc: 1, path: [] });
+  });
+
+  it('inserts nothing when the editor became read-only while the schema loaded (A8)', async () => {
+    const k8s = gatedKubernetes();
+    const { editor } = await mount({ formats: [k8s.format], value: SVC });
+    k8s.hold();
+    await open();
+    dialog()!.querySelector<HTMLElement>('[data-sw-kind="apps/v1/Deployment"]')!.click();
+    editor.setReadOnly(true);
+    k8s.release();
+    await vi.waitFor(() => expect(dialog()!.querySelector('.sw-picker-error')!.textContent).toBe(ui.editRefused));
+    expect(editor.getValue()).toBe(SVC);
+  });
+
+  it('inserts nothing and closes when the format changed while the schema loaded (A8)', async () => {
+    const k8s = gatedKubernetes();
+    const { editor, ctx } = await mount({ formats: [k8s.format], format: 'auto', value: SVC });
+    expect(ctx.format()?.id).toBe('kubernetes');
+    k8s.hold();
+    await open();
+    dialog()!.querySelector<HTMLElement>('[data-sw-kind="apps/v1/Deployment"]')!.click();
+    editor.setValue(''); // under auto, clearing the text drops the format
+    expect(ctx.format()).toBeUndefined();
+    k8s.release();
+    await vi.waitFor(() => expect(dialog()).toBeNull());
+    expect(editor.getValue()).toBe('');
+  });
+
+  it('a failed schema load shows pickerLoadFailed in the picker', async () => {
+    const log = vi.spyOn(console, 'error').mockImplementation(() => {});
+    const k8s = gatedKubernetes();
+    const { editor } = await mount({ formats: [k8s.format], value: SVC });
+    k8s.hold();
+    await open();
+    dialog()!.querySelector<HTMLElement>('[data-sw-kind="apps/v1/Deployment"]')!.click();
+    k8s.fail(new Error('offline'));
+    await vi.waitFor(() => expect(dialog()!.querySelector('.sw-picker-error')!.textContent).toBe(ui.pickerLoadFailed));
+    expect(log).toHaveBeenCalledWith('stack-weaver: adding a resource failed', expect.any(Error));
+    expect(editor.getValue()).toBe(SVC);
+  });
+
+  it('a refused insert shows editRefused in the picker', async () => {
+    const { ctx, editor } = await mount({ value: SVC });
+    vi.spyOn(ctx.store, 'edit').mockReturnValue({ ok: false, reason: 'unsupported' });
+    await open();
+    dialog()!.querySelector<HTMLElement>('[data-sw-kind="apps/v1/Deployment"]')!.click();
+    await vi.waitFor(() => expect(dialog()!.querySelector('.sw-picker-error')!.textContent).toBe(ui.editRefused));
+    expect(editor.getValue()).toBe(SVC);
+  });
+
+  it('Mod-z in the search box does not undo the document', async () => {
+    const { ctx, editor } = await mount();
+    editor.setValue(SVC);
+    const undo = vi.spyOn(ctx.store, 'undo');
+    await open();
+    key(search(), { key: 'z', ctrlKey: true, metaKey: true });
+    expect(undo).not.toHaveBeenCalled();
+    expect(editor.getValue()).toBe(SVC);
+  });
+
+  it('destroying the editor with the picker open releases it', async () => {
+    const add = vi.spyOn(document, 'addEventListener');
+    const remove = vi.spyOn(document, 'removeEventListener');
+    const { editor } = await mount();
+    await open();
+    const handler = add.mock.calls.find(([type]) => type === 'keydown')?.[1];
+    expect(handler).toBeDefined();
+    const inert = [...el.querySelectorAll('[inert]')];
+    expect(inert.length).toBeGreaterThan(0);
+    editor.destroy();
+    expect(remove).toHaveBeenCalledWith('keydown', handler, true);
+    expect(inert.every((n) => !n.hasAttribute('inert'))).toBe(true);
+    expect(() => document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true, cancelable: true }))).not.toThrow();
+    expect(dialog()).toBeNull();
+    expect(el.childNodes.length).toBe(0);
   });
 
   it('works on an empty document', async () => {

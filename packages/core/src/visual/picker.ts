@@ -117,6 +117,16 @@ export function createAddResource(ctx: EditorContext, doc: Document = document):
       try {
         const bundle = await format?.loadSchema(parseText(`apiVersion: ${entry.apiVersion}\nkind: ${entry.kind}\n`), 0);
         if (!close) return; // closed while the schema loaded
+        // The editor moved on while the schema loaded: another format makes this catalog stale, and
+        // a read-only editor must not be written to.
+        if (ctx.format() !== format) {
+          close();
+          return;
+        }
+        if (ctx.readOnly()) {
+          errorEl.textContent = ui.editRefused;
+          return;
+        }
         if (!bundle) throw new Error(`no schema for ${kindKey(entry.apiVersion, entry.kind)}`);
         const yaml = skeletonFor(entry, bundle, ctx.guide(), ctx.store.parsed.eol);
         if (ctx.store.text.trim() === '') {
