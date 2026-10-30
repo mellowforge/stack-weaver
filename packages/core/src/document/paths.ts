@@ -63,23 +63,30 @@ export function getPairKey(p: ParsedText, ref: NodeRef): Scalar | undefined {
   return pr && isScalar(pr.key) ? pr.key : undefined;
 }
 
-function covers(n: unknown, offset: number): boolean {
+/**
+ * True when `n`'s range holds `offset`. The end is inclusive, so a cursor just after a scalar
+ * still selects it, except when the range ends with a line break: block collections and block
+ * scalars end at the start of the next line, which belongs to the next node.
+ */
+function covers(text: string, n: unknown, offset: number): boolean {
   if (!isNode(n) || !n.range) return false;
-  return offset >= n.range[0] && offset <= n.range[1];
+  const [start, end] = n.range;
+  const exclusive = end > start && text[end - 1] === '\n';
+  return offset >= start && (exclusive ? offset < end : offset <= end);
 }
 
-function descend(node: unknown, offset: number, path: (string | number)[]): (string | number)[] {
+function descend(text: string, node: unknown, offset: number, path: (string | number)[]): (string | number)[] {
   if (isMap(node)) {
     for (const pr of node.items) {
       if (!isPair(pr)) continue;
-      const seg = keyOf(pr.key);
-      const key = typeof seg === 'number' ? seg : String(seg);
-      if (covers(pr.value, offset)) return descend(pr.value, offset, [...path, key]);
-      if (covers(pr.key, offset)) return [...path, key];
+      // Map keys are always string segments: a number in a path means a sequence index.
+      const key = String(keyOf(pr.key));
+      if (covers(text, pr.value, offset)) return descend(text, pr.value, offset, [...path, key]);
+      if (covers(text, pr.key, offset)) return [...path, key];
     }
   } else if (isSeq(node)) {
     for (let i = 0; i < node.items.length; i++) {
-      if (covers(node.items[i], offset)) return descend(node.items[i], offset, [...path, i]);
+      if (covers(text, node.items[i], offset)) return descend(text, node.items[i], offset, [...path, i]);
     }
   }
   return path;
@@ -87,7 +94,10 @@ function descend(node: unknown, offset: number, path: (string | number)[]): (str
 
 /**
  * Finds the deepest node whose source range contains `offset`. A hit on a map key yields the
- * path of that key's value. Aliases are not descended into.
+ * path of that key's value. Aliases are not descended into. A node's range includes the offset
+ * just after it, unless the range ends with a line break (block collections and block scalars):
+ * column 1 of the following line belongs to the next node. Map keys are reported as strings, so
+ * `8080:` gives the segment `"8080"`.
  *
  * @param p - The parsed text.
  * @param offset - UTF-16 offset into `p.text`.
@@ -96,8 +106,8 @@ function descend(node: unknown, offset: number, path: (string | number)[]): (str
 export function refAtOffset(p: ParsedText, offset: number): NodeRef | undefined {
   for (let doc = 0; doc < p.docs.length; doc++) {
     const contents = p.docs[doc]!.contents;
-    if (!covers(contents, offset) || isAlias(contents)) continue;
-    return { doc, path: descend(contents, offset, []) };
+    if (!covers(p.text, contents, offset) || isAlias(contents)) continue;
+    return { doc, path: descend(p.text, contents, offset, []) };
   }
   return undefined;
 }

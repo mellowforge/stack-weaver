@@ -29,7 +29,7 @@ function collect(p: ParsedText): Entry[] {
         for (const pr of node.items) {
           const k = isScalar(pr.key) ? pr.key.value : undefined;
           if (typeof k !== 'string' && typeof k !== 'number') continue;
-          rec(pr.value, [...path, k], node);
+          rec(pr.value, [...path, String(k)], node); // map keys are string segments
         }
       } else if (isSeq(node)) {
         node.items.forEach((it, i) => rec(it, [...path, i], node));

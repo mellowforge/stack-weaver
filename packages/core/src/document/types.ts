@@ -1,6 +1,10 @@
 import type { Document, LineCounter } from 'yaml';
 
-/** A path of map keys and sequence indexes from a document root to a node. */
+/**
+ * A path of map keys and sequence indexes from a document root to a node. A number always means a
+ * sequence index; a map key is always a string, even when the YAML key is numeric (`8080:` is
+ * addressed as `"8080"`).
+ */
 export type YamlPath = readonly (string | number)[];
 
 /** Addresses a node: the document index within the text plus a path inside it. */

@@ -2,6 +2,8 @@ import { readFileSync } from 'node:fs';
 import { describe, expect, it } from 'vitest';
 import { toData } from '../../src/document/data.js';
 import { parseText } from '../../src/document/parse.js';
+import { getNode, refAtOffset } from '../../src/document/paths.js';
+import { resolveAt } from '../../src/engine/resolve.js';
 import { composeFormat } from '../../src/formats/compose/index.js';
 import { kubernetesFormat } from '../../src/formats/kubernetes/index.js';
 import { validateText } from '../../src/validation/validate.js';
@@ -134,6 +136,36 @@ describe('validateText', () => {
     const probs = await validateText(parseText(deployment('  labels: 5\n', '"x"')), kubernetesFormat);
     expect(probs.length).toBeGreaterThan(1);
     for (let i = 1; i < probs.length; i++) expect(probs[i]!.from).toBeGreaterThanOrEqual(probs[i - 1]!.from);
+  });
+});
+
+describe('numeric map keys', () => {
+  const text = `apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: tcp-services
+data:
+  8080: default/web:80
+  9090: 80
+`;
+
+  it('refAtOffset, getNode, the problem path and resolveAt agree on a string segment', async () => {
+    const p = parseText(text);
+    const ref = refAtOffset(p, text.indexOf('default/web'));
+    expect(ref).toEqual({ doc: 0, path: ['data', '8080'] });
+    expect((getNode(p, ref!) as { value: unknown }).value).toBe('default/web:80');
+
+    const probs = await validateText(p, kubernetesFormat);
+    expect(probs.map((x) => [x.code, x.path])).toEqual([['schema.type', ['data', '9090']]]);
+    const bad = probs[0]!;
+    expect(bad.from).toBe(text.lastIndexOf('80'));
+    expect(refAtOffset(p, bad.from)).toEqual({ doc: 0, path: bad.path });
+    expect(getNode(p, { doc: 0, path: bad.path })).toBeDefined();
+
+    const bundle = (await kubernetesFormat.loadSchema(p, 0))!;
+    const data = toData(p.docs[0]!);
+    expect(resolveAt(bundle, ref!.path, data)?.schema['type']).toBe('string');
+    expect(resolveAt(bundle, bad.path, data)?.schema['type']).toBe('string');
   });
 });
 
