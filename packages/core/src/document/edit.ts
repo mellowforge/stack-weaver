@@ -1,4 +1,4 @@
-import { Scalar, isAlias, isMap, isScalar, isSeq } from 'yaml';
+import { Scalar, isAlias, isMap, isNode, isScalar, isSeq, visit } from 'yaml';
 import type { CST, Node, YAMLMap, YAMLSeq } from 'yaml';
 import { parseText } from './parse.js';
 import { getNode, getPairKey } from './paths.js';
@@ -123,7 +123,10 @@ function hasIndentIndicator(p: ParsedText, n: Node): boolean {
  * Reports whether the node at `ref` can be edited by splicing its source text. The operation is
  * not known here, so scalars (including scalars inside flow collections, which `set` supports)
  * report `true`, while a flow collection or any collection inside one reports `flow`, because
- * structural edits there are refused. `applyEdit` makes the operation-specific decision.
+ * structural edits there are refused. `applyEdit` makes the operation-specific decision: for
+ * example, a block-map pair whose value is a flow collection reports `flow` here, yet `delete` of
+ * that pair is allowed, and `delete` of a node whose anchor is still aliased is refused as `alias`
+ * even though this function reports `true` for it.
  *
  * @param p - The parsed text.
  * @param ref - The node to check.
@@ -169,10 +172,24 @@ function itemInfo(t: string, parent: Coll, idx: number): Item | undefined {
 
 // ---- operations ----
 
+/** True when every alias resolves; `yaml` reports dangling aliases only at toJS time. */
+function aliasesResolve(q: ParsedText): boolean {
+  return q.docs.every((d) => {
+    let ok = true;
+    visit(d, {
+      Alias(_, a) {
+        if (!a.resolve(d)) ok = false;
+        return ok ? undefined : visit.BREAK;
+      },
+    });
+    return ok;
+  });
+}
+
 function finish(p: ParsedText, change: TextChange, check: (q: ParsedText) => boolean): EditResult {
   const text = p.text.slice(0, change.from) + change.insert + p.text.slice(change.to);
   const q = parseText(text);
-  return q.ok && check(q) ? { ok: true, text, change } : refuse('unsupported');
+  return q.ok && aliasesResolve(q) && check(q) ? { ok: true, text, change } : refuse('unsupported');
 }
 
 function sameDocs(p: ParsedText, q: ParsedText): boolean {
@@ -319,6 +336,30 @@ function emptyWithRest(rest: string, empty: string): string {
   return [props, empty, comment].filter(Boolean).join(' ');
 }
 
+/** True when `roots` hold an anchor that an alias outside them, in document `doc`, references. */
+function anchorReferenced(p: ParsedText, doc: number, roots: unknown[]): boolean {
+  const anchors = new Set<string>();
+  const inside = new Set<unknown>();
+  for (const root of roots) {
+    if (!isNode(root)) continue;
+    visit(root, {
+      Node(_, n) {
+        if (n.anchor) anchors.add(n.anchor);
+        if (isAlias(n)) inside.add(n);
+      },
+    });
+  }
+  if (anchors.size === 0) return false;
+  let used = false;
+  visit(p.docs[doc]!, {
+    Alias(_, a) {
+      used = !inside.has(a) && anchors.has(a.source);
+      return used ? visit.BREAK : undefined;
+    },
+  });
+  return used;
+}
+
 function deleteItem(p: ParsedText, ref: NodeRef, tg: Target): EditResult {
   const t = p.text;
   const parent = tg.chain[tg.chain.length - 1];
@@ -330,6 +371,8 @@ function deleteItem(p: ParsedText, ref: NodeRef, tg: Target): EditResult {
     : (ref.path[ref.path.length - 1] as number);
   const item = itemInfo(t, parent, idx);
   if (!item) return refuse('unsupported');
+  const key = isMap(parent) ? parent.items[idx]?.key : undefined;
+  if (anchorReferenced(p, ref.doc, [key, tg.node])) return refuse('alias');
   const end = ownEnd(t, item.col, item.contentEnd);
   const ls = lineStart(t, item.start);
   const midLine = t.slice(ls, item.start).trim() !== '';
@@ -386,11 +429,12 @@ function addDocument(p: ParsedText, yaml: string): EditResult {
  *   comment lines), indented like the first child. An empty `{}` / `[]` or null value becomes a
  *   block collection 2 spaces deeper. `add` with an existing key is `unsupported`.
  * - `delete` removes the item's lines plus its deeper trailing comment lines; an only child leaves
- *   `{}` / `[]`.
+ *   `{}` / `[]`. Deleting a node that carries an anchor still aliased elsewhere is `alias`.
  * - `addDocument` appends `---` and the YAML (line endings normalized, a final line break ensured).
  *
- * Every result is re-parsed and checked; a splice that would not read back as intended is refused
- * as `unsupported`. New line breaks use the text's own line ending.
+ * Every result is re-parsed and checked, including that every alias still resolves; a splice
+ * that would not read back as intended is refused as `unsupported`. New line breaks use the
+ * text's own line ending.
  *
  * @param p - The parsed text.
  * @param op - The edit.

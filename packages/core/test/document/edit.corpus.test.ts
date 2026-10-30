@@ -1,7 +1,7 @@
 import { readdirSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
-import { isAlias, isMap, isNode, isScalar, isSeq } from 'yaml';
+import { isAlias, isMap, isNode, isScalar, isSeq, visit } from 'yaml';
 import type { Node, YAMLMap, YAMLSeq } from 'yaml';
 import { applyEdit, canEdit } from '../../src/document/edit.js';
 import type { ScalarValue } from '../../src/document/edit.js';
@@ -38,6 +38,41 @@ function collect(p: ParsedText): Entry[] {
     rec(d.contents, [], null);
   });
   return out;
+}
+
+/** True when the deleted subtree (pair key and value) holds an anchor aliased outside it. */
+function anchorStillUsed(p: ParsedText, doc: number, parent: YAMLMap | YAMLSeq, node: Node): boolean {
+  const pair = isMap(parent) ? parent.items.find((pr) => pr.value === node) : undefined;
+  const anchors = new Set<string>();
+  const inner = new Set<unknown>();
+  for (const root of [pair?.key, node]) {
+    if (!isNode(root)) continue;
+    visit(root, {
+      Node(_, n) {
+        if (n.anchor) anchors.add(n.anchor);
+        if (isAlias(n)) inner.add(n);
+      },
+    });
+  }
+  let used = false;
+  visit(p.docs[doc]!, {
+    Alias(_, a) {
+      if (!inner.has(a) && anchors.has(a.source)) used = true;
+    },
+  });
+  return used;
+}
+
+/** Every alias in every document resolves, and every document converts to JS. */
+function expectAliasesResolve(q: ParsedText, label: string): void {
+  for (const d of q.docs) {
+    visit(d, {
+      Alias(_, a) {
+        expect(a.resolve(d), `${label}: *${a.source}`).toBeDefined();
+      },
+    });
+    expect(() => d.toJS(), label).not.toThrow();
+  }
 }
 
 const lineOf = (text: string, offset: number): number => text.slice(0, offset).split('\n').length - 1;
@@ -108,10 +143,15 @@ describe.each(files)('corpus %s', (file) => {
         expect(r.ok, `${file} ${ref.path.join('.')}`).toBe(false);
         continue;
       }
+      if (anchorStillUsed(p, ref.doc, parent, node)) {
+        expect(r, `${file} ${ref.path.join('.')}`).toEqual({ ok: false, reason: 'alias' });
+        continue;
+      }
       expect(r.ok, `${file} ${ref.path.join('.')}`).toBe(true);
       if (!r.ok) continue;
       const q = parseText(r.text);
       expect(q.ok).toBe(true);
+      expectAliasesResolve(q, `${file} ${ref.path.join('.')}`);
       const after = getNode(q, parentRef) as YAMLMap | YAMLSeq;
       expect(after.items.length).toBe(parent.items.length - 1);
 

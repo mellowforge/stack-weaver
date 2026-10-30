@@ -468,6 +468,22 @@ describe('refusals and canEdit', () => {
     expect(canEdit(p, at('services', 'api', 'image'))).toBe(true);
   });
 
+  it('delete refuses a node whose anchor is still referenced', () => {
+    const text = corpus('compose-anchors.yaml');
+    expect(applyEdit(parseText(text), { op: 'delete', at: at('x-common') })).toEqual({
+      ok: false,
+      reason: 'alias',
+    });
+    expect(refusal('a: &x 1\nb: *x\n', { op: 'delete', at: at('a') })).toBe('alias');
+    expect(refusal('a:\n  k: &x 1\nb: *x\n', { op: 'delete', at: at('a') })).toBe('alias');
+    expect(refusal('&x a: 1\nb: *x\n', { op: 'delete', at: at('a') })).toBe('alias');
+  });
+
+  it('delete allows an anchored node whose only aliases are deleted with it', () => {
+    expect(edit('a:\n  k: &x 1\n  j: *x\nb: 2\n', { op: 'delete', at: at('a') })).toBe('b: 2\n');
+    expect(edit('a: &x 1\nb: 2\n', { op: 'delete', at: at('a') })).toBe('b: 2\n');
+  });
+
   it('refuses parse-error', () => {
     const p = parseText('a: [\n');
     expect(p.ok).toBe(false);
