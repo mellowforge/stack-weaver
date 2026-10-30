@@ -91,6 +91,52 @@ describe('validation scheduling', () => {
     expect(last.map((p) => p.path)).toEqual([['fast']]);
   });
 
+  it('a result for superseded text is never published, even before the next run starts', async () => {
+    let release!: (b: SchemaBundle) => void;
+    const custom: FormatDefinition = {
+      ...twoErrors,
+      id: 'kinds',
+      rootModel: 'documents',
+      loadSchema: (p, doc) => {
+        if ((p.docs[doc]!.get('kind') as string) === 'Slow') return new Promise<SchemaBundle>((r) => (release = r));
+        return Promise.resolve(bundle('fast', ['fast']));
+      },
+    };
+    const onProblemsChange = vi.fn();
+    const { fake } = await mount({ format: 'kinds', formats: [custom], value: 'apiVersion: v1\nkind: Fast\n', onProblemsChange });
+    onProblemsChange.mockClear();
+    vi.useFakeTimers();
+    fake.type('apiVersion: v1\nkind: Slow\n');
+    await vi.advanceTimersByTimeAsync(150); // A starts and waits for its schema
+    fake.type('apiVersion: v1\nkind: Fast\nfast: 1\n'); // B arrives; its timer has not fired
+    await vi.advanceTimersByTimeAsync(50);
+    release(bundle('slow', ['slow', 'slower'])); // differs from the earlier problems, so it would publish
+    await vi.advanceTimersByTimeAsync(10);
+    expect(onProblemsChange).not.toHaveBeenCalled();
+    await vi.advanceTimersByTimeAsync(150);
+    expect(onProblemsChange).toHaveBeenCalledTimes(1);
+    expect((onProblemsChange.mock.calls[0]![0] as Problem[]).map((p) => p.path)).toEqual([['fast']]);
+  });
+
+  it('a failed schema load recovers on a later run', async () => {
+    let attempts = 0;
+    const flaky: FormatDefinition = {
+      ...twoErrors,
+      id: 'flaky',
+      loadSchema: async () => {
+        if (++attempts <= 2) throw new Error('offline');
+        return bundle('two', ['a']);
+      },
+    };
+    vi.spyOn(console, 'error').mockImplementation(() => {});
+    const { editor, fake } = await mount({ format: 'flaky', formats: [flaky], value: 'a: 1\n' });
+    expect(editor.getProblems().map((p) => p.code)).toEqual(['schema.unavailable']);
+    vi.useFakeTimers();
+    fake.type('a: 2\n');
+    await vi.advanceTimersByTimeAsync(150);
+    expect(editor.getProblems().map((p) => p.code)).toEqual(['schema.type']);
+  });
+
   it('diagnostics reach the adapter', async () => {
     const { fake } = await mount({ format: 'two', formats: [twoErrors], value: 'a: 1\nb: 2\n' });
     expect(fake.diagnostics.map((d) => [d.severity, d.message])).toEqual([

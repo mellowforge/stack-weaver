@@ -1,5 +1,4 @@
-import type { Severity } from '../validation/problems.js';
-import type { Problem } from '../validation/problems.js';
+import type { Problem, Severity } from '../validation/problems.js';
 import { h } from './dom.js';
 import type { UiMessages } from './messages.js';
 import { problemCountText } from './problems.js';
@@ -29,7 +28,7 @@ export function createProblemsPanel(host: HTMLElement, o: { ui: UiMessages; onSe
   const listId = `sw-problem-list-${++nextId}`;
   const label: Record<Severity, string> = { error: o.ui.severityError, warning: o.ui.severityWarning, info: o.ui.severityInfo };
   const toggle = h(doc, 'button', { type: 'button', class: 'sw-problems-toggle', 'aria-expanded': 'true', 'aria-controls': listId });
-  const list = h(doc, 'ul', { class: 'sw-problem-list', id: listId });
+  const list = h(doc, 'ul', { class: 'sw-problem-list', id: listId, role: 'list' });
   host.append(toggle, list);
 
   toggle.addEventListener('click', () => {

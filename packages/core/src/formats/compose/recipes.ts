@@ -6,11 +6,6 @@ const WEB_APP = `services:
     ports:
       - "8080:80"
     restart: unless-stopped
-    healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost/"]
-      interval: 30s
-      timeout: 5s
-      retries: 3
 `;
 
 const APP_POSTGRES = `services:
@@ -63,7 +58,7 @@ export const composeRecipes: readonly Recipe[] = [
     id: 'compose-web-app',
     format: 'compose',
     title: 'Web app',
-    description: 'One web service with a published port and a health check.',
+    description: 'One web service with a published port and a restart policy.',
     yaml: WEB_APP,
     focus: { doc: 0, path: ['services', 'web', 'image'] },
   },

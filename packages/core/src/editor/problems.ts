@@ -76,6 +76,7 @@ export function createProblemScheduler(ctx: EditorContext, publish: (problems: r
     clearTimeout(timer);
     timer = undefined;
     const mine = ++seq;
+    const text = ctx.store.text;
     let result: Problem[];
     try {
       result = await validateCurrent(ctx);
@@ -84,7 +85,7 @@ export function createProblemScheduler(ctx: EditorContext, publish: (problems: r
       console.error('stack-weaver: validation failed', err);
       return;
     }
-    if (destroyed || mine !== seq) return;
+    if (destroyed || mine !== seq || ctx.store.text !== text) return;
     const sig = signature(result);
     if (sig === current) return;
     current = sig;
@@ -95,6 +96,7 @@ export function createProblemScheduler(ctx: EditorContext, publish: (problems: r
     schedule() {
       if (destroyed) return;
       clearTimeout(timer);
+      seq++; // a run for the previous text, still in flight, is now stale
       timer = setTimeout(() => void run(), VALIDATION_DELAY_MS);
     },
     run,
