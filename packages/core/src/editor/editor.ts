@@ -1,3 +1,4 @@
+import { isEmptyDocument } from '../document/data.js';
 import { DocumentStore } from '../document/store.js';
 import type { ChangeOrigin, StoreEvent } from '../document/store.js';
 import type { NodeRef, TextRange } from '../document/types.js';
@@ -236,7 +237,14 @@ export function createEditorWithContext(
     focusGen++;
     // Panes first: a format change re-syncs them, and they must already hold this change.
     for (const p of panes) p.update(e);
-    if (formatOption === 'auto' && !format && formatsLoaded) applyFormat(resolveFormat('auto', store.parsed, formatList));
+    if (formatOption === 'auto' && formatsLoaded) {
+      const p = store.parsed;
+      // Under `auto` the format follows the text: it is detected once there is some, and dropped when the text is
+      // cleared (else the badge, guide and problems would keep describing a document that is gone). Broken text
+      // keeps the last format, so typing through a syntax error does not flicker.
+      if (!format) applyFormat(resolveFormat('auto', p, formatList));
+      else if (p.ok && p.docs.every((_, i) => isEmptyDocument(p, i))) applyFormat(undefined);
+    }
     scheduler.schedule();
     recipes.refresh();
     refreshHistory();

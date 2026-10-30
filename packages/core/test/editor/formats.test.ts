@@ -58,6 +58,24 @@ describe('format resolution', () => {
     expect(ctx.format()?.id).toBe('compose');
   });
 
+  it('auto drops the format when the text is cleared, and keeps it through broken text', async () => {
+    const { ctx, editor } = await mount({ value: K8S });
+    expect(el.querySelector('.sw-format-badge')!.textContent).toContain('Kubernetes');
+    editor.setValue(K8S + 'bad: [unclosed\n');
+    expect(ctx.format()?.id).toBe('kubernetes');
+    editor.setValue('');
+    expect(ctx.format()).toBeUndefined();
+    expect(el.querySelector('.sw-format-badge')!.textContent).toBe('No format');
+    editor.setValue(COMPOSE);
+    expect(ctx.format()?.id).toBe('compose');
+  });
+
+  it('an explicit format stays when the text is cleared', async () => {
+    const { ctx, editor } = await mount({ format: 'kubernetes', value: K8S });
+    editor.setValue('');
+    expect(ctx.format()?.id).toBe('kubernetes');
+  });
+
   it('explicit format wins', async () => {
     const { ctx } = await mount({ format: 'kubernetes', value: COMPOSE });
     expect(ctx.format()?.id).toBe('kubernetes');
