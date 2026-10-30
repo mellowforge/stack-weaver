@@ -13,29 +13,32 @@ export type { ScalarValue, YamlValue } from './types.js';
  * - `add`: add `key` to a block map (or turn an empty `{}` / null value into one).
  * - `push`: append to a block sequence (or turn an empty `[]` / null value into one).
  * - `delete`: remove a map pair (addressed by its value) or a sequence item.
+ * - `renameKey`: give a map pair (addressed by its value, like `delete`) the key `key`, in place.
  * - `addDocument`: append `---` and exactly one new document.
  * - `deleteDocument`: remove a whole document together with its `---` marker.
  */
 export type EditOp =
-  | { op: 'set'; at: NodeRef; value: ScalarValue }
-  | { op: 'add'; at: NodeRef; key: string; value: YamlValue }
-  | { op: 'push'; at: NodeRef; value: YamlValue }
-  | { op: 'delete'; at: NodeRef }
-  | { op: 'addDocument'; yaml: string }
-  | { op: 'deleteDocument'; doc: number };
+  | { readonly op: 'set'; readonly at: NodeRef; readonly value: ScalarValue }
+  | { readonly op: 'add'; readonly at: NodeRef; readonly key: string; readonly value: YamlValue }
+  | { readonly op: 'push'; readonly at: NodeRef; readonly value: YamlValue }
+  | { readonly op: 'delete'; readonly at: NodeRef }
+  | { readonly op: 'renameKey'; readonly at: NodeRef; readonly key: string }
+  | { readonly op: 'addDocument'; readonly yaml: string }
+  | { readonly op: 'deleteDocument'; readonly doc: number };
 
 /**
  * Why an edit cannot be made by splicing text. This union may grow in later versions, so treat an
  * unknown reason like `unsupported` (for example, offer the code editor instead).
  * - `alias`: the target is an alias or sits under one; or the path reaches a key that is missing
  *   from a map holding a `<<` merge key (the value may come from the merge); or a `delete` would
- *   remove an anchor that an alias elsewhere still references;
+ *   remove an anchor that an alias elsewhere still references; or a `renameKey` is in a map holding
+ *   a `<<` merge key, or would rename a key that is an alias or carries an anchor still aliased;
  * - `flow`: a structural edit of a non-empty flow collection (`{ }` / `[ ]`), or of anything
  *   inside a flow collection;
  * - `block-scalar`: the target is a block scalar with an explicit indentation indicator;
  * - `not-found`: no node at the reference;
  * - `parse-error`: the text has parse errors, or the `addDocument` snippet does not parse;
- * - `duplicate-key`: `add` of a key the map already has;
+ * - `duplicate-key`: `add` or `renameKey` to a key the map already has;
  * - `unsupported`: anything else, including a value that is not a {@link YamlValue} and a result
  *   that would not re-parse as intended.
  */
@@ -50,13 +53,13 @@ export type EditRefusal =
 
 /**
  * The new text plus the single splice that produced it, or the reason the edit was refused. For
- * the ops that create a node, `at` addresses it in the new text: `add` gives `[...path, key]`,
- * `push` gives `[...path, index]` and `addDocument` gives `{ doc: <new index>, path: [] }`. Other
- * ops leave `at` out.
+ * the ops that create or move a node, `at` addresses it in the new text: `add` gives
+ * `[...path, key]`, `push` gives `[...path, index]`, `renameKey` gives the pair's value under its
+ * new key and `addDocument` gives `{ doc: <new index>, path: [] }`. Other ops leave `at` out.
  */
 export type EditResult =
-  | { ok: true; text: string; change: TextChange; at?: NodeRef }
-  | { ok: false; reason: EditRefusal };
+  | { readonly ok: true; readonly text: string; readonly change: TextChange; readonly at?: NodeRef }
+  | { readonly ok: false; readonly reason: EditRefusal };
 
 type Coll = YAMLMap | YAMLSeq;
 
@@ -536,6 +539,52 @@ function deleteItem(p: ParsedText, ref: NodeRef, tg: Target): EditResult {
   return finish(p, change, check);
 }
 
+/**
+ * Renders `key` for the source range of an implicit key. On top of what {@link renderScalar}
+ * quotes, a plain key is double-quoted when it starts with an indicator, holds `: ` or ` #`, ends
+ * with `:`, or has whitespace at either end.
+ */
+function renderKey(key: string, quote: Scalar.Type | undefined): string {
+  const out = renderScalar(key, { quote });
+  if (out.startsWith('"') || out.startsWith("'")) return out;
+  if (out === '' || /^[-?:,[\]{}#&*!|>%@`]|:\s|:$|\s#|^\s|\s$/.test(out)) return renderScalar(key, { quote: Scalar.QUOTE_DOUBLE });
+  return out;
+}
+
+function renamePair(p: ParsedText, ref: NodeRef, tg: Target, key: string): EditResult {
+  const parent = tg.chain[tg.chain.length - 1];
+  if (ref.path.length === 0 || !isMap(parent)) return refuse('unsupported');
+  if (tg.inFlow) return refuse('flow');
+  const idx = parent.items.findIndex((pr) => pr.value === tg.node);
+  const old = parent.items[idx]?.key as Node | null | undefined;
+  if (isAlias(old)) return refuse('alias');
+  if (!isScalar(old) || !old.range || isBlockScalar(old)) return refuse('unsupported');
+  const parentPath = ref.path.slice(0, -1);
+  const at: NodeRef = { doc: ref.doc, path: [...parentPath, key] };
+  const [s, e] = old.range;
+  if (String(old.value) === key) return { ok: true, text: p.text, change: { from: s, to: s, insert: '' }, at };
+  // A merge key supplies values by key: renaming next to one can reveal or hide a merged value.
+  if (parent.items.some((pr) => isScalar(pr.key) && pr.key.value === '<<')) return refuse('alias');
+  if (parent.items.some((pr) => isScalar(pr.key) && String(pr.key.value) === key)) return refuse('duplicate-key');
+  if (anchorReferenced(p, ref.doc, [old])) return refuse('alias');
+  const insert = renderKey(key, typeof old.value === 'string' ? old.type : undefined);
+  const oldKey = String(ref.path[ref.path.length - 1]);
+  const check = dataCheck(p, ref.doc, (data) => {
+    const holder = dataAt(data, parentPath);
+    if (!isRecord(holder) || !Object.hasOwn(holder, oldKey)) return undefined;
+    holder[key] = holder[oldKey];
+    delete holder[oldKey];
+    return { data };
+  });
+  // The pair keeps its place: the same index of the same map now holds the new key.
+  const inPlace = (q: ParsedText): boolean => {
+    const m = getNode(q, { doc: ref.doc, path: parentPath });
+    const k = isMap(m) ? m.items[idx]?.key : undefined;
+    return isScalar(k) && String(k.value) === key;
+  };
+  return finish(p, { from: s, to: e, insert }, (q) => check(q) && inPlace(q), at);
+}
+
 function addDocument(p: ParsedText, yaml: string): EditResult {
   if (typeof yaml !== 'string') return refuse('unsupported');
   if (!parseText(yaml).ok) return refuse('parse-error');
@@ -581,8 +630,9 @@ function anchorsReferencedElsewhere(p: ParsedText, doc: number): boolean {
  * Removes document `doc`. A document owns everything from its own `---` line up to the next `---`
  * (or the end of the text), so removing it also removes its marker and the comments in between;
  * the first document owns the text from the start. When the first document goes, the marker that
- * follows it goes too, so the next document becomes the first. Bytes outside the removed range are
- * unchanged. The result must hold one document fewer, with the other documents' data unchanged.
+ * follows it goes too, so the next document becomes the first; a comment on that marker's line
+ * (`--- # backend`) stays, as a comment line. Bytes outside the removed range are unchanged. The
+ * result must hold one document fewer, with the other documents' data unchanged.
  */
 function deleteDocument(p: ParsedText, doc: number): EditResult {
   const n = p.docs.length;
@@ -594,8 +644,12 @@ function deleteDocument(p: ParsedText, doc: number): EditResult {
   let to: number;
   if (n === 1) to = t.length;
   else if (doc === n - 1) to = t.length;
-  else if (doc === 0) to = nextLineStart(t, start(1));
-  else to = start(doc + 1);
+  else if (doc === 0) {
+    // The next document's marker goes too, but a comment after it (`--- # backend`) stays as a line.
+    const marker = start(1);
+    const rest = t.startsWith('---', marker) ? t.slice(marker + 3, lineEnd(t, marker)) : '';
+    to = /^[ \t]+#/.test(rest) ? marker + 3 + rest.indexOf('#') : nextLineStart(t, marker);
+  } else to = start(doc + 1);
   const before = p.docs.map((d) => d.toJS() as unknown);
   before.splice(doc, 1);
   return finish(p, { from, to, insert: '' }, (q) =>
@@ -632,6 +686,11 @@ function dispatch(p: ParsedText, op: EditOp): EditResult {
       if (typeof tg === 'string') return refuse(tg);
       return op.at.path.length === 0 ? refuse('unsupported') : deleteItem(p, op.at, tg);
     }
+    case 'renameKey': {
+      if (typeof op.key !== 'string') return refuse('unsupported');
+      const tg = locate(p, op.at);
+      return typeof tg === 'string' ? refuse(tg) : renamePair(p, op.at, tg, op.key);
+    }
     default:
       return refuse('unsupported');
   }
@@ -654,17 +713,24 @@ function dispatch(p: ParsedText, op: EditOp): EditResult {
  *   `{}` / `[]`. The first pair of a map on a `- ` line is removed by pulling the next pair up,
  *   which is refused (`unsupported`) when anything but whitespace, such as a comment line, sits
  *   between them. Deleting a node that carries an anchor still aliased elsewhere is `alias`.
+ * - `renameKey` replaces only the key scalar's source range, so the pair keeps its place, its
+ *   comments and the key's anchor or tag. The key keeps its quote style, and is double-quoted when a
+ *   plain key would not read back as the same string. Renaming to the current key changes nothing.
+ *   A key the map already has is `duplicate-key`; a key inside a flow map is `flow`; a map with a
+ *   `<<` merge key, an alias key, or a key whose anchor is still aliased is `alias`; a block scalar
+ *   or non-scalar key is `unsupported`.
  * - `addDocument` appends `---` and the YAML (line endings normalized, a final line break
  *   ensured). The snippet must parse (`parse-error` otherwise), and the result must hold exactly
  *   one more document with the earlier documents' data unchanged (`unsupported` otherwise).
  * - `deleteDocument` removes the document from its own `---` line up to the next `---` (for the
- *   first document, up to and including the next marker). An out-of-range `doc` is `not-found`;
+ *   first document, up to and including the next marker, keeping a comment on the marker's line).
+ *   An out-of-range `doc` is `not-found`;
  *   the result must hold one document fewer with the others' data unchanged (`unsupported`
  *   otherwise).
  *
  * Every result is re-parsed and checked: it must parse with every alias resolving, and for `add`,
- * `push` and `delete` every document's data must equal the old data with only the intended
- * change. A splice that would not read back as intended is refused as `unsupported`. New line
+ * `push`, `delete` and `renameKey` every document's data must equal the old data with only the
+ * intended change (for `renameKey`, also with the pair at its old index). A splice that would not read back as intended is refused as `unsupported`. New line
  * breaks use the text's own line ending.
  *
  * Never throws: a value that is not a {@link YamlValue} (or, for `set`, a {@link ScalarValue}), a

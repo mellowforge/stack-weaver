@@ -712,4 +712,95 @@ describe('applyEdit: created refs (at)', () => {
   it('set and delete return no at', () => {
     expect(ok('a: 1\n', { op: 'set', at: at('a'), value: 2 }).at).toBeUndefined();
   });
+
+  it('renameKey returns the renamed ref', () => {
+    expect(ok('m:\n  a: 1\n', { op: 'renameKey', at: at('m', 'a'), key: 'b' }).at).toEqual({ doc: 0, path: ['m', 'b'] });
+  });
+});
+
+describe('applyEdit: renameKey', () => {
+  const rename = (text: string, path: (string | number)[], key: string) => edit(text, { op: 'renameKey', at: at(...path), key });
+
+  it('replaces only the key and keeps the pair in place', () => {
+    const text = 'labels:\n  app: web\n  tier: front\n  team: core\n';
+    const r = applyEdit(parseText(text), { op: 'renameKey', at: at('labels', 'tier'), key: 'layer' });
+    expect(r).toMatchObject({ ok: true, text: 'labels:\n  app: web\n  layer: front\n  team: core\n' });
+    if (!r.ok) return;
+    const from = text.indexOf('tier');
+    expect(r.change).toEqual({ from, to: from + 4, insert: 'layer' });
+  });
+
+  it('keeps comments on and around the pair', () => {
+    const text = '# head\nm:\n  # about a\n  a: 1 # one\n  b: 2\n';
+    expect(rename(text, ['m', 'a'], 'z')).toBe('# head\nm:\n  # about a\n  z: 1 # one\n  b: 2\n');
+  });
+
+  it('keeps CRLF line endings', () => {
+    expect(rename('m:\r\n  a: 1\r\n  b: 2\r\n', ['m', 'a'], 'c')).toBe('m:\r\n  c: 1\r\n  b: 2\r\n');
+  });
+
+  it('keeps the quote style of a quoted key, and quotes a key that needs it', () => {
+    expect(rename('"a b": 1\n', ['a b'], 'c d')).toBe('"c d": 1\n');
+    expect(rename("'a': 1\n", ['a'], 'b')).toBe("'b': 1\n");
+    expect(rename('a: 1\n', ['a'], 'x: y')).toBe('"x: y": 1\n');
+    expect(rename('a: 1\n', ['a'], 'yes')).toBe('"yes": 1\n');
+    expect(rename('a: 1\n', ['a'], 'b #c')).toBe('"b #c": 1\n');
+    expect(rename('a: 1\n', ['a'], ' lead')).toBe('" lead": 1\n');
+    expect(rename('a: 1\n', ['a'], '- x')).toBe('"- x": 1\n');
+  });
+
+  it('keeps the props of the key and of the value', () => {
+    expect(rename('!!str a: &v 1\nb: *v\n', ['a'], 'c')).toBe('!!str c: &v 1\nb: *v\n');
+  });
+
+  it('renames a key whose value is a collection, in a sequence item', () => {
+    const text = 'items:\n  - name: x\n    env:\n      - a\n';
+    expect(rename(text, ['items', 0, 'env'], 'vars')).toBe('items:\n  - name: x\n    vars:\n      - a\n');
+  });
+
+  it('is a no-op with the same key', () => {
+    const r = applyEdit(parseText('a: 1\n'), { op: 'renameKey', at: at('a'), key: 'a' });
+    expect(r).toMatchObject({ ok: true, text: 'a: 1\n', at: { doc: 0, path: ['a'] } });
+  });
+
+  it('refuses a key the map already has', () => {
+    expect(refusal('a: 1\nb: 2\n', { op: 'renameKey', at: at('a'), key: 'b' })).toBe('duplicate-key');
+  });
+
+  it('refuses inside a flow collection', () => {
+    expect(refusal('m: { a: 1, b: 2 }\n', { op: 'renameKey', at: at('m', 'a'), key: 'c' })).toBe('flow');
+  });
+
+  it('refuses aliases, aliased key anchors and merging maps', () => {
+    expect(refusal('x: &v 1\ny: *v\n', { op: 'renameKey', at: at('y'), key: 'z' })).toBe('alias');
+    expect(refusal('&k a: 1\nb:\n  *k : 2\n', { op: 'renameKey', at: at('a'), key: 'c' })).toBe('alias');
+    expect(refusal('base: &b\n  x: 1\nm:\n  <<: *b\n  y: 2\n', { op: 'renameKey', at: at('m', 'y'), key: 'x' })).toBe('alias');
+  });
+
+  it('refuses a missing pair, the document root, a sequence item and a non-string key', () => {
+    expect(refusal('a: 1\n', { op: 'renameKey', at: at('b'), key: 'c' })).toBe('not-found');
+    expect(refusal('a: 1\n', { op: 'renameKey', at: at(), key: 'c' })).toBe('unsupported');
+    expect(refusal('- a\n', { op: 'renameKey', at: at(0), key: 'c' })).toBe('unsupported');
+    expect(refusal('a: 1\n', { op: 'renameKey', at: at('a'), key: 1 as never })).toBe('unsupported');
+    expect(refusal('? |\n  a\n: 1\n', { op: 'renameKey', at: at('a\n'), key: 'b' })).toBe('unsupported');
+  });
+
+  it('allows an empty key, as add does', () => {
+    expect(rename('a: 1\n', ['a'], '')).toBe('"": 1\n');
+  });
+
+  it('refuses text with parse errors', () => {
+    expect(refusal('a: [1\n', { op: 'renameKey', at: at('a'), key: 'b' })).toBe('parse-error');
+  });
+});
+
+describe('applyEdit: deleteDocument keeps the comment on the next marker (A11)', () => {
+  it('keeps a comment that follows the --- of the next document', () => {
+    expect(edit('a: 1\n--- # backend service\nb: 2\n', { op: 'deleteDocument', doc: 0 })).toBe('# backend service\nb: 2\n');
+    expect(edit('a: 1\r\n---   # x\r\nb: 2\r\n', { op: 'deleteDocument', doc: 0 })).toBe('# x\r\nb: 2\r\n');
+  });
+
+  it('still removes a bare marker', () => {
+    expect(edit('a: 1\n---\nb: 2\n', { op: 'deleteDocument', doc: 0 })).toBe('b: 2\n');
+  });
 });

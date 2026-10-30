@@ -1,7 +1,6 @@
 import type { EditResult } from '../../document/edit.js';
 import type { YamlValue } from '../../document/types.js';
 import { h } from '../../editor/dom.js';
-import { groupKey } from './context.js';
 import type { WidgetContext, WidgetFactory } from './types.js';
 
 const isScalar = (v: unknown): v is string | number | boolean | null => v === null || ['string', 'number', 'boolean'].includes(typeof v);
@@ -161,23 +160,14 @@ export const keyValueWidget: WidgetFactory = (ctx) => {
     value.addEventListener('input', () => {
       f.fail(ctx.edit({ op: 'set', at: at(name), value: value.value }));
     });
-    // Renaming adds the pair under the new key first, so a refusal loses nothing, then drops the old one.
+    // One `renameKey` splice: the pair keeps its place and comments, and it is one undo step.
     key.addEventListener('change', () => {
       const next = key.value.trim();
       if (next === '' || next === name) {
         key.value = name;
         return;
       }
-      const moved = isScalar(current[name] ?? '') ? value.value : (current[name] as YamlValue);
-      const group = `${groupKey(ctx.ref)}/rename`; // one undo step for the add and the delete
-      if (!f.fail(ctx.edit({ op: 'add', at: ctx.ref, key: next, value: moved }, { group }), ui.keyExists)) {
-        key.value = name;
-        return;
-      }
-      if (!f.fail(ctx.edit({ op: 'delete', at: at(name) }, { group }))) {
-        ctx.edit({ op: 'delete', at: at(next) }, { group }); // roll the add back
-        key.value = name;
-      }
+      if (!f.fail(ctx.edit({ op: 'renameKey', at: at(name), key: next }), ui.keyExists)) key.value = name;
     });
     const remove = removeButton(ctx, `${ctx.label} ${name}`, () => {
       f.fail(ctx.edit({ op: 'delete', at: at(name) }));

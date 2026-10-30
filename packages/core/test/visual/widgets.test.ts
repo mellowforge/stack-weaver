@@ -314,7 +314,7 @@ describe('choice widgets', () => {
 describe('composite widgets', () => {
   const LABELS = 'labels:\n  a: "1"\n  b: two\n';
 
-  it('key-value add/rename/remove use add/delete ops', () => {
+  it('key-value add/rename/remove use add/renameKey/delete ops', () => {
     const { store, w, refresh, data } = setup('key-value', LABELS, ['labels'], STRING_MAP, { label: 'Labels' });
     const edit = vi.spyOn(store, 'edit');
     expect(qa('.sw-list-item', w.el).length).toBe(2);
@@ -335,12 +335,13 @@ describe('composite widgets', () => {
     expect((data()['labels'] as Record<string, string>)['a']).toBe('11');
     expect(edit.mock.calls.at(-1)![1]).toEqual({ group: 'visual:0:labels/a' });
 
-    // rename: add under the new key, then delete the old one
+    // rename: one renameKey op, in place
     const key = q<HTMLInputElement>('.sw-kv-key', first);
     key.value = 'z';
     key.dispatchEvent(new Event('change', { bubbles: true }));
     refresh();
-    expect(Object.keys(data()['labels'] as object).sort()).toEqual(['b', 'c', 'z']);
+    expect(edit.mock.calls.at(-1)![0]).toEqual({ op: 'renameKey', at: { doc: 0, path: ['labels', 'a'] }, key: 'z' });
+    expect(Object.keys(data()['labels'] as object)).toEqual(['z', 'b', 'c']);
     expect((data()['labels'] as Record<string, string>)['z']).toBe('11');
 
     // rename to an existing key is refused and reverts
@@ -372,15 +373,25 @@ describe('composite widgets', () => {
     expect(store.text).toBe(before);
   });
 
-  it('a rename rolls the add back when the delete fails', () => {
-    const { store, w } = setup('key-value', LABELS, ['labels'], STRING_MAP);
-    const real = store.edit.bind(store);
-    vi.spyOn(store, 'edit').mockImplementation((op, o) => (op.op === 'delete' && op.at.path.at(-1) === 'a' ? { ok: false, reason: 'flow' } : real(op, o)));
+  it('a rename keeps the pair in its place, with its comment', () => {
+    const { store, w } = setup('key-value', 'labels:\n  a: "1" # first\n  b: two\n  c: three\n', ['labels'], STRING_MAP);
     const key = q<HTMLInputElement>('.sw-list-item .sw-kv-key', w.el);
     key.value = 'z';
     key.dispatchEvent(new Event('change', { bubbles: true }));
+    expect(store.text).toBe('labels:\n  z: "1" # first\n  b: two\n  c: three\n');
+  });
+
+  it('a refused rename reverts the key, changes nothing and shows why', () => {
+    const { store, w } = setup('key-value', LABELS, ['labels'], STRING_MAP);
+    const before = store.text;
+    vi.spyOn(store, 'edit').mockReturnValue({ ok: false, reason: 'flow' });
+    const key = q<HTMLInputElement>('.sw-list-item .sw-kv-key', w.el);
+    key.value = 'z';
+    key.dispatchEvent(new Event('change', { bubbles: true }));
+    expect(store.text).toBe(before);
     expect((toData(store.parsed, 0) as { labels: Record<string, string> }).labels).toEqual({ a: '1', b: 'two' });
     expect(key.value).toBe('a');
+    expect(q('.sw-field-error', w.el).textContent).toBe(defaultUiMessages.editRefused);
   });
 
   it('key-value ignores an add with an empty key', () => {
