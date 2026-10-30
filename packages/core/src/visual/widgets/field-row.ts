@@ -9,6 +9,7 @@ import { guideField } from '../../formats/guide.js';
 import type { SchemaBundle } from '../../formats/types.js';
 import type { Problem } from '../../validation/problems.js';
 import type { FieldRowHandle, FieldRowInit, SectionSlots } from '../section.js';
+import { destroyAddSlot, renderAddSlot, updateAddSlot } from '../add-slot.js';
 import { isRecord, safeData } from '../util.js';
 import { createWidgetContext } from './context.js';
 import { pickWidget } from './registry.js';
@@ -71,7 +72,9 @@ export function createFieldSlots(ctx: EditorContext, registry: WidgetRegistry): 
   const envFor = createEnvs(ctx);
   return {
     field: (init) => createFieldRow(ctx, registry, envFor, init),
-    addSlot: () => undefined,
+    addSlot: (ref) => renderAddSlot(ctx, ref),
+    updateAddSlot,
+    destroyAddSlot,
   };
 }
 

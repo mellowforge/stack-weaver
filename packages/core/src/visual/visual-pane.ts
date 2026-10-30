@@ -9,6 +9,8 @@ import { makeLabelFor } from './labels.js';
 import { buildOutline, nodeId } from './outline-model.js';
 import type { OutlineNode } from './outline-model.js';
 import { createOutline } from './outline.js';
+import { createAddResource } from './picker.js';
+import { createRemoveControl } from './remove-section.js';
 import { mountSection } from './section.js';
 import { isRecord, safeData } from './util.js';
 import type { Section, SectionSlots } from './section.js';
@@ -48,12 +50,15 @@ export function createVisualPane(ctx: EditorContext, o: { el: HTMLElement; slots
   const outline = createOutline(doc, { label: ui.outlineLabel, onSelect: (n) => choose(n.ref) });
   const title = h(doc, 'h2', { class: 'sw-section-title' });
   const crumbs = h(doc, 'nav', { class: 'sw-section-crumbs', 'aria-label': ui.breadcrumbLabel });
-  const header = h(doc, 'header', { class: 'sw-section-header' }, [title, crumbs]);
+  const removal = createRemoveControl(ctx, doc);
+  const header = h(doc, 'header', { class: 'sw-section-header' }, [title, crumbs, removal.el]);
   const content = h(doc, 'div', { class: 'sw-section-content' });
   const host = h(doc, 'div', { class: 'sw-section-host' }, [header, content]);
   const body = h(doc, 'div', { class: 'sw-visual-body' }, [outline.el, host]);
   const empty = h(doc, 'p', { class: 'sw-visual-empty', hidden: true }, [ui.visualEmpty]);
-  o.el.append(banner.el, body, empty);
+  const addResource = createAddResource(ctx, doc);
+  const toolbar = h(doc, 'div', { class: 'sw-visual-toolbar' }, [addResource.el]);
+  o.el.append(banner.el, toolbar, body, empty);
 
   const bundleKeyOf = (parsed: ParsedText, d: number): string | undefined => {
     const f = ctx.format();
@@ -108,6 +113,7 @@ export function createVisualPane(ctx: EditorContext, o: { el: HTMLElement; slots
   function renderSelection(sel: OutlineNode | undefined, parsed: ParsedText | undefined, broken: boolean): void {
     body.hidden = nodes.length === 0;
     empty.hidden = nodes.length > 0;
+    removal.setTarget(sel ? { ref: sel.ref, label: sel.label } : undefined);
     if (!sel) {
       section?.handle.destroy();
       section = undefined;
@@ -148,6 +154,8 @@ export function createVisualPane(ctx: EditorContext, o: { el: HTMLElement; slots
     const parsed = broken ? ctx.store.lastGood : ctx.store.parsed;
     const format = ctx.format();
     banner.show(broken);
+    addResource.update();
+    toolbar.hidden = addResource.el.hidden;
     o.el.toggleAttribute('data-sw-readonly', broken || ctx.readOnly());
     if (parsed && format) requestBundles(parsed);
     nodes = parsed && format
@@ -238,6 +246,7 @@ export function createVisualPane(ctx: EditorContext, o: { el: HTMLElement; slots
       if (timer !== undefined) clearTimeout(timer);
       timer = undefined;
       offProblems();
+      addResource.destroy();
       o.el.removeEventListener('pointerdown', flushPending, true);
       o.el.removeEventListener('focusin', flushPending, true);
       section?.handle.destroy();

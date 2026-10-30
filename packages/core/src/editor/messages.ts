@@ -94,6 +94,38 @@ export interface UiMessages {
   newItem: string;
   /** Shown when renaming a key to one that already exists. */
   keyExists: string;
+  /** Accessible name of the region that adds fields, keys or items to a section. */
+  addSlotLabel: string;
+  /** Text of the disclosure that shows advanced fields. */
+  showAdvanced: string;
+  /** Text of the disclosure that hides advanced fields. */
+  hideAdvanced: string;
+  /** Text of the button that adds a new key to a key-value section. */
+  addKey: string;
+  /** Accessible name of the input for a new key's name. */
+  newKeyName: string;
+  /** Text of the button that adds an item to a list section. */
+  addListItem: string;
+  /** Text of the button that opens the resource picker. */
+  addResource: string;
+  /** Heading and accessible name of the resource picker. */
+  pickerTitle: string;
+  /** Accessible name of the picker's search box. */
+  pickerSearch: string;
+  /** Accessible name of the picker's close button. */
+  pickerClose: string;
+  /** Shown when no resource kind matches the search. */
+  pickerEmpty: string;
+  /** Shown when the chosen resource kind could not be loaded. */
+  pickerLoadFailed: string;
+  /** Text of the button that removes the shown section. */
+  removeSection: string;
+  /** Question asked before removing a section; `{label}` is replaced by its name. */
+  confirmRemove: string;
+  /** Text of the button that confirms a removal. */
+  confirmYes: string;
+  /** Text of the button that cancels a removal. */
+  confirmNo: string;
 }
 
 /** The English UI strings. */
@@ -145,4 +177,20 @@ export const defaultUiMessages: UiMessages = {
   entryValue: 'Value',
   newItem: 'New item',
   keyExists: 'That key already exists.',
+  addSlotLabel: 'Add to this section',
+  showAdvanced: 'Show advanced',
+  hideAdvanced: 'Hide advanced',
+  addKey: 'Add key',
+  newKeyName: 'New key name',
+  addListItem: 'Add item',
+  addResource: '+ Add resource',
+  pickerTitle: 'Add resource',
+  pickerSearch: 'Search resource kinds',
+  pickerClose: 'Close',
+  pickerEmpty: 'No resource kinds match.',
+  pickerLoadFailed: 'That resource could not be added.',
+  removeSection: 'Remove section',
+  confirmRemove: 'Remove {label}?',
+  confirmYes: 'Remove',
+  confirmNo: 'Cancel',
 };

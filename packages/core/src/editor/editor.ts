@@ -238,7 +238,7 @@ export function createEditorWithContext(
     const key = e.key.toLowerCase();
     const redoKey = (key === 'z' && e.shiftKey) || (key === 'y' && !e.shiftKey);
     if (!redoKey && !(key === 'z' && !e.shiftKey)) return;
-    if ((e.target as Element | null)?.closest?.('.sw-pane-code')) return;
+    if ((e.target as Element | null)?.closest?.('.sw-pane-code, .sw-picker')) return;
     e.preventDefault();
     if (redoKey) redo();
     else undo();

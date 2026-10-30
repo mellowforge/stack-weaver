@@ -39,6 +39,10 @@ export interface SectionSlots {
   field(row: FieldRowInit): FieldRowHandle | undefined;
   /** The add control shown after the rows, or `undefined`. */
   addSlot(ref: NodeRef): HTMLElement | undefined;
+  /** Re-reads the document for the element `addSlot` returned; called by every `update()`. */
+  updateAddSlot?(el: HTMLElement): void;
+  /** Releases the element `addSlot` returned; called when the section is destroyed. */
+  destroyAddSlot?(el: HTMLElement): void;
 }
 
 /**
@@ -124,6 +128,7 @@ export function mountSection(ctx: EditorContext, ref: NodeRef, slots: SectionSlo
   }
 
   function update(): void {
+    if (add) slots.updateAddSlot?.(add);
     const { store } = ctx;
     const broken = !store.parsed.ok;
     const parsed: ParsedText | undefined = broken ? store.lastGood : store.parsed;
@@ -208,6 +213,7 @@ export function mountSection(ctx: EditorContext, ref: NodeRef, slots: SectionSlo
     update,
     destroy() {
       clear();
+      if (add) slots.destroyAddSlot?.(add);
       add?.remove();
       el.remove();
     },
