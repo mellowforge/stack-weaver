@@ -99,6 +99,16 @@ describe('completionsFor values', () => {
     expect(completionsFor(input({ ctx: ctx({ path: CONTAINER, position: 'value', key: 'workingDir' }), data: containerData }))).toEqual([]);
   });
 
+  it('accessModes item completes ReadWriteOnce...', async () => {
+    const pvc = (await loadKubernetesKind('v1', 'PersistentVolumeClaim'))!;
+    const data = { spec: { accessModes: [] } };
+    const out = completionsFor(input({ bundle: pvc, ctx: ctx({ path: ['spec', 'accessModes', 0], position: 'key', prefix: 'Read', indent: 4 }), data }));
+    expect(out.map((c) => c.label)).toEqual(['ReadWriteOnce', 'ReadOnlyMany', 'ReadWriteMany', 'ReadWriteOncePod']);
+    // Items of a list without guide options, and objects' keys, are unchanged.
+    expect(completionsFor(input({ bundle: pvc, ctx: ctx({ path: ['spec', 'selector', 'matchLabels', 0], prefix: '' }), data }))).toEqual([]);
+    expect(completionsFor(input({ bundle: pvc, ctx: ctx({ path: ['spec'], indent: 2 }), data })).map((c) => c.label)).toContain('storageClassName');
+  });
+
   it('boolean value completion', () => {
     const out = completionsFor(input({ ctx: ctx({ path: CONTAINER, position: 'value', key: 'stdin' }), data: containerData }));
     expect(out.map((c) => c.label)).toEqual(['true', 'false']);

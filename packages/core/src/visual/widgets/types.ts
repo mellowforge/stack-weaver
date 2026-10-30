@@ -51,8 +51,17 @@ export interface WidgetInstance {
   destroy?(): void;
 }
 
-/** Builds a widget for a field. */
-export type WidgetFactory = (ctx: WidgetContext) => WidgetInstance;
+/**
+ * Builds a widget for a field.
+ *
+ * A factory for a mapping may carry `managesKeys: true` to say that the widget adds, shows and
+ * removes the mapping's keys itself; the section of that mapping then offers no free-form
+ * "Add key" of its own.
+ */
+export type WidgetFactory = ((ctx: WidgetContext) => WidgetInstance) & {
+  /** True when the widget manages the keys of its mapping (no "Add key" in the section). */
+  readonly managesKeys?: boolean;
+};
 
 /** Widget factories by name. A guide's `widget` names one of these. */
 export type WidgetRegistry = Readonly<Record<string, WidgetFactory>>;

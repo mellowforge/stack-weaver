@@ -46,6 +46,21 @@ export function mergeGuide(base: Guide, override: GuideOverride): Guide {
   };
 }
 
+/**
+ * The guide entry of property `key` of the schema node `parent` resolved to: looked up under the
+ * definition that declared the property, else under the node's own definition.
+ * @param g - The guide.
+ * @param parent - The resolved schema of the object that holds `key`.
+ * @param key - The property name.
+ */
+export function guideFieldOf(
+  g: Guide,
+  parent: { readonly defName?: string; readonly declaredIn?: Readonly<Record<string, string>> } | undefined,
+  key: string,
+): GuideField | undefined {
+  return guideField(g, parent?.declaredIn?.[key] ?? parent?.defName, key);
+}
+
 /** Looks up the guide entry for `<defName>#<prop>`; `undefined` when `defName` is undefined or no entry exists. */
 export function guideField(g: Guide, defName: string | undefined, prop: string): GuideField | undefined {
   if (defName === undefined) return undefined;

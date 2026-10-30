@@ -1,6 +1,6 @@
 import { addableAt, type AddableItem } from '../engine/addable.js';
 import { resolveAt } from '../engine/resolve.js';
-import { guideField } from '../formats/guide.js';
+import { guideFieldOf } from '../formats/guide.js';
 import type { Guide, KindEntry, SchemaBundle, Tier } from '../formats/types.js';
 import type { CursorContext } from './context.js';
 
@@ -95,6 +95,22 @@ function rootValueCompletions(key: string, data: unknown, kinds: readonly KindEn
   return plain((forKind.length > 0 ? forKind : kinds).map((k) => k.apiVersion));
 }
 
+const isStringType = (type: unknown): boolean => type === 'string' || (Array.isArray(type) && type.includes('string'));
+
+/**
+ * Values for a new item of a string list (`- ` under `accessModes:`): the `options` of the guide
+ * entry of the property that owns the list. `undefined` when the cursor is not on such an item.
+ */
+function listItemCompletions({ ctx, bundle, guide, data }: CompletionInput): CodeCompletion[] | undefined {
+  const index = ctx.path[ctx.path.length - 1];
+  const owner = ctx.path[ctx.path.length - 2];
+  if (!bundle || typeof index !== 'number' || typeof owner !== 'string') return undefined;
+  const item = resolveAt(bundle, ctx.path, data)?.schema;
+  if (!item || !isStringType(item['type'])) return undefined;
+  const suggested = guideFieldOf(guide, resolveAt(bundle, ctx.path.slice(0, -2), data), owner)?.options;
+  return suggested && suggested.length > 0 ? plain(suggested) : undefined;
+}
+
 function valueCompletions(input: CompletionInput): CodeCompletion[] {
   const { ctx, bundle, data, kinds } = input;
   const key = ctx.key;
@@ -109,9 +125,8 @@ function valueCompletions(input: CompletionInput): CodeCompletion[] {
   const options = schema['enum'];
   if (Array.isArray(options)) return plain(options.filter((o) => o !== null && typeof o !== 'object').map(String));
   const type = schema['type'];
-  if (type === 'string' || (Array.isArray(type) && type.includes('string'))) {
-    const parent = resolveAt(bundle, ctx.path, data);
-    const suggested = guideField(input.guide, parent?.declaredIn?.[key] ?? parent?.defName, key)?.options;
+  if (isStringType(type)) {
+    const suggested = guideFieldOf(input.guide, resolveAt(bundle, ctx.path, data), key)?.options;
     if (suggested && suggested.length > 0) return plain(suggested);
   }
   if (schema['type'] === 'boolean') return plain(['true', 'false']);
@@ -127,16 +142,18 @@ function valueCompletions(input: CompletionInput): CodeCompletion[] {
  *   10), and its description as `info`. `apply` is `key: ` for scalars, `key:` plus a line
  *   indented two more columns for objects, and `key:` plus a `- ` line at the same column for
  *   arrays.
- * - **Values** are offered for plain `enum` schemas, for fields whose guide entry has `options`
- *   (suggested values for closed sets the schema only describes in prose, such as
+ * - **Values** are offered for plain `enum` schemas, for string fields whose guide entry has
+ *   `options` (suggested values for closed sets the schema only describes in prose, such as
  *   `imagePullPolicy`), and for `boolean`; `anyOf` schemas such as int-or-string and quantity
- *   give none. `options` are offered for string fields only: the items of a string list have no
- *   key to look up. At a document root `kind` lists the format's kinds and `apiVersion` lists the versions of the kind already written (all versions when there is none).
+ *   give none. A new item of a string list (`- ` under `accessModes:`) is offered the `options`
+ *   of the property that owns the list. At a document root `kind` lists the format's kinds and
+ *   `apiVersion` lists the versions of the kind already written (all versions when there is none).
  * - Without a `bundle` only `apiVersion` and `kind` keys are offered, and only at a root.
  *
  * @param input - Cursor context, schema, guide, data and labels.
  * @returns The completions, unfiltered by prefix (the editor filters); empty when nothing applies.
  */
 export function completionsFor(input: CompletionInput): readonly CodeCompletion[] {
-  return input.ctx.position === 'key' ? keyCompletions(input) : valueCompletions(input);
+  if (input.ctx.position === 'value') return valueCompletions(input);
+  return listItemCompletions(input) ?? keyCompletions(input);
 }

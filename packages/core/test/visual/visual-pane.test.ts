@@ -168,7 +168,7 @@ describe('visual pane', () => {
   it('read-only node shows "edit in code" link that reveals its range', async () => {
     const text = 'apiVersion: v1\nkind: ConfigMap\nmetadata:\n  name: c\ndata: { a: b }\n';
     const { fake } = await mount({ value: text });
-    click('data');
+    click('Data');
     const link = el.querySelector<HTMLButtonElement>('.sw-section-note button')!;
     expect(link.textContent).toBe('Edit in code');
     link.click();

@@ -6,9 +6,11 @@ import { h } from '../editor/dom.js';
 import { addableAt, valueTemplateAt } from '../engine/addable.js';
 import type { AddableItem } from '../engine/addable.js';
 import { resolveAt } from '../engine/resolve.js';
-import { guideField } from '../formats/guide.js';
+import { guideFieldOf } from '../formats/guide.js';
 import type { Guide, SchemaBundle } from '../formats/types.js';
 import { isRecord, safeData } from './util.js';
+import { defaultWidgets, pickWidget } from './widgets/registry.js';
+import type { WidgetRegistry } from './widgets/types.js';
 
 /** What `update` and `destroy` need of a slot made by {@link renderAddSlot}. */
 interface SlotHandle {
@@ -42,16 +44,18 @@ function isFreeForm(bundle: SchemaBundle, path: YamlPath, data: unknown): boolea
 }
 
 /**
- * Whether the guide names a widget for the field at `path`. Such a field is edited by its own
- * widget (a Secret's `data` shows decoded values and has no "Add key"), so its section must not
+ * Whether the widget picked for the field at `path` declares that it manages the mapping's keys
+ * itself (`WidgetFactory.managesKeys`, as the Secret `data` widget does), so its section must not
  * offer to add free-form keys.
  */
-function hasGuideWidget(bundle: SchemaBundle, guide: Guide, path: YamlPath, data: unknown): boolean {
+function widgetManagesKeys(bundle: SchemaBundle, guide: Guide, registry: WidgetRegistry, path: YamlPath, data: unknown): boolean {
   const key = path[path.length - 1];
   if (typeof key !== 'string') return false;
   try {
-    const parent = resolveAt(bundle, path.slice(0, -1), data);
-    return guideField(guide, parent?.declaredIn?.[key] ?? parent?.defName, key)?.widget !== undefined;
+    const own = resolveAt(bundle, path, data);
+    if (!own) return false;
+    const picked = pickWidget(own, guideFieldOf(guide, resolveAt(bundle, path.slice(0, -1), data), key), registry);
+    return picked !== undefined && registry[picked.name]?.managesKeys === true;
   } catch {
     return false;
   }
@@ -80,14 +84,14 @@ export function destroyAddSlot(el: HTMLElement): void {
  *
  * - A mapping lists the schema's missing fields: required ones first, then recommended and common,
  *   with advanced ones behind a "Show advanced" disclosure.
- * - A mapping with free-form keys also gets a key input and an "Add key" button, unless the guide
- *   names a widget for it (that widget manages the keys).
+ * - A mapping with free-form keys also gets a key input and an "Add key" button, unless the widget
+ *   picked for it declares `managesKeys`.
  * - A sequence gets an "Add item" button.
  *
  * The slot is stateful: call {@link updateAddSlot} after the document changes (the section does).
  * @internal
  */
-export function renderAddSlot(ctx: EditorContext, ref: NodeRef, doc: Document = document): HTMLElement {
+export function renderAddSlot(ctx: EditorContext, ref: NodeRef, doc: Document = document, registry: WidgetRegistry = defaultWidgets): HTMLElement {
   const ui = ctx.messages.ui;
   const id = `sw-add${nextId++}`;
   const groupsEl = h(doc, 'div', { class: 'sw-add-groups' });
@@ -198,7 +202,7 @@ export function renderAddSlot(ctx: EditorContext, ref: NodeRef, doc: Document = 
       } catch {
         items = [];
       }
-      freeForm = view.type === 'map' && isFreeForm(bundle, ref.path, data) && !hasGuideWidget(bundle, ctx.guide(), ref.path, data);
+      freeForm = view.type === 'map' && isFreeForm(bundle, ref.path, data) && !widgetManagesKeys(bundle, ctx.guide(), registry, ref.path, data);
       seqMode = view.type === 'seq';
     }
     const next = JSON.stringify([editable, freeForm, seqMode, items.map((i) => [i.key, i.label, i.description, i.tier, i.required])]);

@@ -41,10 +41,10 @@ function mount(text: string, readOnly = false) {
   });
   const w = defaultWidgets['secret-data']!(ctx);
   host.append(w.el);
-  const input = (name: string) => w.el.querySelector<HTMLInputElement>(`input[data-sw-entry="${name}"]`)!;
+  const input = (name: string) => w.el.querySelector<HTMLTextAreaElement>(`[data-sw-entry="${name}"]`)!;
   return { store, w, input, refresh: () => w.update(dataOf(store), readOnly) };
 }
-const type = (input: HTMLInputElement, v: string) => {
+const type = (input: HTMLTextAreaElement, v: string) => {
   input.value = v;
   input.dispatchEvent(new Event('input', { bubbles: true }));
 };
@@ -105,7 +105,53 @@ describe('secret-data widget', () => {
 
   it('is disabled while read-only', () => {
     const { w } = mount(SECRET, true);
-    for (const i of w.el.querySelectorAll('input, button')) expect((i as HTMLInputElement).disabled).toBe(true);
+    for (const i of w.el.querySelectorAll('input, button')) expect((i as HTMLTextAreaElement).disabled).toBe(true);
+  });
+});
+
+describe('secret-data with multi-line text', () => {
+  const PEM = '-----BEGIN CERTIFICATE-----\nMIIBkTCB+wIJAL\nabc==\n-----END CERTIFICATE-----\n';
+  const b64 = (t: string) => btoa(String.fromCharCode(...new TextEncoder().encode(t)));
+
+  it('keeps line breaks and round-trips unchanged except for the edit', () => {
+    const { store, input } = mount(SECRET.replace('dG9rZW4=', b64(PEM)));
+    const area = input('token');
+    expect(area.tagName).toBe('TEXTAREA');
+    expect(area.value).toBe(PEM);
+    expect(Number(area.getAttribute('rows'))).toBeGreaterThan(1);
+    const edited = PEM.replace('MIIBkTCB', 'MIIBkTCX');
+    type(area, edited);
+    expect(dataOf(store)['token']).toBe(b64(edited));
+    expect(new TextDecoder().decode(Uint8Array.from(atob(dataOf(store)['token'] as string), (c) => c.charCodeAt(0)))).toBe(edited);
+    expect(dataOf(store)['password']).toBe('cGFzc3fDtnJk'); // other keys are untouched
+  });
+
+  it('text with a carriage return is shown read-only with a warning, not rewritten', () => {
+    const { store, input, w } = mount(SECRET.replace('dG9rZW4=', b64('a\r\nb')));
+    expect(input('token').readOnly).toBe(true);
+    expect(w.el.textContent).toContain(defaultUiMessages.secretCarriageReturn);
+    type(input('token'), 'x');
+    expect(dataOf(store)['token']).toBe(b64('a\r\nb'));
+  });
+});
+
+describe('Add key suppression is declared by the widget', () => {
+  it('a free-form map with guide widget key-value still offers Add key', async () => {
+    const el = document.createElement('div');
+    document.body.append(el);
+    const guide = { kubernetes: { fields: { 'io.k8s.api.core.v1.Secret#stringData': { widget: 'key-value' } } } };
+    const made = createEditorWithContext(el, { codeEditor: createFakeAdapter(), format: 'kubernetes', mode: 'visual', value: SECRET + 'stringData:\n  a: b\n', guide });
+    await made.editor.ready;
+    await made.ctx.loadBundle(0);
+    made.ctx.select({ doc: 0, path: ['stringData'] });
+    await vi.waitFor(() => expect(el.querySelector('.sw-row[data-sw-key="a"]')).not.toBeNull());
+    expect(el.querySelector('.sw-add-key-btn')).not.toBeNull();
+    el.remove();
+  });
+
+  it('only factories that declare managesKeys suppress it', () => {
+    expect(defaultWidgets['secret-data']!.managesKeys).toBe(true);
+    expect(defaultWidgets['key-value']!.managesKeys).toBeUndefined();
   });
 });
 
@@ -124,11 +170,13 @@ describe('Secret in the visual pane', () => {
     // The data row is the Secret widget, not a plain key-value editor.
     const row = el.querySelector<HTMLElement>('.sw-row[data-sw-key="data"]')!;
     expect(row.querySelector('.sw-widget-secret-data')).not.toBeNull();
-    expect(row.querySelector<HTMLInputElement>('input[data-sw-entry="password"]')!.value).toBe('passwörd');
+    expect(row.querySelector<HTMLTextAreaElement>('[data-sw-entry="password"]')!.value).toBe('passwörd');
 
     // Opening `data` as a section does not give it an "Add key" either.
     made.ctx.select({ doc: 0, path: ['data'] });
-    await vi.waitFor(() => expect(el.querySelector('.sw-section[data-sw-path="data"], .sw-section')).not.toBeNull());
+    // The `password` row exists only in the data section, so the root section is gone when this passes.
+    await vi.waitFor(() => expect(el.querySelector('.sw-row[data-sw-key="password"]')).not.toBeNull());
+    expect(el.querySelector('.sw-row[data-sw-key="apiVersion"]')).toBeNull();
     expect(el.querySelector('.sw-add-key-btn')).toBeNull();
     el.remove();
   });

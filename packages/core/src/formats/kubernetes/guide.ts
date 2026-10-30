@@ -64,7 +64,7 @@ export const kubernetesGuide: Guide = deepFreeze<Guide>({
     // Shared: pod template and pod.
     [`${V1}PodTemplateSpec#metadata`]: { label: 'Pod labels', order: 1, description: 'Labels given to every pod. A selector uses them to find the pods.' },
     [`${V1}PodTemplateSpec#spec`]: { label: 'Pod', tier: 'recommended', order: 2, description: 'What each pod runs: its containers, volumes and settings.' },
-    [`${V1}PodSpec#containers`]: { tier: 'recommended', order: 1, description: 'The programs the pod runs, each from a container image.' },
+    [`${V1}PodSpec#containers`]: { label: 'Containers', tier: 'recommended', order: 1, description: 'The programs the pod runs, each from a container image.' },
     [`${V1}PodSpec#initContainers`]: { label: 'Init containers', order: 2, description: 'Containers that run to completion, one after another, before the main containers start.' },
     [`${V1}PodSpec#volumes`]: { label: 'Volumes', order: 3, description: 'Storage and files the containers can mount.' },
     [`${V1}PodSpec#restartPolicy`]: {
@@ -123,7 +123,7 @@ export const kubernetesGuide: Guide = deepFreeze<Guide>({
 
     // Deployment.
     'io.k8s.api.apps.v1.DeploymentSpec#replicas': { label: 'Replicas', tier: 'recommended', order: 1, example: 1, description: 'How many copies (pods) of your app to run.' },
-    'io.k8s.api.apps.v1.DeploymentSpec#selector': { order: 2 },
+    'io.k8s.api.apps.v1.DeploymentSpec#selector': { label: 'Pod selector', tier: 'recommended', order: 2, description: 'Which pods this Deployment manages, chosen by their labels (usually matchLabels with app: your-app). It must match the labels in the pod template, or Kubernetes rejects the Deployment.' },
     'io.k8s.api.apps.v1.DeploymentSpec#template': { label: 'Pod template', order: 3, description: 'The blueprint every pod is created from.' },
     'io.k8s.api.apps.v1.DeploymentSpec#strategy': { label: 'Update strategy', order: 4, description: 'How to replace old pods when the template changes.' },
     'io.k8s.api.apps.v1.DeploymentStrategy#type': {
@@ -136,7 +136,7 @@ export const kubernetesGuide: Guide = deepFreeze<Guide>({
     // StatefulSet.
     'io.k8s.api.apps.v1.StatefulSetSpec#serviceName': { label: 'Service name', tier: 'recommended', order: 1, description: 'The name of the headless Service that gives each pod a stable network name.' },
     'io.k8s.api.apps.v1.StatefulSetSpec#replicas': { label: 'Replicas', tier: 'recommended', order: 2, example: 1, description: 'How many pods to run.' },
-    'io.k8s.api.apps.v1.StatefulSetSpec#selector': { order: 3 },
+    'io.k8s.api.apps.v1.StatefulSetSpec#selector': { label: 'Pod selector', tier: 'recommended', order: 3, description: 'Which pods this StatefulSet manages, chosen by their labels (usually matchLabels with app: your-app). It must match the labels in the pod template.' },
     'io.k8s.api.apps.v1.StatefulSetSpec#template': { label: 'Pod template', order: 4, description: 'The blueprint every pod is created from.' },
     'io.k8s.api.apps.v1.StatefulSetSpec#volumeClaimTemplates': { label: 'Storage per pod', order: 5, description: 'A disk that is created for each pod and kept when the pod is replaced.' },
 
@@ -177,8 +177,25 @@ export const kubernetesGuide: Guide = deepFreeze<Guide>({
     'io.k8s.api.networking.v1.IngressSpec#tls': { label: 'HTTPS (TLS)', order: 3, description: 'Host names to serve over HTTPS and the Secret with their certificate.' },
     'io.k8s.api.networking.v1.IngressSpec#defaultBackend': { label: 'Default backend', order: 4, description: 'Where to send requests that match no rule.' },
 
+    'io.k8s.api.networking.v1.IngressRule#host': { label: 'Host name', tier: 'recommended', order: 1, example: 'example.com', description: 'The domain this rule answers for. Leave it out to match every host.' },
+    'io.k8s.api.networking.v1.IngressRule#http': { label: 'Paths', tier: 'recommended', order: 2, description: 'The URL paths of this host and where each one goes.' },
+    'io.k8s.api.networking.v1.HTTPIngressRuleValue#paths': { label: 'Paths', tier: 'recommended', order: 1, description: 'Each path and the Service it sends traffic to.' },
+    'io.k8s.api.networking.v1.HTTPIngressPath#path': { label: 'Path', tier: 'recommended', order: 1, example: '/', description: 'The URL path to match, for example /api.' },
+    'io.k8s.api.networking.v1.HTTPIngressPath#pathType': {
+      label: 'Path match',
+      tier: 'recommended',
+      order: 2,
+      example: 'Prefix',
+      description: 'Prefix matches the path and everything under it; Exact matches only that path; ImplementationSpecific leaves it to the ingress controller.',
+      options: ['Prefix', 'Exact', 'ImplementationSpecific'],
+    },
+    'io.k8s.api.networking.v1.HTTPIngressPath#backend': { label: 'Send to', tier: 'recommended', order: 3, description: 'The Service that receives the traffic.' },
+    'io.k8s.api.networking.v1.IngressBackend#service': { label: 'Service', tier: 'recommended', order: 1, description: 'The Service name and port to send traffic to.' },
+    'io.k8s.api.networking.v1.IngressServiceBackend#name': { label: 'Service name', tier: 'recommended', order: 1 },
+    'io.k8s.api.networking.v1.IngressServiceBackend#port': { label: 'Service port', tier: 'recommended', order: 2, description: 'The Service port, by number or by name.' },
+
     // ConfigMap and Secret.
-    [`${V1}ConfigMap#data`]: { tier: 'recommended', order: 1, description: 'Settings or config files as text. Each key can be an environment variable or a file.' },
+    [`${V1}ConfigMap#data`]: { label: 'Data', tier: 'recommended', order: 1, description: 'Settings or config files as text. Each key can be an environment variable or a file.' },
     [`${V1}ConfigMap#binaryData`]: { label: 'Binary data', order: 2, description: 'Binary content, written as base64 text.' },
     [`${V1}Secret#stringData`]: { label: 'String data', tier: 'recommended', order: 1, description: 'Secret values as plain text. Kubernetes encodes them for you when the Secret is saved.' },
     [`${V1}Secret#data`]: { label: 'Data (shown decoded)', order: 2, widget: 'secret-data', description: 'Existing values. They are stored as base64; here you see and edit the decoded text.' },

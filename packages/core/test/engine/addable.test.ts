@@ -39,7 +39,8 @@ describe('addableAt', () => {
     const bundle = await loadComposeSchema();
     const items = addableAt(bundle, composeGuide, ['services', 'web'], { services: { web: { image: 'nginx' } } });
     expect(items.find((i) => i.key === 'healthcheck')?.tier).toBe('recommended');
-    expect(items[0]!.key).toBe('healthcheck');
+    const recommended = items.filter((i) => i.tier === 'recommended').map((i) => i.key);
+    expect(recommended.slice(0, 3)).toEqual(['ports', 'environment', 'healthcheck']); // what a newcomer needs first
     expect(items.map((i) => i.key)).not.toContain('image');
   });
 

@@ -19,7 +19,7 @@ function decode(raw: string): string | undefined {
     const binary = atob(raw);
     const bytes = new Uint8Array(binary.length);
     for (let i = 0; i < binary.length; i++) bytes[i] = binary.charCodeAt(i);
-    return new TextDecoder('utf-8', { fatal: true }).decode(bytes);
+    return new TextDecoder('utf-8', { fatal: true, ignoreBOM: true }).decode(bytes);
   } catch {
     return undefined;
   }
@@ -28,7 +28,7 @@ function decode(raw: string): string | undefined {
 interface Entry {
   readonly el: HTMLElement;
   readonly name: HTMLElement;
-  readonly input: HTMLInputElement;
+  readonly input: HTMLTextAreaElement;
   readonly warning: HTMLElement;
   readonly remove: HTMLButtonElement;
 }
@@ -36,9 +36,11 @@ interface Entry {
 /**
  * The `data` of a Secret (guide widget `secret-data`): one row per key showing the decoded UTF-8
  * text, writing it back as base64. A value that is not base64-encoded UTF-8 text is shown as
- * stored, read-only, with a warning. There is no "Add key": new values go in `stringData`.
+ * stored, read-only, with a warning; so is text with a carriage return, which a text area cannot
+ * hold unchanged. Values are text areas, so multi-line text (certificates, keys) keeps its line
+ * breaks. The factory declares `managesKeys`: there is no "Add key", new values go in `stringData`.
  */
-export const secretDataWidget: WidgetFactory = (ctx) => {
+export const secretDataWidget: WidgetFactory = Object.assign<WidgetFactory, { managesKeys: true }>((ctx) => {
   const ui = ctx.messages;
   const f = frame(ctx, 'secret-data');
   f.adder.remove();
@@ -51,7 +53,8 @@ export const secretDataWidget: WidgetFactory = (ctx) => {
   const makeRow = (key: string): Entry => {
     const name = h(f.doc, 'span', { class: 'sw-secret-key' });
     const warning = h(f.doc, 'span', { class: 'sw-field-warning', id: `${ctx.id}-warning-${nextWarning++}`, hidden: true });
-    const input = h(f.doc, 'input', { type: 'text', class: 'sw-input sw-secret-value', autocomplete: 'off', spellcheck: 'false', 'data-sw-entry': key });
+    // A textarea keeps line breaks (certificates, keys); it holds exactly the text that is encoded.
+    const input = h(f.doc, 'textarea', { rows: '1', class: 'sw-input sw-secret-value', autocomplete: 'off', spellcheck: 'false', 'data-sw-entry': key });
     input.addEventListener('input', () => {
       if (input.readOnly) return;
       f.fail(ctx.edit({ op: 'set', at: at(key), value: encode(input.value) }));
@@ -81,11 +84,14 @@ export const secretDataWidget: WidgetFactory = (ctx) => {
       if (f.items.children[i] !== row.el) f.items.insertBefore(row.el, f.items.children[i] ?? null);
       const raw = current[key];
       const decoded = typeof raw === 'string' ? decode(raw) : undefined;
+      // A textarea reports "\r\n" as "\n", so text with a carriage return could not be written back unchanged.
+      const lossy = decoded !== undefined && decoded.includes('\r');
       const shown = decoded ?? (raw === null || raw === undefined || typeof raw === 'object' ? '' : String(raw));
       if (row.input.value !== shown) row.input.value = shown;
-      row.input.readOnly = decoded === undefined;
-      const invalid = decoded === undefined;
-      row.warning.textContent = invalid ? ui.secretInvalidBase64 : '';
+      const invalid = decoded === undefined || lossy;
+      row.input.readOnly = invalid;
+      row.input.rows = Math.min(Math.max(shown.split('\n').length, 1), 10);
+      row.warning.textContent = decoded === undefined ? ui.secretInvalidBase64 : lossy ? ui.secretCarriageReturn : '';
       row.warning.hidden = !invalid;
       row.name.textContent = key;
       row.input.setAttribute('aria-label', `${ctx.label}, ${key}, ${ui.entryValue}`);
@@ -104,4 +110,4 @@ export const secretDataWidget: WidgetFactory = (ctx) => {
     },
     focus: () => (rows.values().next().value?.input ?? f.el).focus(),
   };
-};
+}, { managesKeys: true });

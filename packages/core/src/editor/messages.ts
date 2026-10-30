@@ -128,6 +128,8 @@ export interface UiMessages {
   confirmNo: string;
   /** Warning on a Secret value that is not base64-encoded UTF-8 text; it is shown as stored and cannot be edited visually. */
   secretInvalidBase64: string;
+  /** Warning on a Secret value whose text has a carriage return, which cannot be edited visually without changing it. */
+  secretCarriageReturn: string;
 }
 
 /** The English UI strings. */
@@ -196,4 +198,5 @@ export const defaultUiMessages: UiMessages = {
   confirmYes: 'Remove',
   confirmNo: 'Cancel',
   secretInvalidBase64: 'This value is not base64-encoded text, so it is shown as stored and cannot be edited here.',
+  secretCarriageReturn: 'This value has Windows line endings, so it is shown as is and cannot be edited here without changing them.',
 };

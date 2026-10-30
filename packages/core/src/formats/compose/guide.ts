@@ -10,8 +10,8 @@ export const composeGuide: Guide = deepFreeze<Guide>({
   kinds: {},
   fields: {
     'service#image': { label: 'Image', tier: 'recommended', order: 1, example: 'nginx:1.27', description: 'The container image to run, for example nginx:1.27.' },
-    'service#ports': { label: 'Ports', order: 2, description: 'Ports to open, as "host:container", for example "8080:80".' },
-    'service#environment': { label: 'Environment variables', order: 3 },
+    'service#ports': { label: 'Ports', tier: 'recommended', order: 2, description: 'Ports to open, as "host:container", for example "8080:80".' },
+    'service#environment': { label: 'Environment variables', tier: 'recommended', order: 3 },
     'service#depends_on': { label: 'Starts after', order: 4, description: 'Services that must start before this one.' },
     'service#volumes': { label: 'Volumes', order: 5 },
     'service#healthcheck': { label: 'Health check', tier: 'recommended', order: 6 },

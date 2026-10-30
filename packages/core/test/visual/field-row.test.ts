@@ -70,8 +70,9 @@ describe('field rows', () => {
     expect(input.getAttribute('aria-describedby')).toContain(replicas.querySelector('.sw-row-description')!.id);
     // DeploymentSpec requires selector and template
     expect(row('selector').querySelector('.sw-badge')!.textContent).toBe('Required');
-    // schema description when the guide has none
-    expect(row('selector').querySelector('.sw-row-description')!.textContent).toContain('Label selector');
+    // the guide's plain-language description replaces the schema's
+    expect(row('selector').querySelector('.sw-row-label')!.textContent).toBe('Pod selector');
+    expect(row('selector').querySelector('.sw-row-description')!.textContent).toContain('Which pods this Deployment manages');
   });
 
   it('typing in a row edits the document and undo restores it', async () => {
@@ -121,15 +122,15 @@ describe('field rows', () => {
     expect(card).toBeTruthy();
     expect(card.textContent).toContain('selector');
     card.click();
-    expect(item('selector').getAttribute('aria-selected')).toBe('true');
+    expect(item('Pod selector').getAttribute('aria-selected')).toBe('true');
     // sequences list their items by name, else "Item n"
-    click('containers');
+    click('Containers');
     expect(row('0').querySelector('.sw-row-label')!.textContent).toBe('web');
   });
 
   it('sequence items without a name are labelled "Item n"', async () => {
     await mount({ value: TEXT.replace('- name: web\n          image: nginx', '- image: nginx') });
-    click('containers');
+    click('Containers');
     expect(row('0').querySelector('.sw-row-label')!.textContent).toBe('Item 1');
   });
 

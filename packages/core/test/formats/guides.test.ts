@@ -99,6 +99,7 @@ const OPTIONS_KEYS: Record<string, readonly string[]> = {
   'io.k8s.api.core.v1.PersistentVolumeClaimSpec#accessModes': ['ReadWriteOnce', 'ReadOnlyMany', 'ReadWriteMany', 'ReadWriteOncePod'],
   'io.k8s.api.apps.v1.DeploymentStrategy#type': ['RollingUpdate', 'Recreate'],
   'io.k8s.api.batch.v1.CronJobSpec#concurrencyPolicy': ['Allow', 'Forbid', 'Replace'],
+  'io.k8s.api.networking.v1.HTTPIngressPath#pathType': ['Prefix', 'Exact', 'ImplementationSpecific'],
   'service#restart': ['no', 'always', 'on-failure', 'unless-stopped'],
 };
 

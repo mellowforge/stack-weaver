@@ -5,7 +5,7 @@ import type { EditorContext } from '../../editor/context.js';
 import { h } from '../../editor/dom.js';
 import { resolveAt } from '../../engine/resolve.js';
 import type { ResolvedSchema } from '../../engine/resolve.js';
-import { guideField } from '../../formats/guide.js';
+import { guideFieldOf } from '../../formats/guide.js';
 import type { SchemaBundle } from '../../formats/types.js';
 import type { Problem } from '../../validation/problems.js';
 import type { FieldRowHandle, FieldRowInit, SectionSlots } from '../section.js';
@@ -72,7 +72,7 @@ export function createFieldSlots(ctx: EditorContext, registry: WidgetRegistry): 
   const envFor = createEnvs(ctx);
   return {
     field: (init) => createFieldRow(ctx, registry, envFor, init),
-    addSlot: (ref) => renderAddSlot(ctx, ref),
+    addSlot: (ref) => renderAddSlot(ctx, ref, document, registry),
     updateAddSlot,
     destroyAddSlot,
   };
@@ -190,8 +190,7 @@ function createFieldRow(ctx: EditorContext, registry: WidgetRegistry, envFor: (p
     const ready = env?.bundle !== undefined;
     const parent = ready ? env.resolve(ref.path.slice(0, -1)) : undefined;
     const child = ready ? env.resolve(ref.path) : undefined;
-    const defName = typeof key === 'string' ? (parent?.declaredIn?.[key] ?? parent?.defName) : undefined;
-    const gf = typeof key === 'string' ? guideField(ctx.guide(), defName, key) : undefined;
+    const gf = typeof key === 'string' ? guideFieldOf(ctx.guide(), parent, key) : undefined;
 
     // What to show.
     let mode: Mode;
