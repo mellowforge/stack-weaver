@@ -1,6 +1,7 @@
 import type { CodeCompletion } from '../assist/complete.js';
 import type { HoverInfo } from '../assist/hover.js';
 import type { TextChange, TextRange } from '../document/types.js';
+import type { ResolvedTheme } from '../editor/theme.js';
 import type { Severity } from '../validation/problems.js';
 
 /** A problem marker shown in the code editor. */
@@ -11,7 +12,7 @@ export interface CodeDiagnostic {
   readonly to: number;
   /** How the marker is styled. */
   readonly severity: Severity;
-  /** Text shown for the marker. */
+  /** Text shown for the marker. Plain text, never markup. */
   readonly message: string;
 }
 
@@ -30,7 +31,7 @@ export interface CodeEditorInit {
   /** Whether the user is blocked from editing. */
   readonly readOnly: boolean;
   /** Colour scheme of the editor surface. */
-  readonly theme: 'light' | 'dark';
+  readonly theme: ResolvedTheme;
   /** Accessible name of the editing surface. */
   readonly ariaLabel: string;
   /** Called with the full text after every user edit; never called for {@link CodeEditorInstance.applyChange}. */
@@ -47,22 +48,33 @@ export interface CodeEditorInit {
   hover?(text: string, offset: number): HoverInfo | undefined;
 }
 
-/** A mounted code editor. */
+/**
+ * A mounted code editor.
+ *
+ * The text is kept byte for byte: line endings are never normalized, so a CRLF document stays
+ * CRLF in `getText()` and in `onChange`. Every offset in and out (changes, diagnostics, ranges,
+ * selections, completion and hover offsets) is an offset into that text: a UTF-16 index where
+ * `\r\n` counts as two characters. An editor library that counts a line break as one position
+ * must translate (the CodeMirror adapter does).
+ */
 export interface CodeEditorInstance {
-  /** The current full text. */
+  /** The current full text, byte for byte. */
   getText(): string;
-  /** Applies an external splice. Selections outside the change keep their place; `onChange` is not called. */
+  /**
+   * Applies an external splice, also while read-only. A caret outside the change keeps its place;
+   * one inside a replaced range moves to its start. `onChange` and `onSelectionChange` are not called.
+   */
   applyChange(change: TextChange): void;
   /** Replaces all diagnostics. */
   setDiagnostics(d: readonly CodeDiagnostic[]): void;
   /** Scrolls `range` into view and, with `select`, selects it. */
   reveal(range: TextRange, opts?: { select?: boolean }): void;
-  /** The main selection. */
+  /** The main selection, in text offsets; a collapsed range (`from === to`) is the cursor. */
   getSelection(): TextRange;
   /** Blocks or allows user edits. */
   setReadOnly(readOnly: boolean): void;
   /** Switches the colour scheme. */
-  setTheme(theme: 'light' | 'dark'): void;
+  setTheme(theme: ResolvedTheme): void;
   /** Moves keyboard focus into the editor. */
   focus(): void;
   /** Removes the editor from the DOM and releases it; the instance is unusable afterwards. */
@@ -71,6 +83,6 @@ export interface CodeEditorInstance {
 
 /** Creates code editors. Implementations wrap a concrete editor library. */
 export interface CodeEditorAdapter {
-  /** Mounts an editor inside `el`. */
+  /** Mounts an editor inside `el`. If it throws, the editor shows `codeEditorFailed` in the code pane instead. */
   mount(el: HTMLElement, init: CodeEditorInit): CodeEditorInstance;
 }

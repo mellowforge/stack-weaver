@@ -6,15 +6,15 @@ import type { CursorContext } from './context.js';
 
 /** One completion for the code editor. */
 export interface CodeCompletion {
-  /** Text shown and matched against what the user typed. */
+  /** Text shown and matched against what the user typed. Plain text. */
   readonly label: string;
-  /** Text that replaces `[ctx.from, cursor)` when the completion is accepted. */
+  /** Text that replaces `[ctx.from, cursor)` when the completion is accepted (inserted as is). */
   readonly apply: string;
-  /** Short note next to the label, such as `required`. */
+  /** Short note next to the label, such as `required`. Plain text. */
   readonly detail?: string;
-  /** Plain-language description for the completion's info panel. */
+  /** Plain-language description for the completion's info panel. Plain text, never markup. */
   readonly info?: string;
-  /** Group heading and its sort rank (0 first). */
+  /** Group heading (plain text) and its sort rank (0 first). */
   readonly section?: { readonly name: string; readonly rank: number };
   /** Ranking boost; higher sorts earlier. */
   readonly boost?: number;

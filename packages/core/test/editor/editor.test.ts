@@ -191,6 +191,51 @@ describe('undo, read-only and theme', () => {
     await mount({ theme: 'light' });
     expect(el.querySelector('.sw-editor')!.getAttribute('data-sw-theme')).toBe('light');
   });
+
+  it('setTheme changes the theme after mount, and auto starts and stops following matchMedia', async () => {
+    const listeners = new Set<() => void>();
+    const mq = {
+      matches: true,
+      addEventListener: (_: string, fn: () => void) => listeners.add(fn),
+      removeEventListener: (_: string, fn: () => void) => listeners.delete(fn),
+    };
+    window.matchMedia = vi.fn(() => mq) as unknown as typeof window.matchMedia;
+    const { editor, fake } = await mount({ theme: 'light' });
+    const root = el.querySelector('.sw-editor')!;
+    expect(listeners.size).toBe(0);
+
+    editor.setTheme('dark');
+    expect([root.getAttribute('data-sw-theme'), fake.theme]).toEqual(['dark', 'dark']);
+
+    editor.setTheme('auto'); // matches: dark
+    expect(listeners.size).toBe(1);
+    mq.matches = false;
+    listeners.forEach((fn) => fn());
+    expect([root.getAttribute('data-sw-theme'), fake.theme]).toEqual(['light', 'light']);
+
+    editor.setTheme('dark');
+    expect(listeners.size).toBe(0);
+    expect(root.getAttribute('data-sw-theme')).toBe('dark');
+    editor.setTheme('auto');
+    editor.destroy();
+    expect(listeners.size).toBe(0);
+  });
+
+  it('getReadOnly reports the read-only state', async () => {
+    const { editor } = await mount({ readOnly: true });
+    expect(editor.getReadOnly()).toBe(true);
+    editor.setReadOnly(false);
+    expect(editor.getReadOnly()).toBe(false);
+  });
+
+  it('onModeChange fires for setMode too, and not for the current mode', async () => {
+    const onModeChange = vi.fn();
+    const { editor } = await mount({ onModeChange });
+    editor.setMode('split');
+    expect(onModeChange).not.toHaveBeenCalled();
+    editor.setMode('code');
+    expect(onModeChange).toHaveBeenCalledWith('code');
+  });
 });
 
 describe('lifecycle', () => {

@@ -20,32 +20,33 @@ export type YamlValue = ScalarValue | readonly YamlValue[] | { readonly [k: stri
 /** Addresses a node: the document index within the text plus a path inside it. */
 export interface NodeRef {
   /** Zero-based index of the YAML document within the text. */
-  doc: number;
+  readonly doc: number;
   /** Path from the document root to the node. */
-  path: YamlPath;
+  readonly path: YamlPath;
 }
 
 /** A splice of the source text: replace `[from, to)` with `insert`. Offsets are UTF-16 indexes. */
 export interface TextChange {
   /** Start of the replaced range in the old text (UTF-16 index, inclusive). */
-  from: number;
+  readonly from: number;
   /** End of the replaced range in the old text (UTF-16 index, exclusive); equals `from` for a pure insertion. */
-  to: number;
+  readonly to: number;
   /** The text that replaces `[from, to)`; empty for a pure deletion. */
-  insert: string;
+  readonly insert: string;
 }
 
 /** A parse problem with its source range and 1-based position. */
 export interface YamlProblem {
-  message: string;
+  /** The parser's description of the problem (plain text). */
+  readonly message: string;
   /** Start offset (UTF-16 index). */
-  from: number;
+  readonly from: number;
   /** End offset (UTF-16 index). */
-  to: number;
+  readonly to: number;
   /** 1-based line of `from`. */
-  line: number;
+  readonly line: number;
   /** 1-based column of `from`. */
-  col: number;
+  readonly col: number;
 }
 
 /** The result of parsing YAML text. The original text is kept verbatim; it is never regenerated. */

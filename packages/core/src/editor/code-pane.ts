@@ -10,6 +10,7 @@ import type { Problem } from '../validation/problems.js';
 import { rangeForRef } from './context.js';
 import type { EditorContext, Pane } from './context.js';
 import { h } from './dom.js';
+import type { ResolvedTheme } from './theme.js';
 
 /**
  * The code pane: a {@link Pane} that mounts a code editor adapter into the shell's code element.
@@ -40,7 +41,7 @@ export function createCodePane(
   o: {
     el: HTMLElement;
     adapter: Promise<CodeEditorAdapter>;
-    theme(): 'light' | 'dark';
+    theme(): ResolvedTheme;
     onUndo(): void;
     onRedo(): void;
   },

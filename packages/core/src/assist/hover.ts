@@ -11,9 +11,9 @@ export interface HoverInfo {
   readonly from: number;
   /** UTF-16 offset just after the key. */
   readonly to: number;
-  /** The guide label, or the key itself. */
+  /** The guide label, or the key itself. Plain text, never markup. */
   readonly title: string;
-  /** The guide description, or the first sentence of the schema's; may be empty. */
+  /** The guide description, or the first sentence of the schema's; may be empty. Plain text, never markup. */
   readonly description: string;
   /** True when the schema requires the key. */
   readonly required: boolean;

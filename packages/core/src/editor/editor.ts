@@ -17,6 +17,7 @@ import { createProblemScheduler, problemCountText } from './problems.js';
 import { createProblemsPanel } from './problems-panel.js';
 import { createRecipeCards } from './recipes.js';
 import { createShell } from './shell.js';
+import type { EditorTheme, ResolvedTheme } from './theme.js';
 import { createVisualPane } from '../visual/visual-pane.js';
 import { defaultWidgets } from '../visual/widgets/registry.js';
 import { createFieldSlots } from '../visual/widgets/field-row.js';
@@ -25,59 +26,89 @@ import type { WidgetRegistry } from '../visual/widgets/types.js';
 /** Which panes are shown: the form editor, both side by side, or the YAML code. */
 export type EditorMode = 'visual' | 'split' | 'code';
 
-/** Options for {@link createManifestEditor}. */
+/** Message overrides: partial tables merged over {@link defaultUiMessages} and the default schema messages. */
+export type EditorMessages = {
+  /** The editor's own UI strings. */
+  readonly ui?: Partial<UiMessages>;
+  /** Validation messages. */
+  readonly schema?: Partial<SchemaMessages>;
+};
+
+/**
+ * Options for {@link createManifestEditor}.
+ *
+ * `value`, `mode`, `readOnly` and `theme` are initial values: change them later with
+ * {@link ManifestEditor.setValue}, {@link ManifestEditor.setMode}, {@link ManifestEditor.setReadOnly}
+ * and {@link ManifestEditor.setTheme}. The other options (`format`, `formats`, `guide`, `recipes`,
+ * `widgets`, `messages`, `codeEditor` and the callbacks) are read once, when the editor is created;
+ * to change them, create a new editor.
+ */
 export interface ManifestEditorOptions {
-  /** `'kubernetes'`, `'compose'`, the id of a host format, or `'auto'` to detect it from the text. Default `'auto'`. */
-  format?: 'kubernetes' | 'compose' | 'auto' | (string & {});
+  /** `'kubernetes'`, `'compose'`, the id of a host format, or `'auto'` to detect it from the text. Default `'auto'`. Init-only. */
+  readonly format?: 'kubernetes' | 'compose' | 'auto' | (string & {});
   /** Initial YAML text. Default `''`. */
-  value?: string;
+  readonly value?: string;
   /** Initial mode. Default `'split'`. */
-  mode?: EditorMode;
+  readonly mode?: EditorMode;
   /** Blocks user edits. Default `false`. */
-  readOnly?: boolean;
+  readonly readOnly?: boolean;
   /** Colour scheme; `'auto'` follows `prefers-color-scheme`. Default `'auto'`. */
-  theme?: 'light' | 'dark' | 'auto';
-  /** The code editor. Default: the CodeMirror adapter, loaded on demand. */
-  codeEditor?: CodeEditorAdapter;
-  /** Extra formats; one with the id of a built-in replaces it. */
-  formats?: readonly FormatDefinition[];
-  /** Extra starter recipes, offered while the document is empty; one with the id of a built-in replaces it. */
-  recipes?: readonly Recipe[];
-  /** Guide overrides, keyed by format id. */
-  guide?: Readonly<Record<string, GuideOverride>>;
-  /** Input widgets by name, merged over the built-in ones; a guide's `widget` names one of these. */
-  widgets?: WidgetRegistry;
-  /** UI and schema message overrides. */
-  messages?: { ui?: Partial<UiMessages>; schema?: Partial<SchemaMessages> };
-  /** Called with the full text after every change, including undo and redo (`origin: 'history'`). */
-  onChange?(value: string, meta: { origin: ChangeOrigin }): void;
-  /** Called when the problems change. */
-  onProblemsChange?(problems: readonly Problem[]): void;
-  /** Called when the mode changes. */
-  onModeChange?(mode: EditorMode): void;
+  readonly theme?: EditorTheme;
+  /** The code editor. Default: the CodeMirror adapter, loaded on demand. Init-only. */
+  readonly codeEditor?: CodeEditorAdapter;
+  /** Extra formats; one with the id of a built-in replaces it. Init-only. */
+  readonly formats?: readonly FormatDefinition[];
+  /** Extra starter recipes, offered while the document is empty; one with the id of a built-in replaces it. Init-only. */
+  readonly recipes?: readonly Recipe[];
+  /** Guide overrides, keyed by format id. Init-only. */
+  readonly guide?: Readonly<Record<string, GuideOverride>>;
+  /** Input widgets by name, merged over the built-in ones; a guide's `widget` names one of these. Init-only. */
+  readonly widgets?: WidgetRegistry;
+  /** UI and schema message overrides. Init-only. */
+  readonly messages?: EditorMessages;
+  /**
+   * Called with the full text after every change, including undo and redo (`origin: 'history'`)
+   * and {@link ManifestEditor.setValue} (`origin: 'api'`). A throw is logged and does not stop the editor.
+   */
+  readonly onChange?: (value: string, meta: { readonly origin: ChangeOrigin }) => void;
+  /** Called when the problems change. A throw is logged and does not stop the editor. */
+  readonly onProblemsChange?: (problems: readonly Problem[]) => void;
+  /**
+   * Called when the mode changes: by the mode switch, by {@link ManifestEditor.setMode}, and when an
+   * "Edit in code" or "Jump to error" control opens Split from Visual. A throw is logged.
+   */
+  readonly onModeChange?: (mode: EditorMode) => void;
 }
 
 /** A mounted manifest editor. */
 export interface ManifestEditor {
   /** The current YAML text. */
   getValue(): string;
-  /** Replaces the text (origin `'api'`); a no-op when it is equal. */
+  /** Replaces the text (origin `'api'`); a no-op (no `onChange`) when it is equal. */
   setValue(text: string): void;
   /** The current mode. */
   getMode(): EditorMode;
-  /** Switches mode. */
+  /** Switches mode and calls `onModeChange`; a no-op (no `onModeChange`) when it is the current mode. */
   setMode(mode: EditorMode): void;
   /** The current problems. */
   getProblems(): readonly Problem[];
+  /** Whether user edits are blocked. */
+  getReadOnly(): boolean;
   /** Blocks or allows user edits. */
   setReadOnly(readOnly: boolean): void;
+  /** Switches the colour scheme; `'auto'` follows `prefers-color-scheme` from now on. */
+  setTheme(theme: EditorTheme): void;
   /** Undoes the latest step; false when there is none (or the editor is read-only). */
   undo(): boolean;
   /** Redoes the latest undone step; false when there is none (or the editor is read-only). */
   redo(): boolean;
   /** Scrolls to and selects the node. */
   reveal(ref: NodeRef): void;
-  /** Resolves once the format is resolved and the code editor is mounted. */
+  /**
+   * Resolves once the format is resolved, the code editor is mounted and the first validation has
+   * finished. Rejects if the code editor or built-in formats fail to load (the failure is also
+   * shown in the editor). Does not resolve if a schema load never settles.
+   */
   readonly ready: Promise<void>;
   /** Removes the editor from the page; no callback fires afterwards. */
   destroy(): void;
@@ -96,7 +127,7 @@ export function createManifestEditor(el: HTMLElement, options: ManifestEditorOpt
 }
 
 /**
- * {@link createManifestEditor} plus the internal context, for later tasks and tests.
+ * {@link createManifestEditor} plus the internal context, for tests and internal wiring.
  * @internal
  */
 export function createEditorWithContext(
@@ -119,10 +150,21 @@ export function createEditorWithContext(
   let problems: readonly Problem[] = [];
   const problemListeners = new Set<(p: readonly Problem[]) => void>();
 
-  // Theme: 'auto' follows prefers-color-scheme.
-  const mq = options.theme === undefined || options.theme === 'auto' ? win?.matchMedia?.('(prefers-color-scheme: dark)') : undefined;
-  const themeNow = (): 'light' | 'dark' =>
-    options.theme === 'light' || options.theme === 'dark' ? options.theme : mq?.matches ? 'dark' : 'light';
+  // Theme: 'auto' follows prefers-color-scheme. The media query is watched while the theme is 'auto'.
+  let theme: EditorTheme = options.theme ?? 'auto';
+  let mq: MediaQueryList | undefined;
+  const themeNow = (): ResolvedTheme => (theme !== 'auto' ? theme : mq?.matches ? 'dark' : 'light');
+  /** Starts or stops following `prefers-color-scheme`. */
+  const watchScheme = (on: boolean): void => {
+    if (on && !mq) {
+      mq = win?.matchMedia?.('(prefers-color-scheme: dark)');
+      mq?.addEventListener?.('change', applyTheme);
+    } else if (!on && mq) {
+      mq.removeEventListener?.('change', applyTheme);
+      mq = undefined;
+    }
+  };
+  watchScheme(theme === 'auto');
 
   const cache = createBundleCache({ store, format: () => format, isDestroyed: () => destroyed });
   const ctx: EditorContext = {
@@ -276,11 +318,12 @@ export function createEditorWithContext(
   };
   shell.root.addEventListener('keydown', onKeydown, true);
 
-  const onScheme = (): void => {
+  /** Shows the current theme on the root (`data-sw-theme`) and in the code editor. */
+  function applyTheme(): void {
+    if (destroyed) return;
     shell.setTheme(themeNow());
-    codePane.instance()?.setTheme(themeNow());
-  };
-  mq?.addEventListener?.('change', onScheme);
+    guarded('the code editor', () => codePane.instance()?.setTheme(themeNow()));
+  }
 
   const needBuiltins = formatOption === 'auto' || !hostFormats.some((f) => f.id === formatOption);
   const formatReady = (needBuiltins ? loaders.loadBuiltinFormats() : Promise.resolve([])).then(
@@ -321,6 +364,13 @@ export function createEditorWithContext(
     getMode: () => mode,
     setMode,
     getProblems: () => problems,
+    getReadOnly: () => readOnly,
+    setTheme(t) {
+      if (destroyed) return;
+      theme = t;
+      watchScheme(t === 'auto');
+      applyTheme();
+    },
     setReadOnly(v) {
       if (destroyed) return;
       readOnly = v;
@@ -341,7 +391,7 @@ export function createEditorWithContext(
       unsubscribe();
       scheduler.destroy();
       shell.root.removeEventListener('keydown', onKeydown, true);
-      mq?.removeEventListener?.('change', onScheme);
+      watchScheme(false);
       for (const p of panes) p.destroy();
       problemListeners.clear();
       cache.clear();

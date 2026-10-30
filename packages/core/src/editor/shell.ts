@@ -1,6 +1,7 @@
 import { h } from './dom.js';
 import type { EditorMode } from './editor.js';
 import type { UiMessages } from './messages.js';
+import type { ResolvedTheme } from './theme.js';
 
 /**
  * The editor's DOM frame: top bar and panes.
@@ -22,7 +23,7 @@ export interface Shell {
   /** Shows `mode`: updates the radio group and pane visibility. */
   setMode(mode: EditorMode): void;
   /** Sets `data-sw-theme`. */
-  setTheme(theme: 'light' | 'dark'): void;
+  setTheme(theme: ResolvedTheme): void;
   /** Sets the format badge text. */
   setBadge(text: string): void;
   /** Enables or disables the undo and redo buttons. */
@@ -39,7 +40,7 @@ export function createShell(
   o: {
     ui: UiMessages;
     mode: EditorMode;
-    theme: 'light' | 'dark';
+    theme: ResolvedTheme;
     onMode(mode: EditorMode): void;
     onUndo(): void;
     onRedo(): void;

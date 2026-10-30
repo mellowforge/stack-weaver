@@ -11,6 +11,7 @@ import { stateToCm, stateToText, toCm } from './offsets.js';
 import type { CodeCompletion } from '../../assist/complete.js';
 import { detectEol } from '../../document/eol.js';
 import type { TextChange } from '../../document/types.js';
+import type { ResolvedTheme } from '../../editor/theme.js';
 import type { CodeDiagnostic, CodeEditorAdapter, CodeEditorInit, CodeEditorInstance } from '../adapter.js';
 
 /** Options for {@link codemirrorAdapter}. */
@@ -38,7 +39,7 @@ function mapOffset(pos: number, c: { from: number; to: number; length: number },
 }
 
 /** Colours come from `--sw-*` custom properties so the host's tokens (and dark mode) apply. */
-function themeExtension(theme: 'light' | 'dark'): Extension {
+function themeExtension(theme: ResolvedTheme): Extension {
   return EditorView.theme(
     {
       '&': { color: 'var(--sw-fg)', backgroundColor: 'var(--sw-bg)', height: '100%' },
@@ -65,6 +66,14 @@ function toCompletion(c: CodeCompletion): Completion {
 /**
  * Builds a CodeEditorAdapter backed by CodeMirror 6. CodeMirror's own history is never installed:
  * Mod-z and Mod-Shift-z / Mod-y are routed to the host's `onUndo` / `onRedo` so one undo history exists.
+ *
+ * Line endings are kept: the line ending of the text (its first line break, as `parseText`
+ * detects it) is CodeMirror's only `EditorState.lineSeparator`, so the text round-trips byte for
+ * byte, and every offset is translated between the text (where `\r\n` is two characters) and
+ * CodeMirror (where a line break is one position). When an external change gives the text another
+ * line ending (an empty document filled with CRLF text, say), the document is rebuilt under the new
+ * separator; the selection is mapped through the change. Pasted or dropped text takes the
+ * document's line ending.
  */
 export function codemirrorAdapter(opts: CodemirrorAdapterOptions = {}): CodeEditorAdapter {
   return {
