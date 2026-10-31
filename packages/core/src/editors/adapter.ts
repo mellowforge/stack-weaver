@@ -110,8 +110,12 @@ export type SyncCodeEditorAdapter = Omit<CodeEditorAdapter, 'mount'> & {
 export interface CodeEditorAdapter {
   /**
    * Mounts an editor inside `el`; may answer asynchronously. If it throws or the promise rejects,
-   * the editor shows `codeEditorFailed` in the code pane instead and `ready` rejects. If the editor is
-   * destroyed while a mount is pending, the host calls `destroy()` on the instance as soon as it arrives.
+   * the editor shows `codeEditorFailed` in the code pane instead and `ready` rejects (after a destroy
+   * it is only logged). If the editor is destroyed while a mount is pending, the host calls `destroy()`
+   * on the instance as soon as it arrives. A race to know about: the instance shows `init.text`, and API
+   * text changes made while the mount is pending reach it only once the mount resolves. If the user types
+   * into the instance before then, `onChange` reports the typed text, which starts from `init.text`, and
+   * the API change is lost. Do not accept input before `mount` resolves.
    */
   mount(el: HTMLElement, init: CodeEditorInit): CodeEditorInstance | Promise<CodeEditorInstance>;
 }

@@ -128,18 +128,19 @@ targets app developers who are new to Kubernetes, and end users of platforms tha
 ### Formats as data: the registry
 
 ```ts
-registerFormat({
+registerFormat({                     // the shape as of Plan 4 (P2): formats see plain data, never the yaml tree
   id: 'kubernetes' | 'compose' | string,
-  detect(text, parsed): boolean,     // k8s: apiVersion+kind; compose: services/top-level compose keys
-  version: '1.36',                   // declared + shown in the UI badge
-  schema,                            // JSON Schema (per kind for k8s)
-  validators?,                       // precompiled (see Validation)
-  guide,                             // guide overlay (below)
-  recipes,                           // starter recipes for this format
-  rules?,                            // semantic lint rules
+  label: 'Kubernetes',  version: '1.37.2',            // shown in the UI badge
   rootModel: 'documents' | 'mapping',
+  detect(input: DetectInput): boolean,                // input.docs: toData of each document (undefined if empty)
+  kinds(): KindEntry[],                               // known kinds ('documents' formats)
+  loadSchema(data): Promise<SchemaBundle | undefined>,// schema + precompiled validator for one document's data
+  guide,                                              // guide overlay (below)
+  recipes?,  rules?,  variables?,                     // starter recipes, semantic rules, placeholder support
 })
 ```
+
+The editor does not read this global registry: it takes `formats` (merged over the built-ins) at creation.
 
 - **Root model:**
   - **Kubernetes:** the root is an ordered list of `---` documents. Each document is a top-level
@@ -169,13 +170,16 @@ JSON Schema provides coverage but not friendliness. The overlay is per-format da
 everything the wireframes show that a schema can't:
 
 ```ts
-type Guide = {
+type Guide = {                                                       // the shape as of Plan 4 (P10, P12)
   groups: { id: string; label: string; order: number }[];          // "Run your app", "Expose it", …
   kinds: Record<string, { label; description; group; order? }>;      // picker cards
   fields: Record<string /* "io.k8s.api.core.v1.Container#resources" */, {
-    label?; description?; recommended?: boolean; advanced?: boolean;
-    order?: number; widget?: string; hidden?: boolean; example?: unknown;
+    label?; description?; tier?: 'recommended' | 'common' | 'advanced';
+    order?: number; widget?: WidgetRef /* { name, param? } */; hidden?: boolean; example?: unknown; options?: string[];
   }>;
+  labelKeys?: string[];          // keys whose value names a sequence item ('name')
+  resourceLabel?: YamlPath;      // the path that names a document (['metadata', 'name'])
+  references?: Record<string, GuideReference>;  // what reference widgets suggest, per kind
 };
 ```
 
@@ -294,14 +298,15 @@ const editor: ManifestEditorController = createManifestEditor(el, {
   guide?: Record<formatId, GuideOverride>, // per-format overrides, merged over the format's guide
   variables?: { store: 'x-variables' } | { store: 'external'; value: VariableDecl[] },
   widgets?: WidgetRegistry,
-  messages?: { ui?: Partial<UiMessages>; schema?: Partial<SchemaMessages> },  // i18n
+  messages?: { ui?: Partial<UiMessages>; schema?: Partial<SchemaMessages>; locale?: string },  // i18n
   onChange?(value: string, meta: { origin: ChangeOrigin }): void,  // 'visual' | 'code' | 'api' | 'history'
   onProblemsChange?(problems: Problem[]): void,
   onModeChange?(mode): void,  onVariablesChange?(decls: VariableDecl[]): void,
 });
 editor.getValue(); editor.setValue(text); editor.getMode(); editor.setMode(m); editor.getProblems();
 editor.getReadOnly(); editor.setReadOnly(b); editor.setTheme(t); editor.undo(); editor.redo(); editor.reveal(ref: NodeRef);
-editor.getFormat(); editor.setFormat(f); /* 'auto' re-detects; a no-op when current */
+editor.getFormat(); editor.setFormat(f); /* the option: 'auto' or an id; round-trips; a no-op when current */
+editor.getActiveFormat(); /* the resolved format id, or undefined */
 editor.update({ format, value, variables, readOnly, mode, theme }); /* several setters, in that order */
 editor.getVariables(); editor.setVariables(decls); /* external store only */
 editor.applyFix(problem); /* ActionResult; a problem's quick fix, one undo step */
@@ -316,13 +321,14 @@ editor.ready; /* Promise<void>, see below */ editor.destroy();
     `advanced`. Defaults: a property with no guide entry is `'advanced'`; an entry without `tier` is `'common'`.
   - The options, callbacks and named types are readonly properties: `theme?: EditorTheme` (`ResolvedTheme | 'auto'`),
     `messages?: EditorMessages`, and `onChange`, `onProblemsChange` and `onModeChange` are function properties.
-    `value`, `mode`, `readOnly` and `theme` have setters; the other options are read once, at creation.
+    `value`, `mode`, `readOnly` and `theme` have setters; the other options are read once, at creation. (Plan 4,
+    P8: `format` and the list of an `external` variables store are settable too.)
     `onModeChange` also fires for `setMode`, and when an "Edit in code" or "Jump to error" link opens Split from
     Visual. `setMode` and `setValue` are no-ops when the value is current.
   - `GuideField.options` gives suggested values. Upstream Kubernetes schemas have no enums for fields such as
     `restartPolicy`, so the guide supplies the list, and the widget suggests it without restricting input.
-  - `WidgetFactory.managesKeys` says a mapping widget adds, shows and removes its own keys (the Secret `data`
-    widget). The mapping is then not an outline node or a section of its own: the widget is a row in its parent's
+  - `managesKeys` says a mapping widget adds, shows and removes its own keys (the Secret `data` widget). Since
+    Plan 4 (P10) it is `WidgetDefinition.managesKeys`, beside `create`. The mapping is then not an outline node or a section of its own: the widget is a row in its parent's
     section, and no "Add key" is offered for it.
   - `EditOp` gains `renameKey` (`{ op: 'renameKey', at, key }`, `at` addressing the pair's value): it replaces only
     the key's source range, so a renamed key keeps its place and comments.
@@ -393,8 +399,9 @@ editor.ready; /* Promise<void>, see below */ editor.destroy();
   - **P2.** Formats see plain data: `detect(DetectInput)`, `loadSchema(data)`, and `RuleInput.locate(doc, path, at?)`
     to range a finding. Built-in compose rules keep their internal yaml walk for placeholder ranges.
   - **P3.** `YamlProblem` stays (the parse layer's problem); `Problem` is the validated, editor-facing one.
-  - **P4.** One result type, `ActionResult = { ok: true } | { ok: false; reason: ActionRefusal; edit?: EditRefusal }`,
-    for `VariableStore.set`, `remove` and `applyFix`.
+  - **P4.** One result type, `ActionResult`, for the variable store's `set` and `remove` and for `applyFix`. As
+    tightened by R9: `{ ok: true } | { ok: false; reason: 'edit-refused'; edit: EditRefusal } | { ok: false; reason:
+    Exclude<ActionRefusal, 'edit-refused'> }`. The store type itself (`VariableStore`) is internal.
   - **P5.** `QuickFix.id` is the rule's fix key; `sameProblem(a, b)` compares severity, code, message, doc, range, fix id
     and fix action. A fix applies to the current text.
   - **P6.** `Problem.code` is the template-literal type `ProblemCode`.
@@ -412,6 +419,18 @@ editor.ready; /* Promise<void>, see below */ editor.destroy();
     every value goes through `{param}` templates and `formatMessage` (one pass, never re-expanded).
   - **P12.** Field-name knowledge is guide data: `Guide.labelKeys`, `resourceLabel`, `references`.
   - **P13.** `registerFormat` does not freeze the host's format; built-ins stay frozen.
+  - **R8.** `getFormat()` returns the format option (`'auto'` or an id) so it round-trips with `setFormat`, as
+    `getMode` does with `setMode`; `getActiveFormat()` returns the resolved id. (The root export `getFormat(id)`
+    reads the global registry, which the editor does not use.)
+  - **R9.** Unions say whether they may grow; `ActionResult` is tightened (P4); `VariableStore` is internal;
+    `SyncCodeEditorAdapter` is public; `Rule.id` `'failed'` is reserved; the `ParsedText` handle, its
+    `errors` / `warnings` and the published problems array are frozen; `getVariables()` is referentially stable
+    until the declarations change; `WidgetContext.locale`; `MessageParams` is exported.
+  - **R11.** `PluralMessage.none` is the text for exactly 0; `zero` is only the CLDR plural category (Latvian selects it
+    for 10). The default `problemCount` is `{ none, one, other }`.
+  - **R12.** Under `'auto'`, `'history'` changes (undo, redo) re-detect the format like `'api'` ones; typing does not.
+  - **R13.** The editor's internal problem-list comparison also compares `path` (a same-length key rename
+    republishes); the public `sameProblem` keeps P5.
 
 ## Open questions for the user
 

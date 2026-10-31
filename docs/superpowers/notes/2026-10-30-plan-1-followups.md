@@ -48,10 +48,15 @@ All items below are done in Plan 4 unless marked moved.
   - `Rule.messages` coverage check. Done (Plan 4 Task 6: a console warning, once per rule and key).
   - `registerFormat` freeze claim. Done (P13; TSDoc corrected in Plan 4 Task 3).
   - TSDoc on `applyFix`. Done (Plan 4 Task 5).
-  - `applyEdit` catch-all `console.debug`. Done (Plan 4 Task 4).
+  - `applyEdit` catch-all `console.debug`. Done (Plan 4 Task 4); since the final review wave a look-alike `ParsedText`
+    or malformed op is refused quietly and any other internal failure is a `console.error` (also in `canEdit`).
   - `fitted` announcement. Done (Plan 4 Task 6: `variableDefaultDropped`).
-- Plan 3 milestone residuals: stale Variables alert (Plan 4 Task 6), `variablesSelected` reset (Plan 4 Task 7), leading `---` on
-  `addDocument` (Plan 4 Task 4). Done. Finding F2 (`auto` format locked): done (Plan 4 Task 7, P8).
+- Plan 3 milestone residuals: stale Variables alert (Plan 4 Task 6): partly done, the status region still is not
+  cleared by `update()` on an external change (see Task 6 below). `variablesSelected` reset (Plan 4 Task 7) and the
+  leading `---` on `addDocument` (Plan 4 Task 4): done. Finding F2 (`auto` format locked): done (Plan 4 Task 7, P8).
+- Plan 4 milestone review (final wave): R8 (`getFormat()` returns the option, `getActiveFormat()`), R9 (type and API
+  items), R11 (`PluralMessage.none`), R12 (undo/redo re-detect under `'auto'`), R13 (problem lists compare `path`), the
+  picker follows the host guide, silent failures logged, `formatBadge`. Done.
 
 ## Plan 5 (wrappers and release)
 - **Changesets:** restore `.changeset/config.json` `fixed: [["@stack-weaver/core","@stack-weaver/angular","@stack-weaver/react"]]` when the wrappers are added. It is set to `[]` until then.
@@ -59,7 +64,29 @@ All items below are done in Plan 4 unless marked moved.
 - Wrappers recreate the editor when an init-only option changes (P8); only `value`, `mode`, `readOnly`, `theme`, `format` and the external variables are settable.
 - Wrappers pass only the props that changed to `update()` (R3): a re-passed `format: 'auto'` is a no-op by design, and `variables` in `update` is re-applied even when unchanged.
 - The `check-types` unit test reads whatever `dist/` exists (and skips without a build); the CI gate is the release script (`node scripts/check-types.mjs` after `build`).
-- `SyncCodeEditorAdapter` is `@internal` but appears in `codemirrorAdapter()`'s public return type and is not exported from the root: export it or widen the return type.
+- `SyncCodeEditorAdapter`: done in the Plan 4 final wave (public, exported from the root and the codemirror subpath).
+
+### Plan 5 wrapper contract
+What the React and Angular wrappers must respect (from the Plan 4 milestone review):
+- Init-only callbacks (`onChange`, `onProblemsChange`, `onModeChange`, `onVariablesChange`) are read once: route them
+  through a ref trampoline so a re-render's new function is called without recreating the editor.
+- Object options (`guide`, `widgets`, `formats`, `recipes`, `messages`, `variables`) are init-only and compared by
+  reference: ask hosts for stable objects, or compare structurally before recreating the editor.
+- `onChange` fires synchronously, with origin `'api'`, inside `setValue` and `update({ value })`: filter it (or compare
+  with the value just pushed) to avoid echo loops and Angular's ExpressionChanged error.
+- Bind `[(format)]` with `getFormat()` / `setFormat()` (R8): the option round-trips, so `'auto'` keeps detecting.
+- R10, deferred here as additive core API: controller change signals: `onFormatChange` (the active format),
+  `canUndo` / `canRedo` with a change event, and `reset` / `clearHistory` on the controller (or `update({ resetHistory })`).
+- `defaultWidgets` and `defaultUiMessages` are not frozen: wrappers must not mutate them (or the core freezes them).
+- S5: map `ActionResult.edit` (`flow`, `alias`, `block-scalar`) to the "Edit in code" hint in wrapper UIs.
+- S6: a `transact` refusal does not say which op failed.
+- S7: `recipes.choose` silently skips fixing the format when that format is not loaded.
+
+### Deferred from the Plan 4 final review (E)
+- S4: the code pane's assist callbacks (completion, hover) have bare `catch` blocks; log with `console.debug`.
+- S8: a widget whose `destroy()` throws after a `widgetFailed` note is logged a second time.
+- `defaultWidgets` (and `defaultUiMessages`) freeze.
+- R10 controller signals (above).
 
 ## Parked, low priority
 - `--update-lock` and the first real schema bump: the lock-writing glue (`writeLockEntry`, the generators' flag branches) has only been tested with mocks. Expect to debug it on the first upstream bump.
@@ -218,7 +245,8 @@ Each was found in a per-task review and judged not worth blocking the task. Grou
 **Task 4 (store and edit engine)**
 - `transact`'s ok result lacks `at` for an empty or no-change call.
 - No test for `renameKey` to `<<` on a flow key or a nested flow add, and no post-refusal grouping test.
-- `console.debug` fires on hostile-input exceptions (plan-mandated).
+- `console.debug` fires on hostile-input exceptions (plan-mandated). Superseded in the final wave: shape problems are
+  refused quietly, internal failures are `console.error`.
 
 **Task 5 (`ActionResult`, `sameProblem`)**
 - The remove-refusal test asserts only the message (no `aria-invalid` or focus); `invalid` field-specific sub-messages are unreachable through the UI and untested.
@@ -228,7 +256,7 @@ Each was found in a per-task review and judged not worth blocking the task. Grou
 **Task 6 (variables)**
 - The status region is not cleared by `update()` on an external change; `canAdd()` can clear an unrelated `editRefused` error.
 - A sleep-based 150 ms test; a redundant ternary at `fit.ts:69`; blind `as VariableDecl` casts in `clean` / `fitted` / `block.ts`; a trivial alias in `declareFor`.
-- `warnMissingKey` TSDoc should say the dedupe is per process.
+- `warnMissingKey` TSDoc should say the dedupe is per process. Done in the final wave (`warnOnce`: once per page).
 
 **Task 7 (controller)**
 - Interim re-detection against host-only formats while a lazy `'auto'` load is pending (flicker; the end state is right).
@@ -237,18 +265,22 @@ Each was found in a per-task review and judged not worth blocking the task. Grou
 
 **Task 8 (adapter)**
 - `fake-adapter.ts` indentation; import order in `codemirror/index.ts:15`.
-- `SyncCodeEditorAdapter` (`@internal`) is used in `codemirrorAdapter()`'s public return type (see Plan 5).
-- A rare race: the user types in an instance while an API change happens before an async mount arrives, and the API change is lost (TSDoc note); unformatted long test lines (no prettier available).
+- `SyncCodeEditorAdapter` (`@internal`) is used in `codemirrorAdapter()`'s public return type. Done in the final wave
+  (public and exported).
+- A rare race: the user types in an instance while an API change happens before an async mount arrives, and the API change is lost (now in the `CodeEditorAdapter.mount` TSDoc); unformatted long test lines (no prettier available).
 
 **Task 9 (widgets and unions)**
 - A near-tautological "host registry entry replaces" test in `widgets.test.ts`.
 - Redundant `?? []` / `?? 0` after narrowing (`outline-model.ts:66,73`, `section.ts:168`).
-- A plain-JS host bare function gives an opaque "widget failed" note (README note); `JsonSchema` readonly is shallow (TSDoc wording); the README `managesKeys` paragraph is a long line and does not mention a bare function.
+- A plain-JS host bare function gives an opaque "widget failed" note; `JsonSchema` readonly is shallow; the README
+  `managesKeys` paragraph was a long line. All three done in the final wave (README note on bare functions, TSDoc
+  "shallowly read-only", paragraph rewrapped).
 
 **Task 10 (messages)**
 - An unreachable `new Intl.PluralRules()` (runtime-default locale) branch at `format-message.ts:31`.
 - Default schema messages (`validation/messages.ts:47`, "Must be a ... or ...") are English built into `MessageFn`s: host-overridable per keyword, out of `UiMessages` scope.
-- The README messages table lacked `problemPrefix` and the severity keys (added in Task 12).
+- The README messages section listed `{name}` templates by hand and missed keys: since the final wave it says
+  "templates with `{…}` placeholders", points to `defaultUiMessages` for every key, and lists this release's new keys.
 - Remove-button names `${ctx.label} ${name}` use a fixed " " joiner; `defaultUiMessages` is not frozen (consistent with `defaultMessages`).
 
 **Task 11 (guide data)**

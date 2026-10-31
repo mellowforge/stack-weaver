@@ -142,7 +142,8 @@ export interface ManifestEditorController {
   /**
    * Applies several changes at once, in this order: `format`, `value`, `variables`, `readOnly`, `mode`, `theme`.
    * Each does what its setter does: nothing when it is current, except `variables`, which (like `setVariables`)
-   * replaces the list and re-validates even when it is unchanged. An empty patch does nothing.
+   * replaces the list and re-validates even when it is unchanged. An empty patch does nothing. Invalid `variables`
+   * throw the `TypeError` of `setVariables` after `format` and `value` were applied, and before the fields after it.
    */
   update(patch: ManifestEditorUpdate): void;
   /**
@@ -204,7 +205,9 @@ export interface ManifestEditorController {
   /**
    * Resolves once the format is resolved, the code editor is mounted and the first validation has
    * finished. Rejects if the code editor or built-in formats fail to load (the failure is also
-   * shown in the editor). Does not resolve if a schema load never settles.
+   * shown in the editor). Does not resolve if a schema load never settles. Resolves (without a
+   * mount) when the editor is destroyed first. The built-in formats load only when the format option
+   * needs them (`'auto'` or a built-in id): with `format` set to one of `formats`, they never do.
    */
   readonly ready: Promise<void>;
   /** Removes the editor from the page; no callback fires afterwards. */
