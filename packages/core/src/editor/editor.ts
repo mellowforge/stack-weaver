@@ -1,4 +1,4 @@
-import { isEmptyDocument } from '../document/data.js';
+import { allDocumentsEmpty } from '../document/data.js';
 import { DocumentStore } from '../document/store.js';
 import type { ChangeOrigin, StoreEvent } from '../document/store.js';
 import type { NodeRef, TextRange } from '../document/types.js';
@@ -356,7 +356,7 @@ export function createEditorWithContext(
       // cleared (else the badge, guide and problems would keep describing a document that is gone). Broken text
       // keeps the last format, so typing through a syntax error does not flicker.
       if (!format) applyFormat(resolveFormat('auto', p, formatList));
-      else if (p.ok && p.docs.every((_, i) => isEmptyDocument(p, i))) applyFormat(undefined);
+      else if (p.ok && allDocumentsEmpty(p)) applyFormat(undefined);
     }
     scheduler.schedule();
     recipes.refresh();

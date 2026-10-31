@@ -1,7 +1,7 @@
 import { Scalar, isAlias, isMap, isNode, isScalar, isSeq, visit } from 'yaml';
 import type { CST, Node, YAMLMap, YAMLSeq } from 'yaml';
 import { parseText } from './parse.js';
-import { getNode, getPairKey } from './paths.js';
+import { getNode, getPairKey, yamlDocs } from './internal.js';
 import { renderBlockScalar, renderScalar, renderValue } from './render.js';
 import type { NodeRef, ParsedText, ScalarValue, TextChange, YamlPath, YamlValue } from './types.js';
 
@@ -58,13 +58,21 @@ export type EditRefusal =
   | 'unsupported';
 
 /**
- * The new text plus the single splice that produced it, or the reason the edit was refused. For
- * the ops that create or move a node, `at` addresses it in the new text: `add` gives
- * `[...path, key]`, `push` gives `[...path, index]`, `renameKey` gives the pair's value under its
- * new key and `addDocument` gives `{ doc: <new index>, path: [] }`. Other ops leave `at` out.
+ * The new text plus the single splice that produced it and the new text's parse, or the reason
+ * the edit was refused. `parsed` is the `parseText` result for `text` (the input parse itself
+ * when the text is unchanged), so a caller need not parse it again. For the ops that create or
+ * move a node, `at` addresses it in the new text: `add` gives `[...path, key]`, `push` gives
+ * `[...path, index]`, `renameKey` gives the pair's value under its new key and `addDocument` gives
+ * `{ doc: <new index>, path: [] }`. Other ops leave `at` out.
  */
 export type EditResult =
-  | { readonly ok: true; readonly text: string; readonly change: TextChange; readonly at?: NodeRef }
+  | {
+      readonly ok: true;
+      readonly text: string;
+      readonly change: TextChange;
+      readonly parsed: ParsedText;
+      readonly at?: NodeRef;
+    }
   | { readonly ok: false; readonly reason: EditRefusal };
 
 type Coll = YAMLMap | YAMLSeq;
@@ -186,12 +194,12 @@ function dataCheck(
   doc: number,
   mutate: (data: unknown) => { data: unknown } | undefined,
 ): (q: ParsedText) => boolean {
-  const expected = p.docs.map((d) => d.toJS() as unknown);
+  const expected = yamlDocs(p).map((d) => d.toJS() as unknown);
   const next = mutate(expected[doc]);
   if (!next) return () => false;
   expected[doc] = next.data;
   return (q) =>
-    q.docs.length === expected.length && sameData(expected, q.docs.map((d) => d.toJS() as unknown));
+    q.docCount === expected.length && sameData(expected, yamlDocs(q).map((d) => d.toJS() as unknown));
 }
 
 /** Replaces the value at `path` (a fresh value where the old one was a scalar). */
@@ -425,7 +433,7 @@ function finish(
   const text = p.text.slice(0, change.from) + change.insert + p.text.slice(change.to);
   const q = parseText(text);
   if (!q.ok || !check(q)) return refuse('unsupported');
-  return at ? { ok: true, text, change, at } : { ok: true, text, change };
+  return at ? { ok: true, text, change, parsed: q, at } : { ok: true, text, change, parsed: q };
 }
 
 function setScalar(p: ParsedText, ref: NodeRef, tg: Target, value: ScalarValue): EditResult {
@@ -446,7 +454,7 @@ function setScalar(p: ParsedText, ref: NodeRef, tg: Target, value: ScalarValue):
   }
   return finish(p, change, (q) => {
     const m = getNode(q, ref);
-    return q.docs.length === p.docs.length && isScalar(m) && Object.is(m.value, value);
+    return q.docCount === p.docCount && isScalar(m) && Object.is(m.value, value);
   });
 }
 
@@ -608,7 +616,7 @@ function anchorReferenced(p: ParsedText, doc: number, roots: unknown[]): boolean
   }
   if (anchors.size === 0) return false;
   let used = false;
-  visit(p.docs[doc]!, {
+  visit(yamlDocs(p)[doc]!, {
     Alias(_, a) {
       used = !inside.has(a) && anchors.has(a.source);
       return used ? visit.BREAK : undefined;
@@ -699,7 +707,7 @@ function renamePair(p: ParsedText, ref: NodeRef, tg: Target, key: string): EditR
   const parentPath = ref.path.slice(0, -1);
   const at: NodeRef = { doc: ref.doc, path: [...parentPath, key] };
   const [s, e] = old.range;
-  if (String(old.value) === key) return { ok: true, text: p.text, change: { from: s, to: s, insert: '' }, at };
+  if (String(old.value) === key) return { ok: true, text: p.text, change: { from: s, to: s, insert: '' }, parsed: p, at };
   // A merge key supplies values by key: renaming next to one can reveal or hide a merged value.
   if (parent.items.some((pr) => isScalar(pr.key) && pr.key.value === '<<')) return refuse('alias');
   if (parent.items.some((pr) => isScalar(pr.key) && String(pr.key.value) === key)) return refuse('duplicate-key');
@@ -730,13 +738,13 @@ function addDocument(p: ParsedText, yaml: string): EditResult {
   if (!body.endsWith(p.eol)) body += p.eol;
   const lead = t.length > 0 && !t.endsWith('\n') ? p.eol : '';
   const insert = `${lead}---${p.eol}${body}`;
-  const before = p.docs.map((d) => d.toJS() as unknown);
+  const before = yamlDocs(p).map((d) => d.toJS() as unknown);
   return finish(
     p,
     { from: t.length, to: t.length, insert },
     (q) =>
-      q.docs.length === before.length + 1 &&
-      sameData(before, q.docs.slice(0, before.length).map((d) => d.toJS() as unknown)),
+      q.docCount === before.length + 1 &&
+      sameData(before, yamlDocs(q).slice(0, before.length).map((d) => d.toJS() as unknown)),
     { doc: before.length, path: [] },
   );
 }
@@ -744,14 +752,14 @@ function addDocument(p: ParsedText, yaml: string): EditResult {
 /** True when an alias in a document other than `doc` names an anchor defined in `doc`. */
 function anchorsReferencedElsewhere(p: ParsedText, doc: number): boolean {
   const anchors = new Set<string>();
-  visit(p.docs[doc]!, {
+  visit(yamlDocs(p)[doc]!, {
     Node(_, n) {
       if (n.anchor) anchors.add(n.anchor);
     },
   });
   if (anchors.size === 0) return false;
   let used = false;
-  p.docs.forEach((d, i) => {
+  yamlDocs(p).forEach((d, i) => {
     if (i === doc || used) return;
     visit(d, {
       Alias(_, a) {
@@ -772,11 +780,11 @@ function anchorsReferencedElsewhere(p: ParsedText, doc: number): boolean {
  * result must hold one document fewer, with the other documents' data unchanged.
  */
 function deleteDocument(p: ParsedText, doc: number): EditResult {
-  const n = p.docs.length;
+  const n = p.docCount;
   if (!Number.isInteger(doc) || doc < 0 || doc >= n) return refuse('not-found');
   if (anchorsReferencedElsewhere(p, doc)) return refuse('alias');
   const t = p.text;
-  const start = (i: number): number => (i === 0 ? 0 : p.docs[i]!.range[0]);
+  const start = (i: number): number => (i === 0 ? 0 : yamlDocs(p)[i]!.range[0]);
   const from = start(doc);
   let to: number;
   if (n === 1) to = t.length;
@@ -787,12 +795,12 @@ function deleteDocument(p: ParsedText, doc: number): EditResult {
     const rest = t.startsWith('---', marker) ? t.slice(marker + 3, lineEnd(t, marker)) : '';
     to = /^[ \t]+#/.test(rest) ? marker + 3 + rest.indexOf('#') : nextLineStart(t, marker);
   } else to = start(doc + 1);
-  const before = p.docs.map((d) => d.toJS() as unknown);
+  const before = yamlDocs(p).map((d) => d.toJS() as unknown);
   before.splice(doc, 1);
   return finish(p, { from, to, insert: '' }, (q) =>
     n === 1
       ? q.text === ''
-      : q.docs.length === n - 1 && sameData(before, q.docs.map((d) => d.toJS() as unknown)),
+      : q.docCount === n - 1 && sameData(before, yamlDocs(q).map((d) => d.toJS() as unknown)),
   );
 }
 
@@ -881,7 +889,7 @@ function dispatch(p: ParsedText, op: EditOp): EditResult {
  *
  * @param p - The parsed text.
  * @param op - The edit.
- * @returns The new text and the splice, or the refusal reason.
+ * @returns The new text, the splice and the new text's parse, or the refusal reason.
  */
 export function applyEdit(p: ParsedText, op: EditOp): EditResult {
   try {

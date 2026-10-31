@@ -1,10 +1,11 @@
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
+import { toData } from '../../src/document/data.js';
 import { applyEdit, canEdit } from '../../src/document/edit.js';
 import type { EditOp, EditResult } from '../../src/document/edit.js';
 import { parseText } from '../../src/document/parse.js';
-import { getNode } from '../../src/document/paths.js';
+import { getNode } from '../../src/document/internal.js';
 
 const corpus = (name: string): string =>
   readFileSync(join(import.meta.dirname, '..', 'fixtures', 'corpus', name), 'utf8');
@@ -292,7 +293,7 @@ describe('applyEdit: addDocument', () => {
     expect(text.endsWith('...\n')).toBe(true);
     const out = edit(text, { op: 'addDocument', yaml: 'kind: X' });
     expect(out).toBe(`${text}---\nkind: X\n`);
-    expect(parseText(out).docs).toHaveLength(2);
+    expect(parseText(out).docCount).toBe(2);
   });
 });
 
@@ -804,5 +805,29 @@ describe('applyEdit: deleteDocument keeps the comment on the next marker (A11)',
 
   it('still removes a bare marker', () => {
     expect(edit('a: 1\n---\nb: 2\n', { op: 'deleteDocument', doc: 0 })).toBe('b: 2\n');
+  });
+});
+
+describe('applyEdit: parsed result', () => {
+  it('applyEdit returns the new parsed text on success', () => {
+    const r = applyEdit(parseText('a: 1\nb: 2\n'), { op: 'set', at: at('a'), value: 9 });
+    if (!r.ok) throw new Error(r.reason);
+    expect(r.parsed.text).toBe(r.text);
+    expect(r.parsed).toMatchObject({ text: 'a: 9\nb: 2\n', ok: true, docCount: 1, errors: [], eol: '\n' });
+    expect(toData(r.parsed, 0)).toEqual({ a: 9, b: 2 });
+  });
+
+  it('a rename to the same key returns the input parse', () => {
+    const p = parseText('a: 1\n');
+    const r = applyEdit(p, { op: 'renameKey', at: at('a'), key: 'a' });
+    if (!r.ok) throw new Error(r.reason);
+    expect(r.parsed).toBe(p);
+  });
+
+  it('addDocument returns the parse holding the new document', () => {
+    const r = applyEdit(parseText('a: 1\n'), { op: 'addDocument', yaml: 'b: 2\n' });
+    if (!r.ok) throw new Error(r.reason);
+    expect(r.parsed.docCount).toBe(2);
+    expect(toData(r.parsed, 1)).toEqual({ b: 2 });
   });
 });

@@ -6,7 +6,7 @@ import type { Node, YAMLMap, YAMLSeq } from 'yaml';
 import { applyEdit, canEdit, isOneLineFlowMap } from '../../src/document/edit.js';
 import type { ScalarValue } from '../../src/document/edit.js';
 import { parseText } from '../../src/document/parse.js';
-import { getNode, getPairKey } from '../../src/document/paths.js';
+import { getNode, getPairKey, yamlDocs } from '../../src/document/internal.js';
 import type { NodeRef, ParsedText } from '../../src/document/types.js';
 
 const corpusDir = join(import.meta.dirname, '..', 'fixtures', 'corpus');
@@ -21,7 +21,7 @@ interface Entry {
 /** Every node reachable by a path (aliases are leaves), with its parent collection. */
 function collect(p: ParsedText): Entry[] {
   const out: Entry[] = [];
-  p.docs.forEach((d, doc) => {
+  yamlDocs(p).forEach((d, doc) => {
     const rec = (node: unknown, path: (string | number)[], parent: Entry['parent']): void => {
       if (!isNode(node)) return;
       out.push({ ref: { doc, path }, node, parent });
@@ -55,7 +55,7 @@ function anchorStillUsed(p: ParsedText, doc: number, parent: YAMLMap | YAMLSeq, 
     });
   }
   let used = false;
-  visit(p.docs[doc]!, {
+  visit(yamlDocs(p)[doc]!, {
     Alias(_, a) {
       if (!inner.has(a) && anchors.has(a.source)) used = true;
     },
@@ -65,7 +65,7 @@ function anchorStillUsed(p: ParsedText, doc: number, parent: YAMLMap | YAMLSeq, 
 
 /** Every alias in every document resolves, and every document converts to JS. */
 function expectAliasesResolve(q: ParsedText, label: string): void {
-  for (const d of q.docs) {
+  for (const d of yamlDocs(q)) {
     visit(d, {
       Alias(_, a) {
         expect(a.resolve(d), `${label}: *${a.source}`).toBeDefined();

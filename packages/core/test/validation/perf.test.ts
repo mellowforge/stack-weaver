@@ -50,9 +50,9 @@ it('1000-line doc validates under 50ms warm (best of 3), rules included', async 
   const text = [...deployments, ...services].join('\n---\n') + '\n';
   const p = parseText(text);
   const lines = text.split('\n').length;
-  console.log(`perf input: ${lines} lines, ${p.docs.length} docs`);
+  console.log(`perf input: ${lines} lines, ${p.docCount} docs`);
   expect(p.ok).toBe(true);
-  expect(p.docs).toHaveLength(44);
+  expect(p.docCount).toBe(44);
   expect(lines).toBeGreaterThanOrEqual(950);
 
   // service-selector: svc-8..11; target-port: the odd matched ones (svc-1, 3, 5, 7).

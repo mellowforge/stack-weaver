@@ -1,4 +1,4 @@
-import { isEmptyDocument } from '../document/data.js';
+import { allDocumentsEmpty } from '../document/data.js';
 import type { FormatDefinition, Recipe } from '../formats/types.js';
 import { rangeForRef } from './context.js';
 import type { EditorContext } from './context.js';
@@ -17,7 +17,7 @@ export interface RecipeCards {
 function isEmptyText(ctx: EditorContext): boolean {
   const { text, parsed } = ctx.store;
   if (text.trim() === '') return true;
-  return parsed.ok && parsed.docs.every((_, i) => isEmptyDocument(parsed, i));
+  return parsed.ok && allDocumentsEmpty(parsed);
 }
 
 /** Built-in recipes plus host recipes; a host recipe with the same id replaces the built-in in place. */

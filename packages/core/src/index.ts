@@ -4,7 +4,7 @@ export { VERSION } from './version.js';
 // Document model
 export type { YamlPath, NodeRef, TextRange, Position, TextChange, YamlProblem, ParsedText, ScalarValue, YamlValue } from './document/types.js';
 export { parseText } from './document/parse.js';
-export { getNode, refAtOffset, toLineCol } from './document/paths.js';
+export { refAtOffset, toLineCol } from './document/paths.js';
 export { applyEdit, canEdit } from './document/edit.js';
 export type { EditOp, EditRefusal, EditResult } from './document/edit.js';
 export { diffText } from './document/diff.js';

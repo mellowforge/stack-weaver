@@ -1,6 +1,7 @@
 import { readdirSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
+import { getNode, lineCounterOf, yamlDocs } from '../../src/document/internal.js';
 import { parseText } from '../../src/document/parse.js';
 
 const corpusDir = join(import.meta.dirname, '..', 'fixtures', 'corpus');
@@ -9,14 +10,15 @@ const corpus = (name: string): string => readFileSync(join(corpusDir, name), 'ut
 describe('parseText', () => {
   it('multi-doc web app parses to 3 docs, ok', () => {
     const p = parseText(corpus('k8s-web-app.yaml'));
-    expect(p.docs).toHaveLength(3);
+    expect(p.docCount).toBe(3);
+    expect(yamlDocs(p)).toHaveLength(3);
     expect(p.ok).toBe(true);
     expect(p.errors).toEqual([]);
   });
 
   it('comment-only text parses to zero docs, ok', () => {
     const p = parseText(corpus('k8s-comment-only.yaml'));
-    expect(p.docs).toHaveLength(0);
+    expect(p.docCount).toBe(0);
     expect(p.ok).toBe(true);
   });
 
@@ -71,6 +73,38 @@ describe('parseText', () => {
     for (const f of readdirSync(corpusDir)) {
       expect(parseText(corpus(f)).ok, f).toBe(true);
     }
+  });
+
+  it('parseText exposes text, ok, docCount, errors, warnings and eol only', () => {
+    const p = parseText('a: 1\n');
+    expect(Object.keys(p).sort()).toEqual(['docCount', 'eol', 'errors', 'ok', 'text', 'warnings']);
+    expect(JSON.parse(JSON.stringify(p))).toEqual({ text: 'a: 1\n', ok: true, docCount: 1, errors: [], warnings: [], eol: '\n' });
+  });
+
+  it('docCount counts documents, including empty ones between separators', () => {
+    expect(parseText('a: 1\n---\n---\nb: 2\n').docCount).toBe(3);
+    // A leading `---` opens the first document: nothing before it counts.
+    expect(parseText('---\n---\na: 1\n').docCount).toBe(2);
+    expect(parseText('').docCount).toBe(0);
+  });
+
+  it('the yaml internals are not enumerable and not string-keyed', () => {
+    const p = parseText('a: 1\n---\nb: 2\n');
+    expect(Object.getOwnPropertyNames(p).sort()).toEqual(['docCount', 'eol', 'errors', 'ok', 'text', 'warnings']);
+    const symbols = Object.getOwnPropertySymbols(p);
+    expect(symbols).toHaveLength(1);
+    expect(Symbol.keyFor(symbols[0]!)).toBeUndefined();
+    expect(Object.getOwnPropertyDescriptor(p, symbols[0]!)?.enumerable).toBe(false);
+    expect(yamlDocs(p)).toHaveLength(2);
+    expect(lineCounterOf(p).linePos(9)).toEqual({ line: 3, col: 1 });
+  });
+
+  it('internal helpers reject an object literal posing as ParsedText', () => {
+    const fake = { ...parseText('a: 1\n') };
+    const message = 'stack-weaver: not a ParsedText from parseText';
+    expect(() => yamlDocs(fake)).toThrow(new TypeError(message));
+    expect(() => lineCounterOf(fake)).toThrow(new TypeError(message));
+    expect(() => getNode(fake, { doc: 0, path: ['a'] })).toThrow(new TypeError(message));
   });
 
   it('keeps CRLF and missing trailing newline bytes in fixtures', () => {

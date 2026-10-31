@@ -1,66 +1,9 @@
 import { isAlias, isMap, isNode, isPair, isScalar, isSeq } from 'yaml';
-import type { Node, Pair, Scalar } from 'yaml';
-import type { NodeRef, ParsedText, Position, YamlPath } from './types.js';
+import { lineCounterOf, yamlDocs } from './internal.js';
+import type { NodeRef, ParsedText, Position } from './types.js';
 
 function keyOf(k: unknown): unknown {
   return isScalar(k) ? k.value : k;
-}
-
-function findPair(map: { items: Pair[] }, key: string | number): Pair | undefined {
-  return map.items.find((pr) => {
-    const v = keyOf(pr.key);
-    return v === key || (v != null && String(v) === String(key));
-  });
-}
-
-function walk(root: unknown, path: YamlPath): unknown {
-  let cur: unknown = root;
-  for (const seg of path) {
-    if (isMap(cur)) {
-      const pr = findPair(cur, seg);
-      if (!pr) return undefined;
-      cur = pr.value;
-    } else if (isSeq(cur)) {
-      if (typeof seg !== 'number') return undefined;
-      cur = cur.items[seg];
-    } else {
-      // Scalars, aliases (never followed) and null have no children.
-      return undefined;
-    }
-  }
-  return cur;
-}
-
-/**
- * Resolves a reference to its node. Aliases are not followed: an alias node is returned as is,
- * and paths cannot pass through it.
- *
- * @param p - The parsed text.
- * @param ref - Document index and path.
- * @returns The node, or `undefined` when the document or path does not exist.
- */
-export function getNode(p: ParsedText, ref: NodeRef): Node | undefined {
-  const doc = p.docs[ref.doc];
-  if (!doc) return undefined;
-  const n = walk(doc.contents, ref.path);
-  return isNode(n) ? n : undefined;
-}
-
-/**
- * Returns the key node of the map pair that holds `ref`.
- *
- * @param p - The parsed text.
- * @param ref - Reference to the pair's value.
- * @returns The key scalar, or `undefined` for roots, sequence items and non-scalar keys.
- */
-export function getPairKey(p: ParsedText, ref: NodeRef): Scalar | undefined {
-  if (ref.path.length === 0) return undefined;
-  const doc = p.docs[ref.doc];
-  if (!doc) return undefined;
-  const parent = walk(doc.contents, ref.path.slice(0, -1));
-  if (!isMap(parent)) return undefined;
-  const pr = findPair(parent, ref.path[ref.path.length - 1]!);
-  return pr && isScalar(pr.key) ? pr.key : undefined;
 }
 
 /**
@@ -104,8 +47,9 @@ function descend(text: string, node: unknown, offset: number, path: (string | nu
  * @returns The reference, or `undefined` when the offset is outside every document's content.
  */
 export function refAtOffset(p: ParsedText, offset: number): NodeRef | undefined {
-  for (let doc = 0; doc < p.docs.length; doc++) {
-    const contents = p.docs[doc]!.contents;
+  const docs = yamlDocs(p);
+  for (let doc = 0; doc < docs.length; doc++) {
+    const contents = docs[doc]!.contents;
     if (!covers(p.text, contents, offset) || isAlias(contents)) continue;
     return { doc, path: descend(p.text, contents, offset, []) };
   }
@@ -120,5 +64,5 @@ export function refAtOffset(p: ParsedText, offset: number): NodeRef | undefined 
  * @returns The 1-based position.
  */
 export function toLineCol(p: ParsedText, offset: number): Position {
-  return p.lineCounter.linePos(offset);
+  return lineCounterOf(p).linePos(offset);
 }

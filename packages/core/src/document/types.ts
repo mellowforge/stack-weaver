@@ -1,5 +1,3 @@
-import type { Document, LineCounter } from 'yaml';
-
 /**
  * A path of map keys and sequence indexes from a document root to a node. A number always means a
  * sequence index; a map key is always a string, even when the YAML key is numeric (`8080:` is
@@ -35,7 +33,11 @@ export interface TextChange {
   readonly insert: string;
 }
 
-/** A parse problem with its source range and 1-based position. */
+/**
+ * A parse problem with its source range and 1-based position, as `parseText` reports it in
+ * `ParsedText.errors` and `warnings`. It belongs to the parse layer: no severity, source, code or
+ * path. `validateText` turns each one into an editor-facing `Problem` (`source: 'yaml'`).
+ */
 export interface YamlProblem {
   /** The parser's description of the problem (plain text). */
   readonly message: string;
@@ -49,26 +51,28 @@ export interface YamlProblem {
   readonly col: number;
 }
 
-/** The result of parsing YAML text. The original text is kept verbatim; it is never regenerated. */
+/**
+ * The result of parsing YAML text, made only by `parseText`. The original text is kept verbatim;
+ * it is never regenerated. An opaque handle: the parsed documents stay inside it, read through
+ * `toData`, `describeNode` and `refAtOffset`. Pass it on as returned: a copy (`{ ...p }`) or an
+ * object literal of the same shape is not a `ParsedText` that those functions accept.
+ */
 export interface ParsedText {
   /** The exact source text that was parsed. */
-  text: string;
+  readonly text: string;
   /** True when no document has errors. */
-  ok: boolean;
+  readonly ok: boolean;
   /**
-   * Parsed documents, with source tokens kept for range-based edits. Typed as `yaml`'s
-   * `Document.Parsed`: an advanced escape hatch that couples callers to the `yaml` package.
-   * Prefer `toData`, `describeNode` and `getNode`, which cover what a UI needs.
+   * How many YAML documents the text holds, empty ones included (`a: 1\n---\n---\nb: 2\n` holds
+   * three); comment-only or empty text holds none. Document indexes run from 0 to `docCount - 1`.
    */
-  docs: Document.Parsed[];
-  /** Line counter used to map offsets to line/column. */
-  lineCounter: LineCounter;
+  readonly docCount: number;
   /** All errors across all documents, including aliases with no anchor before them. */
-  errors: YamlProblem[];
+  readonly errors: readonly YamlProblem[];
   /** All parser warnings across all documents (for example an unresolved tag); they do not affect `ok`. */
-  warnings: YamlProblem[];
+  readonly warnings: readonly YamlProblem[];
   /** The first line ending found in the text, defaulting to `\n`. */
-  eol: '\n' | '\r\n';
+  readonly eol: '\n' | '\r\n';
 }
 
 /** A range of the source text: `[from, to)` as UTF-16 indexes. */

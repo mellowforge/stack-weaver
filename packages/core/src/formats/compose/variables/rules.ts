@@ -1,5 +1,6 @@
 import { isAlias, isMap, isScalar, isSeq } from 'yaml';
 import { resolveAt } from '../../../engine/resolve.js';
+import { yamlDocs } from '../../../document/internal.js';
 import type { YamlPath } from '../../../document/types.js';
 import { fieldTypes, fitsField, inferVariableType } from '../../../variables/fit.js';
 import type { JsonSchema, Rule, RuleFinding, RuleInput, VariableDecl, VariableType } from '../../types.js';
@@ -34,7 +35,7 @@ function walk(input: RuleInput, visit: (site: Site) => void): void {
       node.items.forEach((item, i) => go(item, doc, [...path, i]));
     }
   };
-  for (let doc = 0; doc < parsed.docs.length; doc++) go(parsed.docs[doc]?.contents, doc, []);
+  yamlDocs(parsed).forEach((d, doc) => go(d.contents, doc, []));
 }
 
 interface Located {

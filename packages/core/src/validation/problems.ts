@@ -7,7 +7,11 @@ export type Severity = 'error' | 'warning' | 'info';
 /** Where a problem comes from: the YAML parser, the schema and document-shape checks, or a custom rule. */
 export type ProblemSource = 'yaml' | 'schema' | 'rule';
 
-/** One problem in a document, with the exact source range it applies to. */
+/**
+ * One problem in a document, with the exact source range it applies to: the validated,
+ * editor-facing view that `validateText` reports. Parse problems (`ParsedText.errors` and
+ * `warnings`, each a `YamlProblem`) arrive here with `source: 'yaml'`.
+ */
 export interface Problem {
   /**
    * `error` for invalid content, `warning` for suspicious content (such as an unresolved tag),

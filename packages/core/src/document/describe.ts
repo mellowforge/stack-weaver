@@ -2,7 +2,7 @@ import { isAlias, isMap, isScalar, isSeq } from 'yaml';
 import type { Node } from 'yaml';
 import { canEdit } from './edit.js';
 import type { EditRefusal } from './edit.js';
-import { getNode, getPairKey } from './paths.js';
+import { getNode, getPairKey } from './internal.js';
 import type { NodeRef, ParsedText, ScalarValue, TextRange } from './types.js';
 
 /** A plain description of a node for views: kind, source ranges, content summary and editability. */

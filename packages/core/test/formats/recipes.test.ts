@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { describeNode } from '../../src/document/describe.js';
 import { parseText } from '../../src/document/parse.js';
+import { yamlDocs } from '../../src/document/internal.js';
 import { composeFormat } from '../../src/formats/compose/index.js';
 import { kubernetesFormat } from '../../src/formats/kubernetes/index.js';
 import type { Recipe } from '../../src/formats/types.js';
@@ -50,7 +51,7 @@ describe('built-in recipes', () => {
 
 describe('Kubernetes recipes refer to each other correctly', () => {
   type Obj = Record<string, any>;
-  const docsOf = (r: Recipe): Obj[] => parseText(r.yaml).docs.map((d) => d.toJS() as Obj);
+  const docsOf = (r: Recipe): Obj[] => yamlDocs(parseText(r.yaml)).map((d) => d.toJS() as Obj);
   const isSubset = (small: Obj | undefined, big: Obj | undefined): boolean =>
     small !== undefined && Object.keys(small).length > 0 && Object.entries(small).every(([k, v]) => big?.[k] === v);
   const workloads = ['Deployment', 'StatefulSet', 'DaemonSet', 'ReplicaSet'];

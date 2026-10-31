@@ -1,5 +1,6 @@
 import { toData } from '../document/data.js';
-import { getPairKey, refAtOffset } from '../document/paths.js';
+import { getPairKey } from '../document/internal.js';
+import { refAtOffset } from '../document/paths.js';
 import type { ParsedText } from '../document/types.js';
 import { fieldHint, firstSentence } from '../engine/addable.js';
 import { resolveAt } from '../engine/resolve.js';

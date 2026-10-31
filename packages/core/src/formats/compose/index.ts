@@ -1,5 +1,6 @@
 import { isMap } from 'yaml';
 import { isEmptyDocument } from '../../document/data.js';
+import { yamlDocs } from '../../document/internal.js';
 import type { ParsedText } from '../../document/types.js';
 import { deepFreeze } from '../freeze.js';
 import type { FormatDefinition, SchemaBundle } from '../types.js';
@@ -24,7 +25,7 @@ export const composeFormat: FormatDefinition = deepFreeze<FormatDefinition>({
    * `include`).
    */
   detect(p: ParsedText): boolean {
-    const docs = p.docs.filter((_, i) => !isEmptyDocument(p, i));
+    const docs = yamlDocs(p).filter((_, i) => !isEmptyDocument(p, i));
     if (!p.ok || docs.length !== 1) return false;
     const root = docs[0]?.contents;
     if (!isMap(root)) return false;

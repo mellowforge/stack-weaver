@@ -1,7 +1,8 @@
 import { isMap, isNode, isScalar, isSeq } from 'yaml';
 import type { Node, Scalar } from 'yaml';
 import { isEmptyDocument, toData } from '../document/data.js';
-import { getNode, getPairKey, toLineCol } from '../document/paths.js';
+import { getNode, getPairKey, yamlDocs } from '../document/internal.js';
+import { toLineCol } from '../document/paths.js';
 import type { ParsedText, YamlPath, YamlProblem } from '../document/types.js';
 import { resolveAt } from '../engine/resolve.js';
 import type { FormatDefinition, Rule, SchemaBundle, SchemaError, VariableDecl } from '../formats/types.js';
@@ -79,10 +80,10 @@ export async function validateText(
 
   const decls = opts.variables ?? (format.variables ? format.variables.read(p) : []);
   // Dense, one entry per document: a rule that iterates sees `undefined`, never a hole.
-  const data: unknown[] = Array.from({ length: p.docs.length }, () => undefined);
-  const bundles: (SchemaBundle | undefined)[] = Array.from({ length: p.docs.length }, () => undefined);
+  const data: unknown[] = Array.from({ length: p.docCount }, () => undefined);
+  const bundles: (SchemaBundle | undefined)[] = Array.from({ length: p.docCount }, () => undefined);
   let seen = false;
-  for (let doc = 0; doc < p.docs.length; doc++) {
+  for (let doc = 0; doc < p.docCount; doc++) {
     if (isEmptyDocument(p, doc)) continue;
     if (format.rootModel === 'mapping' && seen) {
       const [from, to] = rootRange(p, doc);
@@ -168,7 +169,7 @@ async function validateDocument(
   try {
     data = toData(p, doc);
   } catch (err) {
-    const merge = findMergeKey(p.docs[doc]!.contents, []);
+    const merge = findMergeKey(yamlDocs(p)[doc]!.contents, []);
     const range = (merge && rangeOf(merge.key)) ?? rootRange(p, doc);
     return { problems: [problem(p, doc, 'error', 'yaml', 'yaml.data', messages, { cause: causeOf(err) }, merge?.path ?? [], range)] };
   }
@@ -223,7 +224,7 @@ function toPointer(path: YamlPath): string {
 
 /** A `documents` format's required document shape: a mapping with string `apiVersion` and `kind`. */
 function shapeProblems(p: ParsedText, doc: number, messages: SchemaMessages): Problem[] {
-  const root = p.docs[doc]!.contents;
+  const root = yamlDocs(p)[doc]!.contents;
   if (!isMap(root)) {
     return [problem(p, doc, 'error', 'schema', 'document.mapping', messages, {}, [], rootRange(p, doc), 'schema.type')];
   }
@@ -330,7 +331,8 @@ export function schemaErrorsToProblems(
 /** Index of the document holding `offset`: the last one starting at or before it. */
 function docAt(p: ParsedText, offset: number): number {
   let doc = 0;
-  for (let i = 0; i < p.docs.length; i++) if (p.docs[i]!.range[0] <= offset) doc = i;
+  const docs = yamlDocs(p);
+  for (let i = 0; i < docs.length; i++) if (docs[i]!.range[0] <= offset) doc = i;
   return doc;
 }
 
@@ -444,7 +446,7 @@ function unescape(seg: string): string {
 function toPath(p: ParsedText, doc: number, pointer: string): YamlPath {
   if (pointer === '') return [];
   const out: (string | number)[] = [];
-  let parent: unknown = p.docs[doc]?.contents;
+  let parent: unknown = yamlDocs(p)[doc]?.contents;
   for (const raw of pointer.split('/').slice(1)) {
     const seg = unescape(raw);
     const asIndex = /^\d+$/.test(seg) && !isMap(parent) ? Number(seg) : seg;
@@ -461,13 +463,13 @@ function rangeOf(n: unknown): Range | undefined {
 }
 
 function rootRange(p: ParsedText, doc: number): Range {
-  const d = p.docs[doc];
+  const d = yamlDocs(p)[doc];
   return rangeOf(d?.contents) ?? (d ? [d.range[0], d.range[1]] : [0, 0]);
 }
 
 /** The root map's first key (rather than the whole document), else the root. */
 function firstKeyRange(p: ParsedText, doc: number): Range {
-  const root = p.docs[doc]?.contents;
+  const root = yamlDocs(p)[doc]?.contents;
   return (isMap(root) ? rangeOf(root.items[0]?.key) : undefined) ?? rootRange(p, doc);
 }
 

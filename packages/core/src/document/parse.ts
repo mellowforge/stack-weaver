@@ -1,6 +1,7 @@
 import { LineCounter, parseAllDocuments, visit } from 'yaml';
 import type { Document } from 'yaml';
 import { detectEol } from './eol.js';
+import { makeParsed } from './internal.js';
 import type { ParsedText, YamlProblem } from './types.js';
 
 /**
@@ -28,8 +29,8 @@ function danglingAliases(doc: Document.Parsed, lineCounter: LineCounter): YamlPr
  * tag, go to `warnings` and do not affect `ok`.
  *
  * @param text - The YAML source, possibly containing several documents.
- * @returns The parsed documents, errors and warnings with 1-based line/column, and the detected
- *   line ending.
+ * @returns The parsed text: its document count, errors and warnings with 1-based line/column,
+ *   and the detected line ending.
  */
 export function parseText(text: string): ParsedText {
   const lineCounter = new LineCounter();
@@ -52,5 +53,5 @@ export function parseText(text: string): ParsedText {
     warnings.push(...doc.warnings.map(toProblem));
   }
 
-  return { text, ok: errors.length === 0, docs, lineCounter, errors, warnings, eol: detectEol(text) };
+  return makeParsed({ text, ok: errors.length === 0, errors, warnings, eol: detectEol(text) }, docs, lineCounter);
 }

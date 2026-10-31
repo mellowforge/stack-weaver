@@ -2,9 +2,10 @@ import { describe, expect, it } from 'vitest';
 import { applyEdit, isOneLineFlowMap } from '../../src/document/edit.js';
 import type { EditOp } from '../../src/document/edit.js';
 import { parseText } from '../../src/document/parse.js';
+import { yamlDocs } from '../../src/document/internal.js';
 
 const at = (...path: (string | number)[]) => ({ doc: 0, path });
-const data = (text: string): unknown => parseText(text).docs.map((d) => d.toJS() as unknown);
+const data = (text: string): unknown => yamlDocs(parseText(text)).map((d) => d.toJS() as unknown);
 
 /** Applies `op`, failing on a refusal; checks the splice, the re-parse, and the expected data. */
 function edit(text: string, op: EditOp, expected?: unknown): string {

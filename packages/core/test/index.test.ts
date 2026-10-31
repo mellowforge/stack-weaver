@@ -38,7 +38,7 @@ describe('@stack-weaver/core', () => {
     expect(Object.keys(api).sort()).toEqual(
       [
         'DocumentStore', 'VERSION', 'kindKey', 'valueTemplateAt', 'addableAt', 'applyEdit', 'canEdit', 'defaultMessages', 'describeNode', 'detectFormat', 'diffText',
-        'getFormat', 'getNode', 'guideField', 'kindCatalog', 'mergeGuide', 'parseText', 'refAtOffset',
+        'getFormat', 'guideField', 'kindCatalog', 'mergeGuide', 'parseText', 'refAtOffset',
         'registerFormat', 'resolveAt', 'toData', 'toLineCol', 'validateText',
         'cursorContext', 'completionsFor', 'hoverAt', 'breadcrumbAt', 'createManifestEditor', 'defaultUiMessages', 'pickWidget', 'defaultWidgets',
       ].sort(),

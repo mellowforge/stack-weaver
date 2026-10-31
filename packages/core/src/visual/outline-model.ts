@@ -91,7 +91,7 @@ export function buildOutline(
 
   const out: OutlineNode[] = [];
   if (format.rootModel === 'mapping') {
-    if (p.docs.length === 0 || isEmptyDocument(p, 0)) return out;
+    if (p.docCount === 0 || isEmptyDocument(p, 0)) return out;
     const root = describeNode(p, { doc: 0, path: [] });
     if (root?.type !== 'map') return out;
     const data = safeData(p, 0);
@@ -105,7 +105,7 @@ export function buildOutline(
     return out;
   }
 
-  for (let doc = 0; doc < p.docs.length; doc++) {
+  for (let doc = 0; doc < p.docCount; doc++) {
     if (isEmptyDocument(p, doc)) continue;
     const ref: NodeRef = { doc, path: [] };
     const view = describeNode(p, ref);

@@ -163,7 +163,7 @@ describe('rules in validateText', () => {
       return [];
     });
     const p = parseText('---\n---\na: 1\n---\n');
-    expect(p.docs).toHaveLength(3);
+    expect(p.docCount).toBe(3);
     await validateText(p, fake({ rules: [r] }, 'documents', b));
     expect(seen!.data).toStrictEqual([undefined, { a: 1 }, undefined]);
     expect(seen!.bundles).toStrictEqual([undefined, b, undefined]);

@@ -1,6 +1,7 @@
 // @vitest-environment happy-dom
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { breadcrumbAt } from '../../src/assist/hover.js';
+import { yamlDocs } from '../../src/document/internal.js';
 import { DocumentStore } from '../../src/document/store.js';
 import type { EditorContext } from '../../src/editor/context.js';
 import { createEditorWithContext } from '../../src/editor/editor.js';
@@ -74,7 +75,7 @@ describe('validation scheduling', () => {
       id: 'kinds',
       rootModel: 'documents',
       loadSchema: (p, doc) => {
-        const kind = p.docs[doc]!.get('kind') as string;
+        const kind = yamlDocs(p)[doc]!.get('kind') as string;
         if (kind === 'Slow') return new Promise<SchemaBundle>((r) => (release = r));
         return Promise.resolve(bundle('fast', ['fast']));
       },
@@ -102,7 +103,7 @@ describe('validation scheduling', () => {
       id: 'kinds',
       rootModel: 'documents',
       loadSchema: (p, doc) => {
-        if ((p.docs[doc]!.get('kind') as string) === 'Slow') return new Promise<SchemaBundle>((r) => (release = r));
+        if ((yamlDocs(p)[doc]!.get('kind') as string) === 'Slow') return new Promise<SchemaBundle>((r) => (release = r));
         return Promise.resolve(bundle('fast', ['fast']));
       },
     };

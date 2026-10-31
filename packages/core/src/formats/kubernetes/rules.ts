@@ -1,6 +1,6 @@
 import { isMap, isScalar } from 'yaml';
 import type { EditOp } from '../../document/edit.js';
-import { getNode } from '../../document/paths.js';
+import { getNode } from '../../document/internal.js';
 import type { NodeRef, YamlPath } from '../../document/types.js';
 import type { Rule, RuleFinding, RuleInput } from '../types.js';
 
@@ -47,7 +47,7 @@ const namespaceOf = (data: unknown): string => {
 /** The workloads of the file, by index over the (possibly sparse) documents. */
 function collect(input: RuleInput): Workload[] {
   const out: Workload[] = [];
-  for (let doc = 0; doc < input.parsed.docs.length; doc++) {
+  for (let doc = 0; doc < input.parsed.docCount; doc++) {
     const data = input.data[doc];
     const kind = child(data, 'kind');
     if (typeof kind !== 'string' || !Object.hasOwn(TEMPLATES, kind)) continue;
@@ -80,7 +80,7 @@ interface ServiceInfo {
 /** The Services with a selector, each with the workloads of its namespace and those its selector matches. */
 function services(input: RuleInput, workloads: readonly Workload[]): ServiceInfo[] {
   const out: ServiceInfo[] = [];
-  for (let doc = 0; doc < input.parsed.docs.length; doc++) {
+  for (let doc = 0; doc < input.parsed.docCount; doc++) {
     const data = rec(input.data[doc]);
     if (!data || data['kind'] !== 'Service') continue;
     const selector = stringMap(child(data, 'spec', 'selector'));

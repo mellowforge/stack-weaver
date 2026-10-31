@@ -87,7 +87,8 @@ describe('check-types reachedYamlImports', () => {
   });
 
   const built = resolve(dirname(fileURLToPath(import.meta.url)), '../../dist/index.d.ts');
-  it.skipIf(!existsSync(built))('today, dist reaches yaml imports (baseline for Task 2)', () => {
-    expect(reachedYamlImports(built).length).toBeGreaterThan(0);
+  // Runs against the last build (skipped when there is none, like the suite's other dist-free tests).
+  it.skipIf(!existsSync(built))('no d.ts reachable from dist/index.d.ts imports yaml', () => {
+    expect(reachedYamlImports(built)).toEqual([]);
   });
 });

@@ -1,11 +1,12 @@
 import { readFileSync } from 'node:fs';
 import { describe, expect, it } from 'vitest';
 import { parseText } from '../../src/document/parse.js';
+import { yamlDocs } from '../../src/document/internal.js';
 import { resolveAt } from '../../src/engine/resolve.js';
 import { loadKubernetesKind } from '../../src/formats/kubernetes/loader.js';
 
 const k8s = (name: string, doc = 0) =>
-  parseText(readFileSync(new URL(`../fixtures/corpus/${name}`, import.meta.url), 'utf8')).docs[doc]!.toJS() as unknown;
+  yamlDocs(parseText(readFileSync(new URL(`../fixtures/corpus/${name}`, import.meta.url), 'utf8')))[doc]!.toJS() as unknown;
 
 describe('resolveAt', () => {
   it('Deployment containers[0] gives defName io.k8s.api.core.v1.Container', async () => {

@@ -3,7 +3,8 @@ import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
 import { isAlias, isScalar } from 'yaml';
 import { parseText } from '../../src/document/parse.js';
-import { getNode, getPairKey, refAtOffset, toLineCol } from '../../src/document/paths.js';
+import { getNode, getPairKey } from '../../src/document/internal.js';
+import { refAtOffset, toLineCol } from '../../src/document/paths.js';
 
 const corpus = (name: string): string =>
   readFileSync(join(import.meta.dirname, '..', 'fixtures', 'corpus', name), 'utf8');

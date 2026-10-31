@@ -26,7 +26,7 @@ const ref = (...path: (string | number)[]): NodeRef => ({ doc: 0, path });
 
 /** The block's raw value (`undefined` when absent) and whether the root can hold one. */
 function rawBlock(p: ParsedText): { rootOk: boolean; block: unknown } {
-  if (p.docs.length === 0) return { rootOk: false, block: undefined };
+  if (p.docCount === 0) return { rootOk: false, block: undefined };
   let root: unknown;
   try {
     root = toData(p, 0);
@@ -120,7 +120,7 @@ const same = (a: unknown, b: unknown): boolean => JSON.stringify(a) === JSON.str
  */
 export function writeBlockOps(p: ParsedText, decl: VariableDecl, replaces?: string): readonly EditOp[] | undefined {
   const fresh = entryValue(decl);
-  if (p.docs.length === 0) {
+  if (p.docCount === 0) {
     if (replaces !== undefined) return undefined;
     return [{ op: 'addDocument', yaml: renderValue({ [VARIABLES_KEY]: { [decl.name]: fresh } }, 0, p.eol) }];
   }

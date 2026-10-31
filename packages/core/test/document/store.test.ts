@@ -32,6 +32,15 @@ describe('DocumentStore', () => {
     expect(events[0]!.parsed).toBe(store.parsed);
   });
 
+  it('edit adopts the parse applyEdit made instead of parsing again', () => {
+    const { store, events } = setup();
+    const r = store.edit(setA(9));
+    if (!r.ok) throw new Error(r.reason);
+    expect(store.parsed).toBe(r.parsed);
+    expect(events[0]!.parsed).toBe(r.parsed);
+    expect(store.lastGood).toBe(r.parsed);
+  });
+
   it('edit that leaves the text unchanged returns ok without emitting or recording history', () => {
     const { store, events } = setup();
     const r = store.edit(setA(1));

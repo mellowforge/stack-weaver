@@ -1,12 +1,13 @@
 import { readFileSync } from 'node:fs';
 import { describe, expect, it } from 'vitest';
 import { parseText } from '../../src/document/parse.js';
+import { yamlDocs } from '../../src/document/internal.js';
 import { loadComposeSchema } from '../../src/formats/compose/loader.js';
 
 // Compose files use YAML 1.1 `<<` merge keys; parseText keeps the 1.2 core schema (editing paths
 // must not see through merges), so merge resolution is enabled on the document just for toJS().
 const fixture = (name: string) => {
-  const d = parseText(readFileSync(new URL(`../fixtures/corpus/${name}`, import.meta.url), 'utf8')).docs[0]!;
+  const d = yamlDocs(parseText(readFileSync(new URL(`../fixtures/corpus/${name}`, import.meta.url), 'utf8')))[0]!;
   d.setSchema('1.1', { merge: true });
   return d.toJS() as Record<string, unknown>;
 };

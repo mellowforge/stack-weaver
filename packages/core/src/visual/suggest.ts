@@ -7,7 +7,7 @@ export type ReferenceKind = 'Secret' | 'ConfigMap';
 /** The documents of `p` that are a `kind`, as plain data. Documents that do not read are skipped. */
 function documentsOf(p: ParsedText, kind: ReferenceKind): Record<string, unknown>[] {
   const out: Record<string, unknown>[] = [];
-  for (let doc = 0; doc < p.docs.length; doc++) {
+  for (let doc = 0; doc < p.docCount; doc++) {
     const data = safeData(p, doc);
     if (isRecord(data) && data['kind'] === kind) out.push(data);
   }

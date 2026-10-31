@@ -10,23 +10,23 @@ export type ChangeOrigin = 'visual' | 'code' | 'api' | 'history';
 /** Emitted to subscribers after every text change. */
 export interface StoreEvent {
   /** The new full text. */
-  text: string;
+  readonly text: string;
   /** The single splice from the previous text to `text`. */
-  change: TextChange;
+  readonly change: TextChange;
   /** What caused the change. */
-  origin: ChangeOrigin;
+  readonly origin: ChangeOrigin;
   /** The parse of `text`. */
-  parsed: ParsedText;
+  readonly parsed: ParsedText;
 }
 
 /** Options for {@link DocumentStore}. */
 export interface StoreOptions {
   /** Clock used for grouping changes. Defaults to `Date.now`. */
-  now?: () => number;
+  readonly now?: () => number;
   /** Max gap in ms between consecutive `'code'` changes, or grouped `'visual'` edits, that still merge into one undo step. Default 500. */
-  groupMs?: number;
+  readonly groupMs?: number;
   /** Max number of undo steps kept. Default 200. */
-  historyLimit?: number;
+  readonly historyLimit?: number;
 }
 
 interface Entry {
@@ -116,7 +116,7 @@ export class DocumentStore {
    */
   edit(op: EditOp, opts?: { group?: string }): EditResult {
     const r = applyEdit(this.#parsed, op);
-    if (r.ok && r.text !== this.#text) this.#commit(r.text, r.change, 'visual', opts?.group);
+    if (r.ok && r.text !== this.#text) this.#commit(r.text, r.change, 'visual', opts?.group, r.parsed);
     return r;
   }
 
@@ -154,6 +154,7 @@ export class DocumentStore {
     change: TextChange,
     origin: Exclude<ChangeOrigin, 'history'>,
     group?: string,
+    parsed?: ParsedText,
   ): void {
     const now = this.#now();
     const top = this.#undo[this.#undo.length - 1];
@@ -170,7 +171,7 @@ export class DocumentStore {
     this.#lastOrigin = origin;
     this.#lastGroup = group;
     this.#lastTime = now;
-    this.#set(text, change, origin);
+    this.#set(text, change, origin, parsed);
   }
 
   #apply(text: string): void {
@@ -180,9 +181,10 @@ export class DocumentStore {
     this.#set(text, change, 'history');
   }
 
-  #set(text: string, change: TextChange, origin: ChangeOrigin): void {
+  /** Adopts `text`; `parsed`, when given, must be its parse (an edit's result), saving a second parse. */
+  #set(text: string, change: TextChange, origin: ChangeOrigin, parsed: ParsedText = parseText(text)): void {
     this.#text = text;
-    this.#parsed = parseText(text);
+    this.#parsed = parsed;
     if (this.#parsed.ok) this.#lastGood = this.#parsed;
     const event: StoreEvent = { text, change, origin, parsed: this.#parsed };
     // The text has already changed: one listener's failure must not keep the others from hearing of it.

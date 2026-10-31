@@ -180,11 +180,11 @@ export interface RuleInput {
   /** The parsed text; always `ok`. */
   readonly parsed: ParsedText;
   /**
-   * `toData` per document: one entry for each of `parsed.docs`, in order, never a hole; an
-   * explicit `undefined` for empty, unbuildable or skipped documents.
+   * `toData` per document: `parsed.docCount` entries, in order, never a hole; an explicit
+   * `undefined` for empty, unbuildable or skipped documents.
    */
   readonly data: readonly unknown[];
-  /** The bundle each document validated against: one entry for each of `parsed.docs`; `undefined` where there was none. */
+  /** The bundle each document validated against: `parsed.docCount` entries; `undefined` where there was none. */
   readonly bundles: readonly (SchemaBundle | undefined)[];
   /** The variable declarations in effect. */
   readonly variables: readonly VariableDecl[];
@@ -278,7 +278,7 @@ export interface FormatDefinition {
   readonly rootModel: 'documents' | 'mapping';
   /**
    * True when the parsed text looks like this format (empty documents should not count).
-   * See `ParsedText.docs` for the `yaml` typing of the parsed documents.
+   * Read the documents with `toData(p, i)` for `i` below `p.docCount`.
    */
   detect(p: ParsedText): boolean;
   /**

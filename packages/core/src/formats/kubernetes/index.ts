@@ -1,5 +1,7 @@
 import { isMap, isScalar } from 'yaml';
+import type { Document } from 'yaml';
 import { isEmptyDocument } from '../../document/data.js';
+import { yamlDocs } from '../../document/internal.js';
 import type { ParsedText } from '../../document/types.js';
 import { deepFreeze } from '../freeze.js';
 import type { FormatDefinition, SchemaBundle } from '../types.js';
@@ -8,7 +10,7 @@ import { kubernetesKinds, loadKubernetesKind } from './loader.js';
 import { kubernetesRecipes } from './recipes.js';
 import { kubernetesRules } from './rules.js';
 
-function str(doc: ParsedText['docs'][number] | undefined, key: string): string | undefined {
+function str(doc: Document.Parsed | undefined, key: string): string | undefined {
   const node = doc?.get(key, true);
   return isScalar(node) && typeof node.value === 'string' ? node.value : undefined;
 }
@@ -22,7 +24,7 @@ export const kubernetesFormat: FormatDefinition = deepFreeze<FormatDefinition>({
   rootModel: 'documents',
   /** True when the text parses, has a non-empty document, and every non-empty document is a mapping with string `apiVersion` and `kind`. */
   detect(p: ParsedText): boolean {
-    const docs = p.docs.filter((_, i) => !isEmptyDocument(p, i));
+    const docs = yamlDocs(p).filter((_, i) => !isEmptyDocument(p, i));
     return (
       p.ok &&
       docs.length > 0 &&
@@ -31,7 +33,7 @@ export const kubernetesFormat: FormatDefinition = deepFreeze<FormatDefinition>({
   },
   kinds: kubernetesKinds,
   loadSchema(p: ParsedText, doc: number): Promise<SchemaBundle | undefined> {
-    const d = p.docs[doc];
+    const d = yamlDocs(p)[doc];
     const apiVersion = str(d, 'apiVersion');
     const kind = str(d, 'kind');
     if (apiVersion === undefined || kind === undefined) return Promise.resolve(undefined);

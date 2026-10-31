@@ -334,7 +334,7 @@ describe('an unknown kind first, then editing the rest (B7)', () => {
     await Promise.resolve();
     document.querySelector<HTMLElement>('[role=dialog] [data-sw-kind="v1/Service"]')!.click();
     await vi.waitFor(() => expect(editor.getValue()).toContain('kind: Service'));
-    expect(ctx.store.parsed.docs).toHaveLength(3);
+    expect(ctx.store.parsed.docCount).toBe(3);
 
     ctx.select({ doc: 1, path: [] });
     el.querySelector<HTMLButtonElement>('.sw-section-remove')!.click();

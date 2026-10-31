@@ -1,5 +1,5 @@
 import { describeNode } from '../document/describe.js';
-import { getNode } from '../document/paths.js';
+import { getNode } from '../document/internal.js';
 import type { DocumentStore, StoreEvent } from '../document/store.js';
 import type { NodeRef, ParsedText, TextRange } from '../document/types.js';
 import type { CodeEditorAdapter } from '../editors/adapter.js';

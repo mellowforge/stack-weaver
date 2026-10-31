@@ -2,7 +2,8 @@ import { readFileSync } from 'node:fs';
 import { describe, expect, it } from 'vitest';
 import { toData } from '../../src/document/data.js';
 import { parseText } from '../../src/document/parse.js';
-import { getNode, refAtOffset } from '../../src/document/paths.js';
+import { getNode, yamlDocs } from '../../src/document/internal.js';
+import { refAtOffset } from '../../src/document/paths.js';
 import { resolveAt } from '../../src/engine/resolve.js';
 import { composeFormat } from '../../src/formats/compose/index.js';
 import { kubernetesFormat } from '../../src/formats/kubernetes/index.js';
@@ -369,7 +370,7 @@ data:
 describe('toData', () => {
   it('leaves the original doc unchanged and resolves merges in the result', () => {
     const p = parseText(fixture('compose-anchors.yaml'));
-    const doc = p.docs[0]!;
+    const doc = yamlDocs(p)[0]!;
     const before = doc.toString();
     const rawBefore = JSON.stringify(doc.toJS());
     const data = toData(p, 0) as { services: { api: Record<string, unknown> } };

@@ -2,6 +2,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { toData } from '../../src/document/data.js';
 import { parseText } from '../../src/document/parse.js';
+import { yamlDocs } from '../../src/document/internal.js';
 import { valueTemplateAt } from '../../src/engine/addable.js';
 import { resolveAt } from '../../src/engine/resolve.js';
 import { kindCatalog } from '../../src/engine/catalog.js';
@@ -181,7 +182,7 @@ describe('Add resource picker', () => {
     await vi.waitFor(() => expect(editor.getValue()).toContain('kind: Deployment'));
     expect(dialog()).toBeNull();
     expect(document.activeElement).toBe(trigger());
-    const docs = parseText(editor.getValue()).docs;
+    const docs = yamlDocs(parseText(editor.getValue()));
     expect(docs).toHaveLength(2);
     expect(editor.getValue().startsWith(`${SVC}---\napiVersion: apps/v1\nkind: Deployment\nmetadata:\n  name: deployment\n`)).toBe(true);
     expect(editor.getValue().endsWith('\n')).toBe(true);
@@ -319,7 +320,7 @@ describe('removing a section', () => {
     confirmGroup()!.querySelector<HTMLButtonElement>('.sw-confirm-yes')!.click();
     expect(edit).toHaveBeenCalledWith({ op: 'deleteDocument', doc: 1 });
     expect(document.activeElement).toBe(el.querySelector('.sw-section-title'));
-    expect(parseText(editor.getValue()).docs.filter((d) => d.contents !== null)).toHaveLength(1);
+    expect(yamlDocs(parseText(editor.getValue())).filter((d) => d.contents !== null)).toHaveLength(1);
     expect(editor.getValue()).not.toContain('Deployment');
   });
 

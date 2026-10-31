@@ -121,7 +121,7 @@ export function createVisualPane(
   function requestBundles(parsed: ParsedText): void {
     const f = ctx.format();
     if (!f) return;
-    const docs = f.rootModel === 'mapping' ? [0] : parsed.docs.map((_, i) => i);
+    const docs = f.rootModel === 'mapping' ? [0] : Array.from({ length: parsed.docCount }, (_, i) => i);
     for (const d of docs) {
       const key = bundleKeyOf(parsed, d);
       if (key === undefined || requested.has(key)) continue;

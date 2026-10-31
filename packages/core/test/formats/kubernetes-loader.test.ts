@@ -2,10 +2,11 @@ import { readdirSync, readFileSync } from 'node:fs';
 import { gzipSync } from 'node:zlib';
 import { describe, expect, it } from 'vitest';
 import { parseText } from '../../src/document/parse.js';
+import { yamlDocs } from '../../src/document/internal.js';
 import { kubernetesKinds, loadKubernetesKind } from '../../src/formats/kubernetes/loader.js';
 
 const webApp = parseText(readFileSync(new URL('../fixtures/corpus/k8s-web-app.yaml', import.meta.url), 'utf8'));
-const doc = (i: number) => webApp.docs[i]!.toJS() as Record<string, unknown>;
+const doc = (i: number) => yamlDocs(webApp)[i]!.toJS() as Record<string, unknown>;
 
 describe('kubernetesKinds', () => {
   it('kinds include apps/v1 Deployment, v1 Service, networking.k8s.io/v1 Ingress, autoscaling/v2 HPA; exclude *List and v1beta1', () => {
@@ -63,7 +64,7 @@ describe('loadKubernetesKind', () => {
     const dir = new URL('../fixtures/corpus/', import.meta.url);
     let checked = 0;
     for (const file of readdirSync(dir).filter((f) => f.startsWith('k8s-'))) {
-      for (const d of parseText(readFileSync(new URL(file, dir), 'utf8')).docs) {
+      for (const d of yamlDocs(parseText(readFileSync(new URL(file, dir), 'utf8')))) {
         const data = d.toJS() as { apiVersion?: string; kind?: string } | null;
         if (!data?.apiVersion || !data.kind) continue;
         const bundle = await loadKubernetesKind(data.apiVersion, data.kind);
