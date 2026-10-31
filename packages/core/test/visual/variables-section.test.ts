@@ -168,6 +168,23 @@ describe('cards', () => {
     expect(editor.getVariables()[0]).toEqual({ name: 'PORT', type: 'number', default: 8080 });
   });
 
+  it('a refused edit shows the message, resets the controls to the declaration and keeps focus', async () => {
+    // A multi-line flow entry: changing the type to boolean drops the default, which is refused there.
+    const text = 'x-variables:\n  PORT: { type: port,\n    default: 8080 }\n' + BODY;
+    const { editor } = await mount({ value: text });
+    const select = ctl<HTMLSelectElement>('PORT', 'type');
+    select.focus();
+    type(select, 'boolean');
+    expect(editor.getValue()).toBe(text);
+    expect(editor.getVariables()).toEqual([{ name: 'PORT', type: 'port', default: 8080 }]);
+    expect(card('PORT').querySelector('.sw-field-error')!.textContent).toBe('This value cannot be changed here. Edit it in code.');
+    expect(select.getAttribute('aria-invalid')).toBe('true');
+    expect(ctl('PORT', 'type')).toBe(select);
+    expect(select.value).toBe('port');
+    expect(ctl<HTMLInputElement>('PORT', 'default').value).toBe('8080');
+    expect(focused()).toBe(select);
+  });
+
   it('keeps focus in the edited control across re-renders', async () => {
     await mount();
     const d = ctl<HTMLInputElement>('TAG', 'description');

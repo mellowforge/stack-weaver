@@ -127,9 +127,9 @@ export interface ManifestEditor {
    */
   setVariables(decls: readonly VariableDecl[]): void;
   /**
-   * Applies the quick fix of `problem` (declaring a variable, or edits) as one undo step. False when
-   * the problem has no fix, the editor is read-only or destroyed, or an edit is refused (edits made
-   * before the refusal stay, in the same undo step).
+   * Applies the quick fix of `problem` (declaring a variable, or edits) as one undo step, all of it
+   * or nothing. False, changing nothing, when the problem has no fix, the editor is read-only or
+   * destroyed, or any of its edits is refused.
    */
   applyFix(problem: Problem): boolean;
   /**

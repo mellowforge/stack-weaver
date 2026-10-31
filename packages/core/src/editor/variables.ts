@@ -1,4 +1,6 @@
+import { applyEdit } from '../document/edit.js';
 import type { EditOp } from '../document/edit.js';
+import { parseText } from '../document/parse.js';
 import type { DocumentStore } from '../document/store.js';
 import type { FormatDefinition, VariableDecl } from '../formats/types.js';
 import type { Problem } from '../validation/problems.js';
@@ -15,9 +17,9 @@ export interface VariableStore {
   readonly kind: 'x-variables' | 'external';
   /** The current declarations (for `x-variables`, from the last good parse while the text is broken). */
   get(): readonly VariableDecl[];
-  /** Adds or replaces (by `replaces ?? decl.name`); false when refused (read-only, invalid, name taken, edit refused). */
+  /** Adds or replaces (by `replaces ?? decl.name`); false when refused (read-only, invalid, name taken, edit refused), changing nothing. */
   set(decl: VariableDecl, replaces?: string): boolean;
-  /** Removes the declaration named `name`; false when there is none, the editor is read-only, or the edit is refused. */
+  /** Removes the declaration named `name`; false, changing nothing, when there is none, the editor is read-only, or the edit is refused. */
   remove(name: string): boolean;
 }
 
@@ -51,7 +53,7 @@ export interface Variables {
   check(): void;
   /** Takes the current declarations as seen, without notifying. */
   reseed(): void;
-  /** Applies the fix of `problem`; false when there is none or it was refused. */
+  /** Applies the fix of `problem`, all of it or nothing; false when there is none or it was refused. */
   applyFix(problem: Problem): boolean;
   /** Drops the listeners. */
   destroy(): void;
@@ -113,8 +115,23 @@ export function createVariables(deps: {
     emit(true);
     if (kind === 'external') deps.revalidate();
   };
-  /** Applies `ops` under one group (one undo step); listeners hear of the net change once. */
+  /** True when every op of `ops`, applied in turn, is accepted (a single op needs no dry run: `store.edit` refuses it whole). */
+  const acceptsAll = (ops: readonly EditOp[]): boolean => {
+    if (ops.length < 2) return true;
+    let p = store.parsed;
+    for (const [i, op] of ops.entries()) {
+      const r = applyEdit(p, op);
+      if (!r.ok) return false;
+      if (i < ops.length - 1) p = parseText(r.text);
+    }
+    return true;
+  };
+  /**
+   * Applies `ops` all or nothing, under one group (one undo step); listeners hear of the net change
+   * once. A dry run on scratch text first, so a refused op leaves the text untouched.
+   */
   const applyOps = (ops: readonly EditOp[], prefix: string): boolean => {
+    if (!acceptsAll(ops)) return false;
     hold++;
     try {
       const group = `${prefix}:${++groupN}`;

@@ -136,8 +136,8 @@ or duplicate name, an unknown type, an `enum` without values, a default of the w
 `variables.value` option or to `setVariables` throw a `TypeError`. Renaming a variable changes its declaration
 only: references to the old name become undeclared and show a warning with a "Declare variable" fix.
 
-`applyFix(problem)` applies a problem's quick fix (`problem.fix`) as one undo step and returns whether it was
-applied. The panel, the visual rows and the code pane already offer a Fix button for every problem that has one;
+`applyFix(problem)` applies a problem's quick fix (`problem.fix`) as one undo step, all of it or nothing, and
+returns whether it was applied. The panel, the visual rows and the code pane already offer a Fix button for every problem that has one;
 `applyFix` is for hosts that build their own problem list. The Variables section also appears first in the outline.
 
 ### Semantic rules

@@ -157,6 +157,38 @@ describe('composeVariables.writeOps', () => {
   });
 });
 
+describe('composeVariables.writeOps on a flow-style entry', () => {
+  const entry = (line: string) => `x-variables:\n  ${line}\n${SERVICES}`;
+
+  it('a type change that drops the default keeps the flow style', () => {
+    const text = entry('WEB_PORT: { type: port, default: 8080, description: Public port }');
+    const next: VariableDecl = { name: 'WEB_PORT', type: 'boolean', description: 'Public port' };
+    const ops = composeVariables.writeOps(parseText(text), next);
+    expect(ops?.map((o) => o.op)).toEqual(['set', 'delete']);
+    const out = apply(text, ops);
+    expect(out).toBe(entry('WEB_PORT: { type: boolean, description: Public port }'));
+    expect(readBlock(parseText(out)).decls).toEqual([next]);
+  });
+
+  it('adding a description appends it inside the braces', () => {
+    const text = entry('A: { type: string }');
+    const next: VariableDecl = { name: 'A', type: 'string', description: 'The host, or "*"' };
+    const out = apply(text, composeVariables.writeOps(parseText(text), next));
+    expect(out).toBe(entry('A: { type: string, description: "The host, or \\"*\\"" }'));
+    expect(readBlock(parseText(out)).decls).toEqual([next]);
+  });
+
+  it('an enum change is a delete and an add of a flow list', () => {
+    const text = entry('E: { type: enum, enum: [a, b], default: a }');
+    const next: VariableDecl = { name: 'E', type: 'enum', enumValues: ['a', 'c'], default: 'a' };
+    const ops = composeVariables.writeOps(parseText(text), next);
+    expect(ops?.map((o) => o.op)).toEqual(['delete', 'add']);
+    const out = apply(text, ops);
+    expect(out).toBe(entry('E: { type: enum, default: a, enum: [a, c] }'));
+    expect(readBlock(parseText(out)).decls).toEqual([next]);
+  });
+});
+
 describe('composeVariables.removeOps', () => {
   it('deletes the entry, and the block with its last entry', () => {
     const text = `x-variables:\n  A:\n    type: string\n  B:\n    type: string\n${SERVICES}`;

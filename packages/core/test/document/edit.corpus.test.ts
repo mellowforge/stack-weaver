@@ -151,6 +151,23 @@ describe.each(files)('corpus %s', (file) => {
     expect(changed).toEqual(Object.keys(IDENTITY_EXCEPTIONS).filter((k) => k.startsWith(`${file} `)));
   });
 
+  it('add on every single-line flow map is a pure insertion on its own line', () => {
+    for (const { ref, node } of entries) {
+      if (!isMap(node) || !node.flow || node.items.length === 0) continue;
+      if (text.slice(node.range![0], node.range![1]).includes('\n')) continue;
+      const label = `${file} ${ref.path.join('.')}`;
+      const r = applyEdit(p, { op: 'add', at: ref, key: 'zz-added', value: 'v' });
+      expect(r.ok, label).toBe(true);
+      if (!r.ok) continue;
+      expect(r.change.from, label).toBe(r.change.to);
+      expect(r.change.insert, label).toBe(', zz-added: v');
+      const line = lineOf(text, node.range![0]);
+      expect(changedLines(text, r.text), label).toEqual([line, line + 1]);
+      const added = getNode(parseText(r.text), { doc: ref.doc, path: [...ref.path, 'zz-added'] });
+      expect(isScalar(added) ? added.value : undefined, label).toBe('v');
+    }
+  });
+
   it('add / push on every non-empty block collection is a pure insertion', () => {
     for (const { ref, node } of entries) {
       if ((!isMap(node) && !isSeq(node)) || node.flow || node.items.length === 0) continue;
@@ -186,6 +203,24 @@ describe.each(files)('corpus %s', (file) => {
       const parentRef = { doc: ref.doc, path: ref.path.slice(0, -1) };
       // A pair whose value is a flow collection is deletable; only the parent being flow blocks.
       const own = canEdit(p, ref);
+      const label = `${file} ${ref.path.join('.')}`;
+      const grandRef = { doc: ref.doc, path: ref.path.slice(0, -2) };
+      const oneLineFlowMap =
+        isMap(parent) &&
+        parent.flow &&
+        !text.slice(parent.range![0], parent.range![1]).includes('\n') &&
+        (ref.path.length < 2 || canEdit(p, grandRef) !== 'flow');
+      if (oneLineFlowMap && (own === undefined || own === 'flow') && !anchorStillUsed(p, ref.doc, parent, node)) {
+        // A pair of a single-line flow map is spliced out of that line; no other line changes.
+        expect(r.ok, label).toBe(true);
+        if (!r.ok) continue;
+        const q = parseText(r.text);
+        expect(q.ok, label).toBe(true);
+        expect((getNode(q, parentRef) as YAMLMap).items.length, label).toBe(parent.items.length - 1);
+        const line = lineOf(text, parent.range![0]);
+        expect(changedLines(text, r.text), label).toEqual([line, line + 1]);
+        continue;
+      }
       const blocked = (own !== undefined && own !== 'flow') || canEdit(p, parentRef) === 'flow';
       if (blocked) {
         expect(r.ok, `${file} ${ref.path.join('.')}`).toBe(false);

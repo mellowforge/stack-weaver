@@ -440,14 +440,16 @@ describe('applyEdit: edge cases', () => {
 });
 
 describe('refusals and canEdit', () => {
-  it('refuses flow', () => {
+  it('refuses flow (single-line flow maps take add and delete; see edit-flow.test.ts)', () => {
     const text = corpus('k8s-web-app.yaml');
-    expect(refusal(text, { op: 'add', at: at('metadata', 'labels'), key: 'x', value: 'y' })).toBe(
-      'flow',
+    expect(edit(text, { op: 'add', at: at('metadata', 'labels'), key: 'x', value: 'v' })).toBe(
+      text.replace('labels: { app: web, tier: frontend }', 'labels: { app: web, tier: frontend, x: v }'),
     );
-    expect(refusal(text, { op: 'delete', at: at('metadata', 'labels', 'app') })).toBe('flow');
+    expect(edit(text, { op: 'delete', at: at('metadata', 'labels', 'app') })).toBe(
+      text.replace('labels: { app: web, tier: frontend }', 'labels: { tier: frontend }'),
+    );
     expect(refusal('v: [a, b]\n', { op: 'delete', at: at('v', 0) })).toBe('flow');
-    expect(refusal('v: { a: {} }\n', { op: 'add', at: at('v', 'a'), key: 'k', value: 1 })).toBe(
+    expect(refusal('v: { a: 1,\n  b: 2 }\n', { op: 'add', at: at('v'), key: 'k', value: 1 })).toBe(
       'flow',
     );
     const p = parseText(text);

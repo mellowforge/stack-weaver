@@ -94,6 +94,33 @@ describe('x-variables store', () => {
   });
 });
 
+describe('flow-style x-variables entries', () => {
+  const FLOW = 'x-variables:\n  WEB_PORT: { type: port, default: 8080, description: Public port }\n' + UNDECLARED.replace(/PORT/g, 'WEB_PORT');
+
+  it('a type change that drops the default is one edit in flow style; one undo restores', async () => {
+    const onVariablesChange = vi.fn();
+    const { editor, ctx } = await mount({ value: FLOW, onVariablesChange });
+    expect(ctx.variables()!.set({ name: 'WEB_PORT', type: 'boolean', description: 'Public port' })).toBe(true);
+    expect(editor.getValue()).toBe(FLOW.replace('{ type: port, default: 8080, description: Public port }', '{ type: boolean, description: Public port }'));
+    expect(editor.getVariables()).toEqual([{ name: 'WEB_PORT', type: 'boolean', description: 'Public port' }]);
+    expect(onVariablesChange).toHaveBeenCalledTimes(1);
+    expect(editor.undo()).toBe(true);
+    expect(editor.getValue()).toBe(FLOW);
+  });
+
+  it('a refused op makes set change nothing and fire no onVariablesChange', async () => {
+    const onVariablesChange = vi.fn();
+    const text = FLOW.replace('default: 8080, description', 'default: 8080,\n    description');
+    const { editor, ctx } = await mount({ value: text, onVariablesChange });
+    expect(editor.getVariables()).toEqual([{ name: 'WEB_PORT', type: 'port', default: 8080, description: 'Public port' }]);
+    // `set type` alone would succeed; `delete default` in a multi-line flow map is refused.
+    expect(ctx.variables()!.set({ name: 'WEB_PORT', type: 'boolean', description: 'Public port' })).toBe(false);
+    expect(editor.getValue()).toBe(text);
+    expect(editor.undo()).toBe(false);
+    expect(onVariablesChange).not.toHaveBeenCalled();
+  });
+});
+
 describe('external store', () => {
   it('initial value, getVariables, and an invalid initial value throws TypeError', async () => {
     const { editor } = await mount({ variables: { store: 'external', value: [{ name: 'PORT', type: 'port', default: 80 }] } });
@@ -218,13 +245,12 @@ describe('applyFix(edit) steps', () => {
     expect(editor.getValue()).toBe(YAML);
   });
 
-  it('on a refused op returns false, keeps the earlier ops, and one undo reverts them', async () => {
+  it('on a refused op returns false and changes nothing (all or nothing)', async () => {
     const { editor } = await mount({ format: 'kubernetes', value: YAML });
     const bad = { op: 'set', at: { doc: 0, path: ['nope', 'deeper'] }, value: 1 };
     expect(editor.applyFix(fix([add('b'), bad]))).toBe(false);
-    expect(editor.getValue()).toBe('a: 1\nb: v\n');
-    expect(editor.undo()).toBe(true);
     expect(editor.getValue()).toBe(YAML);
+    expect(editor.undo()).toBe(false);
   });
 });
 

@@ -10,9 +10,11 @@ export type { ScalarValue, YamlValue } from './types.js';
 /**
  * An edit addressed by node reference.
  * - `set`: replace a scalar's value.
- * - `add`: add `key` to a block map (or turn an empty `{}` / null value into one).
+ * - `add`: add `key` to a block map (or turn an empty `{}` / null value into one), or to a flow
+ *   map on a single line.
  * - `push`: append to a block sequence (or turn an empty `[]` / null value into one).
- * - `delete`: remove a map pair (addressed by its value) or a sequence item.
+ * - `delete`: remove a map pair (addressed by its value) or a sequence item; in a flow collection,
+ *   only a pair of a flow map on a single line.
  * - `renameKey`: give a map pair (addressed by its value, like `delete`) the key `key`, in place.
  * - `addDocument`: append `---` and exactly one new document.
  * - `deleteDocument`: remove a whole document together with its `---` marker.
@@ -34,7 +36,11 @@ export type EditOp =
  *   remove an anchor that an alias elsewhere still references; or a `renameKey` is in a map holding
  *   a `<<` merge key, or would rename a key that is an alias or carries an anchor still aliased;
  * - `flow`: a structural edit of a non-empty flow collection (`{ }` / `[ ]`), or of anything
- *   inside a flow collection;
+ *   inside a flow collection. Supported: `set` of a scalar anywhere in one, and `add` / `delete`
+ *   of a pair in a flow map that sits on one line (with any flow collections around it maps on
+ *   that same line, so no comment inside), where `add` takes a value that renders on one line (a
+ *   scalar other than a multi-line string, a list of such scalars, or a map of them). Everything
+ *   else stays `flow`: flow sequences, multi-line flow maps, `renameKey`, and a deeper value;
  * - `block-scalar`: the target is a block scalar with an explicit indentation indicator;
  * - `not-found`: no node at the reference;
  * - `parse-error`: the text has parse errors, or the `addDocument` snippet does not parse;
@@ -236,8 +242,9 @@ function hasIndentIndicator(p: ParsedText, n: Node): boolean {
  * - A non-empty flow collection, or a collection inside a flow collection, reports `flow`.
  *
  * `applyEdit` makes the operation-specific decision: for example, deleting a block-map pair whose
- * value is a flow collection is allowed although the value reports `flow` here, and deleting a
- * node whose anchor is still aliased is refused as `alias` although it reports editable here.
+ * value is a flow collection is allowed although the value reports `flow` here, so are `add` and
+ * `delete` of a pair in a single-line flow map, and deleting a node whose anchor is still aliased
+ * is refused as `alias` although it reports editable here.
  *
  * @param p - The parsed text.
  * @param ref - The node to check.
@@ -285,6 +292,109 @@ function itemInfo(t: string, parent: Coll, idx: number): Item | undefined {
   const start = k >= 0 ? tok[k]!.offset : node.range[0];
   const gap = k >= 0 && space?.type === 'space' ? space.source.length : 1;
   return { start, col: col(t, start), contentEnd: node.range[1], gap };
+}
+
+// ---- pairs of single-line flow maps ----
+
+interface FlowSpan {
+  /** Offset of the map's `{`. */
+  open: number;
+  /** Offset of the map's `}`. */
+  close: number;
+}
+
+/**
+ * The braces of flow map `m` when `m` and every flow collection around it (its ancestors in
+ * `chain`) are maps that sit on one line, otherwise `undefined`. One line also means no comment
+ * inside: a comment runs to the end of its line.
+ */
+function oneLineFlowMap(t: string, m: YAMLMap, chain: readonly Node[]): FlowSpan | undefined {
+  const flows = [...chain.filter(isFlow), m];
+  if (!flows.every(isMap)) return undefined;
+  const [s, e] = flows[0]!.range!;
+  if (/[\r\n]/.test(t.slice(s, e))) return undefined;
+  const open = m.range![0];
+  const close = m.range![1] - 1;
+  return t[open] === '{' && t[close] === '}' ? { open, close } : undefined;
+}
+
+/**
+ * Where each pair of a one-line flow map starts (after the preceding `,` and spaces, so at its
+ * props or key) and ends (after its value, or its key when it has none). `undefined` when the
+ * text between pairs is not a plain `,` separator.
+ */
+function flowPairs(t: string, m: YAMLMap, span: FlowSpan): { start: number; end: number }[] | undefined {
+  const skip = (i: number): number => {
+    while (t[i] === ' ' || t[i] === '\t') i++;
+    return i;
+  };
+  const out: { start: number; end: number }[] = [];
+  let at = skip(span.open + 1);
+  for (const pr of m.items) {
+    if (out.length > 0) {
+      if (t[at] !== ',') return undefined;
+      at = skip(at + 1);
+    }
+    const end = (pr.value as Node | null)?.range?.[1] ?? (pr.key as Node | null)?.range?.[1];
+    if (end === undefined || end < at) return undefined;
+    out.push({ start: at, end });
+    at = skip(end);
+  }
+  return out;
+}
+
+/** A single-line flow rendering of a scalar, a list of scalars or a map of scalars; else `undefined`. */
+function flowValue(value: YamlValue): string | undefined {
+  const scalar = (v: unknown): string | undefined =>
+    isScalarValue(v) && !(typeof v === 'string' && /[\r\n]/.test(v)) ? renderScalar(v, { flow: true }) : undefined;
+  if (isScalarValue(value)) return scalar(value);
+  const parts = Array.isArray(value)
+    ? value.map(scalar)
+    : Object.entries(value).map(([k, v]) => {
+        const out = scalar(v);
+        return out === undefined ? undefined : `${renderKey(k, undefined, true)}: ${out}`;
+      });
+  if (parts.some((x) => x === undefined)) return undefined;
+  if (Array.isArray(value)) return `[${parts.join(', ')}]`;
+  return parts.length > 0 ? `{ ${parts.join(', ')} }` : '{}';
+}
+
+/** `add` to a flow map: `, key: value` after the last pair, or `{ key: value }` for an empty one. */
+function addFlowPair(p: ParsedText, ref: NodeRef, tg: Target, n: YAMLMap, key: string, value: YamlValue): EditResult {
+  const t = p.text;
+  const span = oneLineFlowMap(t, n, tg.chain);
+  if (!span) return refuse('flow');
+  if (n.items.some((pr) => isScalar(pr.key) && String(pr.key.value) === key)) return refuse('duplicate-key');
+  const rendered = flowValue(value);
+  if (rendered === undefined) return refuse('flow');
+  const pair = `${renderKey(key, undefined, true)}: ${rendered}`;
+  let change: TextChange;
+  if (n.items.length === 0) change = { from: span.open + 1, to: span.close, insert: ` ${pair} ` };
+  else {
+    const last = flowPairs(t, n, span)?.at(-1);
+    if (!last) return refuse('unsupported');
+    change = { from: last.end, to: last.end, insert: `, ${pair}` };
+  }
+  return finish(p, change, addedCheck(p, ref, key, value), { doc: ref.doc, path: [...ref.path, key] });
+}
+
+/**
+ * `delete` of a pair in a flow map: the pair plus one adjacent separator (the following one, or
+ * the preceding one for the last pair); the only pair leaves `{}`.
+ */
+function deleteFlowPair(p: ParsedText, ref: NodeRef, tg: Target, parent: YAMLMap): EditResult {
+  const t = p.text;
+  const span = oneLineFlowMap(t, parent, tg.chain.slice(0, -1));
+  if (!span) return refuse('flow');
+  const idx = parent.items.findIndex((pr) => pr.value === tg.node);
+  const pairs = flowPairs(t, parent, span);
+  if (idx < 0 || !pairs) return refuse('unsupported');
+  if (anchorReferenced(p, ref.doc, [parent.items[idx]!.key, tg.node])) return refuse('alias');
+  let change: TextChange;
+  if (pairs.length === 1) change = { from: span.open + 1, to: span.close, insert: '' };
+  else if (idx < pairs.length - 1) change = { from: pairs[idx]!.start, to: pairs[idx + 1]!.start, insert: '' };
+  else change = { from: pairs[idx - 1]!.end, to: pairs[idx]!.end, insert: '' };
+  return finish(p, change, deletedCheck(p, ref));
 }
 
 // ---- operations ----
@@ -400,6 +510,8 @@ function insertAfterLast(
 
 function addPair(p: ParsedText, ref: NodeRef, tg: Target, key: string, value: YamlValue): EditResult {
   const n = tg.node;
+  // An empty `{}` under a block parent becomes a block map (below); inside a flow map it stays flow.
+  if (isMap(n) && n.flow && (n.items.length > 0 || tg.inFlow)) return addFlowPair(p, ref, tg, n, key, value);
   if (tg.inFlow) return refuse('flow');
   const entry = (c: number): string => renderValue(new Map([[key, value]]), c, p.eol);
   let change: TextChange | undefined;
@@ -413,7 +525,12 @@ function addPair(p: ParsedText, ref: NodeRef, tg: Target, key: string, value: Ya
     change = toBlock(p, tg, ref, entry);
   }
   if (!change) return refuse('unsupported');
-  const check = dataCheck(p, ref.doc, (data) => {
+  return finish(p, change, addedCheck(p, ref, key, value), { doc: ref.doc, path: [...ref.path, key] });
+}
+
+/** The post-check of `add`: the map (or null value) at `ref` gained `key: value`, nothing else changed. */
+function addedCheck(p: ParsedText, ref: NodeRef, key: string, value: YamlValue): (q: ParsedText) => boolean {
+  return dataCheck(p, ref.doc, (data) => {
     const old = dataAt(data, ref.path);
     if (isRecord(old)) {
       old[key] = value;
@@ -421,7 +538,6 @@ function addPair(p: ParsedText, ref: NodeRef, tg: Target, key: string, value: Ya
     }
     return old === null ? replaceAt(data, ref.path, { [key]: value }) : undefined;
   });
-  return finish(p, change, check, { doc: ref.doc, path: [...ref.path, key] });
 }
 
 function pushItem(p: ParsedText, ref: NodeRef, tg: Target, value: YamlValue): EditResult {
@@ -489,6 +605,7 @@ function deleteItem(p: ParsedText, ref: NodeRef, tg: Target): EditResult {
   const t = p.text;
   const parent = tg.chain[tg.chain.length - 1];
   if (!isMap(parent) && !isSeq(parent)) return refuse('unsupported');
+  if (isMap(parent) && parent.flow) return deleteFlowPair(p, ref, tg, parent);
   if (tg.inFlow) return refuse('flow');
   if (hasIndentIndicator(p, tg.node)) return refuse('block-scalar');
   const idx = isMap(parent)
@@ -528,7 +645,12 @@ function deleteItem(p: ParsedText, ref: NodeRef, tg: Target): EditResult {
   } else {
     change = { from: ls, to: nextLineStart(t, end), insert: '' };
   }
-  const check = dataCheck(p, ref.doc, (data) => {
+  return finish(p, change, deletedCheck(p, ref));
+}
+
+/** The post-check of `delete`: the pair or item at `ref` is gone, nothing else changed. */
+function deletedCheck(p: ParsedText, ref: NodeRef): (q: ParsedText) => boolean {
+  return dataCheck(p, ref.doc, (data) => {
     const holder = dataAt(data, ref.path.slice(0, -1));
     const last = ref.path[ref.path.length - 1]!;
     if (Array.isArray(holder) && typeof last === 'number') holder.splice(last, 1);
@@ -536,16 +658,15 @@ function deleteItem(p: ParsedText, ref: NodeRef, tg: Target): EditResult {
     else return undefined;
     return { data };
   });
-  return finish(p, change, check);
 }
 
 /**
  * Renders `key` for the source range of an implicit key. On top of what {@link renderScalar}
- * quotes, a plain key is double-quoted when it starts with an indicator, holds `: ` or ` #`, ends
- * with `:`, or has whitespace at either end.
+ * quotes (with `flow`, also flow indicators), a plain key is double-quoted when it starts with an
+ * indicator, holds `: ` or ` #`, ends with `:`, or has whitespace at either end.
  */
-function renderKey(key: string, quote: Scalar.Type | undefined): string {
-  const out = renderScalar(key, { quote });
+function renderKey(key: string, quote: Scalar.Type | undefined, flow = false): string {
+  const out = renderScalar(key, { quote, flow });
   if (out.startsWith('"') || out.startsWith("'")) return out;
   if (out === '' || /^[-?:,[\]{}#&*!|>%@`]|:\s|:$|\s#|^\s|\s$/.test(out)) return renderScalar(key, { quote: Scalar.QUOTE_DOUBLE });
   return out;
@@ -709,6 +830,12 @@ function dispatch(p: ParsedText, op: EditOp): EditResult {
  *   block collection with 2-space indentation: for a map value, on the next line 2 spaces deeper
  *   than the key; for a sequence item or the document root, in place at the node's own column.
  *   `add` with an existing key is `duplicate-key`.
+ * - In a flow map on a single line, `add` inserts `, key: value` after the last pair (or fills an
+ *   empty `{}` / `{ }` inside such a map as `{ key: value }`), with the value in flow style: scalars
+ *   quoted as for `set` inside a flow collection, a list of scalars as `[a, b]`, a map of scalars
+ *   as `{ k: v }`; a value that needs more than one line is `flow`. `delete` removes the pair plus
+ *   one adjacent `,` separator (the following one, or the preceding one for the last pair), and the
+ *   only pair leaves `{}`. Nothing else on the line changes.
  * - `delete` removes the item's lines plus its deeper trailing comment lines; an only child leaves
  *   `{}` / `[]`. The first pair of a map on a `- ` line is removed by pulling the next pair up,
  *   which is refused (`unsupported`) when anything but whitespace, such as a comment line, sits

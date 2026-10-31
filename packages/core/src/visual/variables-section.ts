@@ -104,7 +104,10 @@ export function mountVariablesSection(ctx: EditorContext, doc: Document): Variab
     control?.setAttribute('aria-describedby', card.error.id);
   }
 
-  /** Writes `next` over the card's declaration; shows `editRefused` on `control` when the store refuses. */
+  /**
+   * Writes `next` over the card's declaration. When the store refuses, retyping cannot help, so the
+   * controls go back to the stored declaration (in place, keeping focus) and `control` shows `editRefused`.
+   */
   function commit(card: Card, next: VariableDecl, control: HTMLElement, replaces = card.key): boolean {
     const d = clean(next);
     if (JSON.stringify(d) === JSON.stringify(clean(card.decl)) && !card.pendingEnum) {
@@ -112,6 +115,8 @@ export function mountVariablesSection(ctx: EditorContext, doc: Document): Variab
       return true;
     }
     if (!ctx.variables()?.set(d, replaces)) {
+      showError(card, undefined, ''); // unmarked, so patch resets every control
+      patch(card, card.decl);
       showError(card, control, ui.editRefused);
       return false;
     }
@@ -158,8 +163,7 @@ export function mountVariablesSection(ctx: EditorContext, doc: Document): Variab
     card.pendingEnum = false;
     const { enumValues, ...rest } = card.decl;
     const next = fitted(type === 'enum' ? { ...rest, type, enumValues } : { ...rest, type });
-    if (!commit(card, next, card.type)) patch(card, card.decl);
-    else if (card.type.value !== card.decl.type) patch(card, card.decl);
+    if (commit(card, next, card.type) && card.type.value !== card.decl.type) patch(card, card.decl);
   }
 
   function onEnum(card: Card): void {
