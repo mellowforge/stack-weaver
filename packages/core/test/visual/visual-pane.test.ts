@@ -165,6 +165,80 @@ describe('visual pane', () => {
     expect(rowText('replicas')).toBe('2');
   });
 
+  describe('typing a new apiVersion or kind in the section', () => {
+    const settle = () => new Promise((r) => setTimeout(r, 20));
+    const fieldInput = (key: string) => el.querySelector<HTMLInputElement>(`.sw-section .sw-row[data-sw-key="${key}"] input`);
+    const typeInto = (input: HTMLInputElement, text: string) => {
+      input.value = text;
+      input.dispatchEvent(new Event('input', { bubbles: true }));
+    };
+    const blur = (input: HTMLInputElement) => {
+      const outside = el.querySelector<HTMLElement>('[role=treeitem]')!;
+      input.dispatchEvent(new FocusEvent('focusout', { bubbles: true, relatedTarget: outside }));
+      outside.focus();
+    };
+    const line = (editor: { getValue(): string }, key: string) => editor.getValue().split('\n').find((l) => l.startsWith(`${key}:`));
+
+    it.each([
+      ['apiVersion', 'a', 'apps/v9', 'apps/v1'],
+      ['kind', 'D', 'Deploymentz', 'Deployment'],
+    ])('%s: a partial value keeps the focused input; leaving the field with an unknown kind shows the card', async (key, partial, unknown) => {
+      const { editor } = await mount({ value: DEPLOY });
+      const input = fieldInput(key)!;
+      input.focus();
+      typeInto(input, partial);
+      await settle(); // the schema lookup for the partial kind resolves
+      expect(line(editor, key)).toBe(`${key}: ${partial}`); // the code pane still follows every keystroke
+      expect(fieldInput(key)).toBe(input);
+      expect(document.activeElement).toBe(input);
+      expect(el.querySelector('.sw-unknown-kind')).toBeNull();
+      typeInto(input, unknown);
+      await settle();
+      expect(fieldInput(key)).toBe(input);
+      blur(input);
+      await settle();
+      expect(el.querySelector('.sw-unknown-kind')?.textContent).toContain('Unknown kind, edit in code');
+    });
+
+    it.each([
+      ['apiVersion', 'a', 'apps/v1'],
+      ['kind', 'D', 'Deployment'],
+    ])('%s: typing back a known value and leaving keeps the section', async (key, partial, known) => {
+      await mount({ value: DEPLOY });
+      const input = fieldInput(key)!;
+      input.focus();
+      typeInto(input, partial);
+      await settle();
+      typeInto(input, known);
+      await settle();
+      blur(input);
+      await settle();
+      expect(el.querySelector('.sw-unknown-kind')).toBeNull();
+      expect(fieldInput(key)?.value).toBe(known);
+    });
+
+    it('undo while the field is focused re-renders normally', async () => {
+      const { editor, ctx } = await mount({ value: DEPLOY });
+      const input = fieldInput('apiVersion')!;
+      input.focus();
+      typeInto(input, 'a');
+      await settle();
+      ctx.store.undo();
+      await settle();
+      expect(line(editor, 'apiVersion')).toBe('apiVersion: apps/v1');
+      expect(el.querySelector('.sw-unknown-kind')).toBeNull();
+      expect(fieldInput('apiVersion')?.value).toBe('apps/v1');
+      expect(document.activeElement).toBe(fieldInput('apiVersion')); // the rebuilt row keeps the caret's field
+    });
+
+    it('a code change that makes the kind unknown still shows the card', async () => {
+      const { fake } = await mount({ value: DEPLOY });
+      fake.type(DEPLOY.replace('apps/v1', 'apps/v9'));
+      await new Promise((r) => setTimeout(r, 150)); // the code debounce, then the schema lookup
+      expect(el.querySelector('.sw-unknown-kind')).not.toBeNull();
+    });
+  });
+
   it('unknown-kind card link reveals the document range', async () => {
     const { fake } = await mount({ value: `${CRD}---\n${DEPLOY}` });
     click('Widget w');

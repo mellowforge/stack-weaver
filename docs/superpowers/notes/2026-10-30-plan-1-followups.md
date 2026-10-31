@@ -101,6 +101,7 @@ Run with Chrome DevTools against `pnpm build:site` + `vite preview`:
   - the React and Angular demos wrapped the wrapper's host in an extra `.demo-editor` box with no height, so the editor overflowed onto the status line. The wrapper host is now the box itself, and both wrapper READMEs say the editor fills its host's height.
 - **Parked (core, found in the browser):**
   - Typing into the visual `apiVersion` field changes the kind after the first keystroke. The form then switches to "Unknown kind, edit in code" mid-typing, and the remaining keystrokes are lost. This was already the case in Plan 2. A possible fix: defer kind re-resolution while the field has focus, or commit `apiVersion` on change instead of on input.
+    **Fixed** (branch `fix/apiversion-typing`): while a visual edit changes the kind of the section's document and focus is in the section, the visual pane holds the section; leaving the section renders again, and a non-visual change (code, undo, API) renders as usual, rebuilding a held section and refocusing its row. Every keystroke still reaches the code (spec Goal 1). Also seen then: the Angular demo page requests a missing `/favicon.ico` (404).
   - Chrome reports the issue "No label associated with a form field" (count 6), although no unlabelled field is present and Lighthouse's label audits pass. The likely source is transient elements; worth a look.
 
 ### Plan 5 milestone review (panel fix wave)

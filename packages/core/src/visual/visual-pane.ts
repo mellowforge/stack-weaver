@@ -56,9 +56,14 @@ export function createVisualPane(
   let pendingReveal: NodeRef | undefined;
   let nodes: readonly OutlineNode[] = [];
   let flat = new Map<string, OutlineNode>();
-  let section: { id: string; handle: Section } | undefined;
+  /** The mounted section, and the kind key of its document when it last rendered (see `holdSection`). */
+  let section: { id: string; handle: Section; key: string | undefined } | undefined;
   let card: HTMLElement | undefined;
   let stale = false;
+  /** The origin of the latest store change (`undefined` after a format change); renders it causes later, such as a schema load, see it too. */
+  let origin: StoreEvent['origin'] | undefined;
+  /** True while the mounted section is held as it is (see `holdSection`). */
+  let held = false;
 
   const jump = (): void => {
     // The parse's own errors are always for the current text; published problems can lag a debounce behind it.
@@ -162,7 +167,37 @@ export function createVisualPane(
     content.append(card);
   }
 
+  /**
+   * Whether to keep the mounted section as it is instead of rendering `sel`. Typing a new
+   * `apiVersion` or `kind` into the section commits every keystroke, and each partial value names
+   * another kind (most of them unknown): re-rendering for it would replace the very input being
+   * typed in. So while a visual edit changes the kind key of the section's document and focus is
+   * in the section, the section is held; leaving it renders again (`onSectionFocusOut`). Any
+   * other change (code, undo, the API) renders as usual.
+   */
+  function holdSection(sel: OutlineNode, parsed: ParsedText | undefined): boolean {
+    if (origin !== 'visual' || !parsed || section?.id !== sel.id || !section.handle.el.contains(doc.activeElement)) return false;
+    return bundleKeyOf(parsed, sel.ref.doc) !== section.key;
+  }
+
+  /** The key of the section row that holds `el`, if any. */
+  const rowKeyOf = (el: Element | null): string | undefined => {
+    const row = el && section?.handle.el.contains(el) ? el.closest<HTMLElement>('.sw-row') : null;
+    return row?.dataset['swKey'];
+  };
+
+  function onSectionFocusOut(e: FocusEvent): void {
+    const next = e.relatedTarget;
+    if (!held || (next instanceof Node && section?.handle.el.contains(next))) return;
+    held = false;
+    render();
+  }
+  content.addEventListener('focusout', onSectionFocusOut);
+
   function renderSelection(sel: OutlineNode | undefined, parsed: ParsedText | undefined, broken: boolean): void {
+    const wasHeld = held;
+    held = sel !== undefined && holdSection(sel, parsed);
+    if (held) return;
     body.hidden = nodes.length === 0;
     empty.hidden = nodes.length > 0;
     removal.setTarget(sel && sel.type !== 'variables' ? { ref: sel.ref, label: sel.label } : undefined);
@@ -194,14 +229,20 @@ export function createVisualPane(
     }
     card?.remove();
     card = undefined;
-    if (section?.id === sel.id) {
+    const key = parsed ? bundleKeyOf(parsed, sel.ref.doc) : undefined;
+    if (section?.id === sel.id && !wasHeld) {
+      section.key = key;
       section.handle.update();
       return;
     }
+    // A held section missed its updates (its widgets still remember the values from before the
+    // hold), so it is built again rather than updated; the row that had focus gets it back.
+    const focusedKey = wasHeld ? rowKeyOf(doc.activeElement) : undefined;
     section?.handle.destroy();
     const handle: Section = sel.type === 'variables' ? variablesAsSection(mountVariablesSection(ctx, doc)) : mountSection(ctx, sel.ref, slots, doc);
-    section = { id: sel.id, handle };
+    section = { id: sel.id, handle, key };
     content.append(handle.el);
+    if (focusedKey !== undefined) handle.focusRow(focusedKey);
   }
 
   function render(): void {
@@ -282,7 +323,7 @@ export function createVisualPane(
   o.el.addEventListener('focusin', flushPending, true);
   const offProblems = ctx.onProblems(() => {
     if (o.el.hidden) stale = true; // the rows' problems are re-read when the pane is shown again
-    else section?.handle.update();
+    else if (!held) section?.handle.update();
   });
 
   render();
@@ -291,6 +332,7 @@ export function createVisualPane(
     el: o.el,
     update(e: StoreEvent | null) {
       if (destroyed) return;
+      origin = e?.origin;
       if (e === null) {
         generation++;
         requested.clear();
@@ -352,6 +394,7 @@ export function createVisualPane(
       addResource.destroy();
       o.el.removeEventListener('pointerdown', flushPending, true);
       o.el.removeEventListener('focusin', flushPending, true);
+      content.removeEventListener('focusout', onSectionFocusOut);
       section?.handle.destroy();
       outline.destroy();
       o.el.replaceChildren();
