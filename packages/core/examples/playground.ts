@@ -104,7 +104,11 @@ function mount(format: string, value: string): void {
 }
 
 $<HTMLSelectElement>('mode').addEventListener('change', (e) => editor?.setMode((e.target as HTMLSelectElement).value as EditorMode));
-$<HTMLSelectElement>('format').addEventListener('change', (e) => mount((e.target as HTMLSelectElement).value, editor?.getValue() ?? ''));
+// The format is settable at runtime: no need to recreate the editor.
+$<HTMLSelectElement>('format').addEventListener('change', (e) => {
+  editor?.setFormat((e.target as HTMLSelectElement).value);
+  log(`setFormat -> getFormat()=${String(editor?.getFormat())}`);
+});
 // A store is fixed when the editor is created, so changing it recreates the editor over the same text.
 $<HTMLSelectElement>('variables-store').addEventListener('change', () => mount($<HTMLSelectElement>('format').value, editor?.getValue() ?? ''));
 $('theme').addEventListener('click', () => {

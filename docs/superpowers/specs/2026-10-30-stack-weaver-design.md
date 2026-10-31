@@ -285,7 +285,7 @@ in the problems panel (frame 3) and in the top-bar count. Each one links to the 
 ### Host API (in the style of dash-builder) [call]
 
 ```ts
-const editor = createManifestEditor(el, {
+const editor: ManifestEditorController = createManifestEditor(el, {
   format: 'kubernetes' | 'compose' | 'auto',
   value?: string,  mode?: 'visual' | 'split' | 'code',
   readOnly?: boolean,  theme?: 'light' | 'dark' | 'auto',
@@ -301,8 +301,10 @@ const editor = createManifestEditor(el, {
 });
 editor.getValue(); editor.setValue(text); editor.getMode(); editor.setMode(m); editor.getProblems();
 editor.getReadOnly(); editor.setReadOnly(b); editor.setTheme(t); editor.undo(); editor.redo(); editor.reveal(ref: NodeRef);
+editor.getFormat(); editor.setFormat(f); /* 'auto' re-detects; a no-op when current */
+editor.update({ format, value, variables, readOnly, mode, theme }); /* several setters, in that order */
 editor.getVariables(); editor.setVariables(decls); /* external store only */
-editor.applyFix(problem); /* a problem's quick fix, one undo step */
+editor.applyFix(problem); /* ActionResult; a problem's quick fix, one undo step */
 editor.ready; /* Promise<void>, see below */ editor.destroy();
 ```
 
@@ -384,6 +386,32 @@ editor.ready; /* Promise<void>, see below */ editor.destroy();
     pressed), and unpressing it with no fitting default shows the type widget as if the value were absent.
 - **Ingress stays in the "Web app" recipe:** Ingress is still core and GA. Gateway API is a CRD (out of
   scope), so it's left for a future optional format pack.
+
+- **Plan 4 (API hardening) decisions:**
+  - **P1.** `yaml` leaves the public types: `ParsedText` is an opaque handle (`text`, `ok`, `docCount`, `errors`,
+    `warnings`, `eol`); documents are read with `toData` / `describeNode`; `getNode` is internal.
+  - **P2.** Formats see plain data: `detect(DetectInput)`, `loadSchema(data)`, and `RuleInput.locate(doc, path, at?)`
+    to range a finding. Built-in compose rules keep their internal yaml walk for placeholder ranges.
+  - **P3.** `YamlProblem` stays (the parse layer's problem); `Problem` is the validated, editor-facing one.
+  - **P4.** One result type, `ActionResult = { ok: true } | { ok: false; reason: ActionRefusal; edit?: EditRefusal }`,
+    for `VariableStore.set`, `remove` and `applyFix`.
+  - **P5.** `QuickFix.id` is the rule's fix key; `sameProblem(a, b)` compares severity, code, message, doc, range, fix id
+    and fix action. A fix applies to the current text.
+  - **P6.** `Problem.code` is the template-literal type `ProblemCode`.
+  - **P7.** `VariableDecl` is a union over `VARIABLE_TYPES`, `enumValues` only on the enum member;
+    `validateVariableDecl` is exported.
+  - **P8.** The controller type is `ManifestEditorController` with `update`, `getFormat`, `setFormat`; `value`, `mode`,
+    `readOnly`, `theme`, `format` and the external variables are settable, the rest is init-only (wrappers recreate the
+    editor when one changes). Under `'auto'` an `'api'` text change re-detects the format. **R3:** `setFormat` and
+    `update({ format })` are no-ops when the option is current (`'auto'` included), like every other setter.
+  - **P9.** Adapter: `mount` and `hover` may be async; `CodeDiagnostic` gains `code` and `source`,
+    `CodeDiagnosticAction` an `id`.
+  - **P10.** `WidgetRegistry` maps names to `WidgetDefinition { create, managesKeys? }`; `GuideField.widget` is a
+    `WidgetRef { name, param? }`.
+  - **P11.** `UiMessages` is readonly; counts are `PluralMessage` chosen with `Intl.PluralRules(messages.locale)`;
+    every value goes through `{param}` templates and `formatMessage` (one pass, never re-expanded).
+  - **P12.** Field-name knowledge is guide data: `Guide.labelKeys`, `resourceLabel`, `references`.
+  - **P13.** `registerFormat` does not freeze the host's format; built-ins stay frozen.
 
 ## Open questions for the user
 

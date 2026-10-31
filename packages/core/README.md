@@ -28,6 +28,30 @@ const format = detectFormat(parsed);
 const problems = format ? await validateText(parsed, format) : [];
 ```
 
+`ParsedText` is an opaque handle: its public fields are `text`, `ok`, `docCount`, `errors`, `warnings` and `eol`
+(all readonly), and no `yaml` type appears in the public API. Read a document with `toData(parsed, doc)` or
+`describeNode(parsed, ref)`; `refAtOffset` and `toLineCol` map between offsets and nodes. Pass a `ParsedText` only as
+`parseText` returned it: a copy or look-alike makes the reading functions throw a `TypeError`.
+
+Edits go through `applyEdit(parsed, op)`, which returns an `EditResult` (the new text, the change, the `parsed` of the
+new text and the created node's `at`) or a refusal (`EditRefusal`). `DocumentStore` holds the text and one undo
+history: `store.transact(ops, { group? })` applies several operations as one `'visual'` change, one undo step and one
+event (the first refusal is returned and nothing changes); `store.reset(text)` replaces the text as an `'api'` change
+and clears the history; `store.clearHistory()` empties undo and redo.
+
+### Writing a format
+
+A `FormatDefinition` sees plain data, never `yaml` nodes:
+
+- `detect(input)` receives `DetectInput`, `{ docs }`: `toData` of each document (`undefined` when a document is empty
+  or cannot be built).
+- `loadSchema(data)` receives one document's data and returns its `SchemaBundle` (or `undefined`).
+- A rule's `check(input)` receives `locate(doc, path, at?)`, which returns the `TextRange` of the node at `path`
+  (its key with `at: 'key'`), or `undefined`, so a finding can be ranged without `yaml`.
+- `guide` carries presentation data (see [Widgets](#widgets)); `variables` (`FormatVariables`) and `rules` are optional.
+
+`registerFormat` does not freeze what you pass in (that would change your object); the built-in formats are frozen.
+
 ## The editor
 
 `createManifestEditor` mounts a Visual, Split or Code editor over one shared document model: an edit in
@@ -87,16 +111,26 @@ at once, in that order. The other options are read once, when the editor is crea
 `variables` list in `update` is applied (and re-validated) even when unchanged, as `setVariables` does. A callback
 that throws is logged and does not stop the editor.
 
-The controller (`ManifestEditorController`) also has `getFormat()`, `getMode()`, `getProblems()`, `getReadOnly()`, `undo()`, `redo()` and `reveal(ref)`, which
-selects a node (`{ doc, path }`) in both panes, and `getVariables()`, `setVariables(decls)` and `applyFix(problem)`
-for variables and quick fixes (below).
+The controller (`ManifestEditorController`) also has `getFormat()` (the resolved format id, or `undefined`),
+`getMode()`, `getProblems()`, `getReadOnly()`, `undo()`, `redo()` and `reveal(ref)`, which selects a node
+(`{ doc, path }`) in both panes, and `getVariables()`, `setVariables(decls)` and `applyFix(problem)` for variables
+and quick fixes (below).
+
+Not every action can run: `setVariables` aside, `VariableStore.set`, `VariableStore.remove` and `applyFix` return an
+`ActionResult`, `{ ok: true }` or `{ ok: false, reason, edit? }`. `reason` is an `ActionRefusal`: `'no-fix'`,
+`'read-only'`, `'destroyed'`, `'unavailable'` (no variables for this format, or the text does not parse),
+`'invalid'`, `'name-taken'`, `'not-found'`, `'already-declared'` or `'edit-refused'` (then `edit` is the edit
+engine's own `EditRefusal`). A refused action changes nothing.
 
 ### Compose variables
 
 Compose files interpolate `${VAR}` in any value. For the compose format the editor lets you declare variables,
 use them from a field's "Use variable" toggle (it lists only variables whose type fits the field) and validates
-the result. A declaration is `{ name, type, enumValues?, default?, description? }`, where `type` is `'string'`,
-`'number'`, `'boolean'`, `'port'` or `'enum'`. Kubernetes has no variables: the toggle, the Variables section and
+the result. A declaration is `{ name, type, enumValues?, default?, description? }`, where `type` is one of `VARIABLE_TYPES`
+(`'string'`, `'number'`, `'boolean'`, `'port'`, `'enum'`). `VariableDecl` is a union on `type`: `default` is typed per
+member (a string, number, boolean, port number or one of the enum values) and `enumValues` exists only on, and is
+required for, the `enum` member. `validateVariableDecl(value)` returns a `VariableDeclIssue` (`'badName'`, ...) or
+`undefined`, so a host can check a declaration before passing it on. Kubernetes has no variables: the toggle, the Variables section and
 the variable rules are absent there.
 
 - The editor writes a bare `${VAR}` and never an inline default, and never resolves values into the text. A
@@ -140,8 +174,9 @@ or duplicate name, an unknown type, an `enum` without values, a default of the w
 only: references to the old name become undeclared and show a warning with a "Declare variable" fix.
 
 `applyFix(problem)` applies a problem's quick fix (`problem.fix`) as one undo step, all of it or nothing, and
-returns whether it was applied. A fix that declares a variable never replaces one that is already declared: it is
-refused. The panel, the visual rows and the code pane already offer a Fix button for every problem that has one (the
+returns an `ActionResult`. The fix applies to the current text (its edits address nodes by path), not to the text the
+problem was found in. A fix that declares a variable never replaces one that is already declared: it is refused with
+`'already-declared'`. The panel, the visual rows and the code pane already offer a Fix button for every problem that has one (the
 code pane only while the editor is editable), and say so when a fix is refused; `applyFix` is for hosts that build
 their own problem list. The Variables section also appears first in the outline. On an empty compose document (or
 one with only comments), "Add variable" starts the document with the `x-variables` block. The declarations that
@@ -150,7 +185,10 @@ one with only comments), "Add variable" starts the document with the `x-variable
 ### Semantic rules
 
 After schema validation `validateText` runs the format's `rules` (`FormatDefinition.rules`). Their problems have
-`source: 'rule'` and the code `rule.<id>`. A rule that throws becomes one `rule.failed` error (and a
+`source: 'rule'` and the code `rule.<id>`. `Problem.code` is a `ProblemCode`: `yaml.syntax|warning|data`,
+`schema.<keyword>`, `kind.unknown|apiVersion`, `format.extraDocument` or `rule.<id>`. A quick fix has a stable `id`
+(the rule's fix key, such as `fix.add-resources`), and `sameProblem(a, b)` tells whether two problems are the same
+(severity, code, message, document, range and fix id and action). A rule that throws becomes one `rule.failed` error (and a
 `console.error` with the thrown error) and the other rules still run. `validateText(parsed, format, { variables })`
 replaces the document's own declarations with `variables`; rules then see `variableSource: 'host'` (otherwise
 `'document'`).
@@ -171,7 +209,7 @@ and Pod.
 
 A rule is `{ id, messages, check(input) }`. `check` receives the parsed text, the data and schema bundle of each
 document (one entry per document, `undefined` where there is none), the variable declarations in effect, and
-`message(key, params?)`, which formats an entry of the merged message table. It returns `RuleFinding`s (severity,
+`message(key, params?)`, which formats an entry of the merged message table, and `locate`. It returns `RuleFinding`s (severity,
 document, path, optional `params` and an optional `fix`). A `fix` is a `RuleFix`: a label key (with its `params`)
 plus an action that either declares a variable or applies edit operations; the problem gets it as a `QuickFix` with
 the label resolved. Add rules to your own format through `FormatDefinition.rules`.
@@ -217,10 +255,14 @@ createManifestEditor(el, { codeEditor: codemirrorAdapter({ extensions: [/* your 
 
 Passing it yourself is optional: without `codeEditor` the editor imports the same adapter on first use.
 
-To use another editor (Monaco, say), implement `CodeEditorAdapter`: `mount(el, init)` returns an instance with
+To use another editor (Monaco, say), implement `CodeEditorAdapter`: `mount(el, init)` returns an instance (or a
+promise of one, for an editor that loads late) with
 `getText`, `applyChange`, `setDiagnostics`, `reveal`, `getSelection`, `setReadOnly`, `setTheme`, `focus` and
-`destroy`. The `init` object gives your editor the initial text, `onChange`, the completion and hover callbacks,
-and `onUndo` and `onRedo`. Route the undo keys to those two callbacks and do not install an undo history of your
+`destroy`. The `init` object gives your editor the initial text, `onChange`, the completion and hover callbacks
+(`hover` may answer with a promise; a rejection shows no tooltip), and `onUndo` and `onRedo`. If the editor is
+destroyed before an async `mount` resolves, the instance is destroyed as soon as it arrives. Each `CodeDiagnostic`
+you receive in `setDiagnostics` has the problem's `code` and `source`, and each of its `actions` an `id` (the quick
+fix id), next to `label` and `apply()`. Route the undo keys to those two callbacks and do not install an undo history of your
 own, so there is one history for both panes. Keep the text byte for byte (never normalize line endings), and use
 offsets into that text everywhere, where `\r\n` counts as two characters; the CodeMirror adapter translates
 CodeMirror's positions, which count a line break as one. If `mount` throws, the code pane shows an error message
@@ -265,7 +307,8 @@ createManifestEditor(el, {
 ```
 
 Texts with a `{name}` placeholder (`removeField`, `openSection`, `confirmRemove`, `removeVariable`, `variableNameTaken`,
-`variableSelect`, `variableUndeclared`, `variableDefaultDropped`, `itemLabel`, `documentLabel`) are filled in one pass:
+`variableSelect`, `variableUndeclared`, `variableDefaultDropped`, `itemLabel`, `documentLabel`, `problemPrefix`) are
+filled in one pass:
 a value is inserted as written, never expanded again, and an unknown `{x}` stays as is. A message that depends on a
 count is a plural table, `problemCount`, with `zero` (used for 0 when present), `one`, `two`, `few`, `many` and a
 required `other`; `locale` picks the category with `Intl.PluralRules`. `{count}` is the number:
@@ -278,10 +321,13 @@ messages: {
 ```
 
 `formatMessage(template, params)` and `formatPlural(message, count, locale, params)` are exported for your own strings.
+`UiMessages` is readonly; `problemPrefix` (`'{severity}: '`) is spoken before a field's problem, with `severityError`,
+`severityWarning` or `severityInfo` as `{severity}`. The keys `problemsNone`, `problemsOne` and `problemsMany` are
+now `problemCount`, and `item` and `document` are `itemLabel` and `documentLabel`.
 
 ### Widgets
 
-A field is edited by a widget. The guide names one (`widget: { name: 'ref', param: 'Secret' }`); otherwise one is picked from the
+A field is edited by a widget. The guide names one (`widget: { name: 'ref', param: 'Secret' }`, a `WidgetRef`); otherwise one is picked from the
 schema's shape. The built-in names are `string`, `number`, `integer`, `boolean`, `enum`, `int-or-string`,
 `quantity`, `string-list`, `key-value`, `suggest`, `ref`, `ref-key` and `secret-data`. Add or replace one with the
 `widgets` option:
@@ -319,8 +365,25 @@ A widget that edits a whole mapping and adds and removes its keys itself sets `m
 as the Secret `data` widget does. The mapping is then not an outline node or a section of its own: the widget is a
 row in its parent's section, and no "Add key" is offered for it.
 
+A widget factory receives a `WidgetContext`: the field's `id`, `label`, `ref`, `value`, `schema`, `messages`,
+`commit(value)` and `guide()`, the format's guide with your override merged in. A `WidgetRegistry` entry is a `WidgetDefinition`, not a bare function.
+A custom widget context built by hand must supply `guide()`.
+
 If a widget throws, its field falls back to read-only text with a note and an "Edit in code" link, and the error is
 logged with `console.error`.
+
+### Formats as data
+
+Field-name knowledge lives in the guide, so a format of your own gets the same behaviour as the built-ins without
+code. `Guide.labelKeys` lists the keys whose string value names a sequence item in the outline and field rows
+(`['name']` for Kubernetes containers; the first match wins). `Guide.resourceLabel` is the path whose value labels a
+document next to its kind (`['metadata', 'name']` gives `Deployment web`). `Guide.references` is keyed by the kind a
+`ref` or `ref-key` widget names in its `param`, with `{ nameKey, dataKeys }`: the key next to the field that holds
+the referenced name, and the top-level keys of the referenced document whose map keys are suggested. All three
+can be overridden with the `guide` option; without them a format gets no such labels or suggestions. In the headless
+functions, `hoverAt(parsed, offset, bundle, guide)` takes the guide and `breadcrumbAt(parsed, offset, documentLabel?,
+guide?)` takes it as an optional fourth argument: pass the format's `guide` to label a document by its name,
+otherwise it is named by its kind alone.
 
 ## Development
 

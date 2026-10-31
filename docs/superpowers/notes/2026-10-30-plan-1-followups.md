@@ -15,54 +15,51 @@ The editor UI (Plan 2) took most of the "API hardening" list. Done means shipped
 - Engine gaps the UI had to cover: the key-value widget offers "add key", sequence items are labelled "Item N" (or by their `name`), and an anchored scalar shows a note that an edit changes every alias.
 - `describeNode(p, ref)`, a read view of a node that the UI uses instead of yaml types.
 
-**Carried forward (Plan 2 had no consumer for these)**
-- **Full `yaml` decoupling.** `describeNode` exists, but `FormatDefinition.detect` and `loadSchema` still take a `ParsedText`, and `toData(p, doc)` is public. Either make them take plain data, or re-export the yaml guards, before the wrappers (Plan 4) freeze the API.
-- **`DocumentStore`:** `reset(text)`, `clearHistory()` and `transact` (or `edit(ops[])`) were not added. The UI never needed grouped edits, and `setValue` goes through a minimal diff. Add them when a host or wrapper needs to drop undo history or group an edit.
-- **`ResolvedSchema` aliasing:** it must not alias cached bundle internals. Confirm this when the freeze work is next touched.
-- **`EditResult`** does not return the new `parsed` or the ref of the created node.
-- **Consider replacing `YamlProblem` with `Problem`.**
+**Carried forward (Plan 2 had no consumer for these)** — all done in Plan 4
+- **Full `yaml` decoupling.** Done (Plan 4 Tasks 2 and 3): `ParsedText` is opaque, `detect` / `loadSchema` take plain data, `toData` is the public read, `RuleInput.locate` ranges findings.
+- **`DocumentStore`:** `reset(text)`, `clearHistory()` and `transact`. Done (Plan 4 Task 4).
+- **`ResolvedSchema` aliasing:** done (Plan 4 Task 9): `JsonSchema` is readonly and `ResolvedSchema` does not alias bundle internals.
+- **`EditResult`** returns the new `parsed`. Done (Plan 4 Task 2); the created node's ref (`at`) already existed.
+- **Consider replacing `YamlProblem` with `Problem`.** Decided to keep both (P3): `YamlProblem` is the parse layer's, documented on both types (Plan 4 Task 2).
 
-## Plan 4: API hardening before wrappers
-Deferred by ruling R10 from the Plan 2 milestone review (type-design analysis). Do these in one dedicated task at the
-start of Plan 4, before the wrappers freeze the API:
+## Plan 4: API hardening before wrappers — status
+All items below are done in Plan 4 unless marked moved.
 - Reshape `WidgetContext` (snapshot fields, a `parsed()` accessor, a `commit` return value), and make `WidgetFactory`
-  a descriptor.
-- `UiMessages`: renames, plurals and a formatter.
-- Adapter: an async `mount`, a `complete(offset, explicit)` signature, `CodeDiagnostic.code` and `source`, and async
-  hover. Also `CodeDiagnostic.actions` (Plan 3): `CodeDiagnosticAction` is `{ label, apply() }` with no result and no
-  stable id.
-- `NodeView` and `CursorContext` as discriminated unions.
-- `Problem.fix` (Plan 3): `QuickFix` and `QuickFixAction` are a closed union (`declareVariable` | `edit`); give them a
-  stable id, and decide how `Problem` equality and `fix` interact when problems are compared across validations.
-- Rename the controller type (`ManifestEditorController`), add `update(patch)` and `setFormat`.
-- Decouple `ParsedText.docs` from `yaml`.
-- The `Recipe.format` invariant, a typed `GuideField.widget` grammar, and a `Problem.code` template type.
-- Move field-name knowledge into guide data (CR-S8): the `name` item labels, the ref-key sibling `name`, and the
-  Secret/ConfigMap data keys.
-- `TextRange`, `StoreEvent` and `ParsedText` fields are still mutable. Make them `readonly`, like `NodeRef` and `TextChange`.
-- `renameKey` (and likely `add`) accept the key `<<`, which turns an ordinary key into a YAML merge key. Refuse `<<` as a new key name.
-- Host widget `focus()` (reached through `focusField`) and `destroy()` (in the field row's `dropBody`) are unguarded. A throw there is not caught.
-- In the editor's store subscriber, `applyFormat` → `recipes.refresh()` runs before `onChange`. A throw there is logged but skips `onChange`.
-- R15(b) (Plan 3) extended the edit engine: `applyEdit` can `add` and `delete` a pair in a single-line flow map, by a
-  minimal splice that keeps the flow style. Keep it.
-- R18 (Plan 3): `VariableStore.set` and `remove` and `ManifestEditor.applyFix` return a boolean. Before release, change
-  them to a result object that carries the refusal reason (read-only, name taken, invalid declaration, already
-  declared, an edit refused and why).
-- From the Plan 3 milestone review (type design and error handling), deferred:
-  - `VariableDecl` as a discriminated union (`enumValues` only on `enum`); derive `VariableType` from a const tuple.
-  - Export `checkDecl` (or a `validateVariableDecl`) so hosts can check a declaration before `setVariables`.
-  - `setVariables` under the `x-variables` store only warns; decide whether it should throw.
-  - Check that a `Rule.messages` table covers every key the rule uses (`rule.<id>` and its fix keys).
-  - `registerFormat` does not deep-freeze the format, although its TSDoc says registered formats are deep-frozen.
-  - TSDoc on `applyFix`: a fix applies to the current text, not to the text it was found in.
-  - `applyEdit`'s catch-all maps any exception to `unsupported` silently (`edit.ts`, `applyEdit`); consider a
-    `console.debug` so an engine bug is not mistaken for a refusal.
-  - A type change in the Variables section drops a default that no longer fits (`fitted` in `variables-section.ts`)
-    without saying so.
+  a descriptor. Done (Plan 4 Task 9: `WidgetDefinition`, `WidgetRef`; `parsed()` and the `commit` result already shipped).
+- `UiMessages`: renames, plurals and a formatter. Done (Plan 4 Task 10).
+- Adapter: an async `mount`, `CodeDiagnostic.code` and `source`, async hover, and `CodeDiagnosticAction` with a stable id.
+  Done (Plan 4 Task 8). The `complete(offset, explicit)` signature already had `explicit`.
+- `NodeView` and `CursorContext` as discriminated unions. Done (Plan 4 Task 9).
+- `Problem.fix`: stable id and problem equality. Done (Plan 4 Task 5: `QuickFix.id`, `sameProblem`).
+- Rename the controller type (`ManifestEditorController`), add `update(patch)` and `setFormat`. Done (Plan 4 Task 7).
+- Decouple `ParsedText.docs` from `yaml`. Done (Plan 4 Tasks 2 and 3).
+- The `Recipe.format` invariant (Plan 4 Task 7), a typed `GuideField.widget` grammar (Task 9), and a `Problem.code` template type (Task 5). Done.
+- Move field-name knowledge into guide data (CR-S8). Done (Plan 4 Task 11: `labelKeys`, `resourceLabel`, `references`).
+- `TextRange`, `StoreEvent` and `ParsedText` fields `readonly`. Done (Plan 4 Task 2).
+- `renameKey` (and `add`) accept the key `<<`. Done (Plan 4 Task 4: refused as `unsupported`).
+- Host widget `focus()` and `destroy()` guards. Done (Plan 4 Task 7).
+- Store subscriber order (`applyFormat` → `recipes.refresh()` before `onChange`). Done (Plan 4 Task 7).
+- R15(b): `applyEdit` adds and deletes a pair in a single-line flow map. Kept.
+- R18: result objects instead of booleans. Done (Plan 4 Task 5: `ActionResult`).
+- From the Plan 3 milestone review:
+  - `VariableDecl` as a union, `VARIABLE_TYPES` const tuple. Done (Plan 4 Task 6).
+  - `validateVariableDecl` exported. Done (Plan 4 Task 6).
+  - `setVariables` under `x-variables` only warns. Kept per spec D5 (no change).
+  - `Rule.messages` coverage check. Done (Plan 4 Task 6: a console warning, once per rule and key).
+  - `registerFormat` freeze claim. Done (P13; TSDoc corrected in Plan 4 Task 3).
+  - TSDoc on `applyFix`. Done (Plan 4 Task 5).
+  - `applyEdit` catch-all `console.debug`. Done (Plan 4 Task 4).
+  - `fitted` announcement. Done (Plan 4 Task 6: `variableDefaultDropped`).
+- Plan 3 milestone residuals: stale Variables alert (Plan 4 Task 6), `variablesSelected` reset (Plan 4 Task 7), leading `---` on
+  `addDocument` (Plan 4 Task 4). Done. Finding F2 (`auto` format locked): done (Plan 4 Task 7, P8).
 
-## Plan 4 (wrappers and release)
+## Plan 5 (wrappers and release)
 - **Changesets:** restore `.changeset/config.json` `fixed: [["@stack-weaver/core","@stack-weaver/angular","@stack-weaver/react"]]` when the wrappers are added. It is set to `[]` until then.
 - **`@changesets/cli`:** kept at ^2.31.1 to match grid-master. Revisit ^3 there.
+- Wrappers recreate the editor when an init-only option changes (P8); only `value`, `mode`, `readOnly`, `theme`, `format` and the external variables are settable.
+- Wrappers pass only the props that changed to `update()` (R3): a re-passed `format: 'auto'` is a no-op by design, and `variables` in `update` is re-applied even when unchanged.
+- The `check-types` unit test reads whatever `dist/` exists (and skips without a build); the CI gate is the release script (`node scripts/check-types.mjs` after `build`).
+- `SyncCodeEditorAdapter` is `@internal` but appears in `codemirrorAdapter()`'s public return type and is not exported from the root: export it or widen the return type.
 
 ## Parked, low priority
 - `--update-lock` and the first real schema bump: the lock-writing glue (`writeLockEntry`, the generators' flag branches) has only been tested with mocks. Expect to debug it on the first upstream bump.
@@ -203,3 +200,57 @@ Each was found in a per-task review and judged not worth blocking the task. Grou
   the node comes back, Variables is selected again instead of the current card.
 - "Add variable" on an empty or comment-only document goes through `addDocument`, which writes a leading `---`; the
   README says it "starts the document with the `x-variables` block".
+
+## Plan 4 deferred minors
+Each was found in a per-task review and judged not worth blocking the task. Grouped by task.
+
+**Task 1 (check-types script)**
+- A nested template literal inside `${}` ends the outer one early; import-like text inside a string literal can false-positive.
+- `/// <reference types>` is not scanned; the baseline test skips when `dist/` is not built.
+
+**Task 2 (opaque `ParsedText`)**
+- The `check-types` unit test reads whatever `dist/` exists; the real gate is the release script after a build.
+
+**Task 3 (formats see plain data)**
+- `dataBundleKey` (merge-expanded) and the raw-tree `bundleKey` in `bundleFor` / the visual pane differ: a missed cache hit for `<<`-supplied `apiVersion` / `kind`. An undefined bundle is cached permanently per kind key (pre-existing).
+- No direct picker test that `loadSchema` gets `{ apiVersion, kind }`.
+
+**Task 4 (store and edit engine)**
+- `transact`'s ok result lacks `at` for an empty or no-change call.
+- No test for `renameKey` to `<<` on a flow key or a nested flow add, and no post-refusal grouping test.
+- `console.debug` fires on hostile-input exceptions (plan-mandated).
+
+**Task 5 (`ActionResult`, `sameProblem`)**
+- The remove-refusal test asserts only the message (no `aria-invalid` or focus); `invalid` field-specific sub-messages are unreachable through the UI and untested.
+- `sameProblem` ignores `fix.label` and `path` (P5, documented); no scheduler-level "fix-only change republishes" test; the `sameProblem` test does not assert the ignored fields.
+- `unavailable` via `writeOps`-undefined or a format with no variables is untested; a dead `find` in the "ok results" test.
+
+**Task 6 (variables)**
+- The status region is not cleared by `update()` on an external change; `canAdd()` can clear an unrelated `editRefused` error.
+- A sleep-based 150 ms test; a redundant ternary at `fit.ts:69`; blind `as VariableDecl` casts in `clean` / `fitted` / `block.ts`; a trivial alias in `declareFor`.
+- `warnMissingKey` TSDoc should say the dedupe is per process.
+
+**Task 7 (controller)**
+- Interim re-detection against host-only formats while a lazy `'auto'` load is pending (flicker; the end state is right).
+- An `'auto'` editor whose first built-in load fails while a pending `setFormat('mine')` succeeds: `ready` rejects but the editor works with no failure shown (spec-literal; decide resolve vs document in the `ready` TSDoc).
+- After a failed first load under `'auto'`, a host-format re-detect leaves a stale `failureShown` / notice.
+
+**Task 8 (adapter)**
+- `fake-adapter.ts` indentation; import order in `codemirror/index.ts:15`.
+- `SyncCodeEditorAdapter` (`@internal`) is used in `codemirrorAdapter()`'s public return type (see Plan 5).
+- A rare race: the user types in an instance while an API change happens before an async mount arrives, and the API change is lost (TSDoc note); unformatted long test lines (no prettier available).
+
+**Task 9 (widgets and unions)**
+- A near-tautological "host registry entry replaces" test in `widgets.test.ts`.
+- Redundant `?? []` / `?? 0` after narrowing (`outline-model.ts:66,73`, `section.ts:168`).
+- A plain-JS host bare function gives an opaque "widget failed" note (README note); `JsonSchema` readonly is shallow (TSDoc wording); the README `managesKeys` paragraph is a long line and does not mention a bare function.
+
+**Task 10 (messages)**
+- An unreachable `new Intl.PluralRules()` (runtime-default locale) branch at `format-message.ts:31`.
+- Default schema messages (`validation/messages.ts:47`, "Must be a ... or ...") are English built into `MessageFn`s: host-overridable per keyword, out of `UiMessages` scope.
+- The README messages table lacked `problemPrefix` and the severity keys (added in Task 12).
+- Remove-button names `${ctx.label} ${name}` use a fixed " " joiner; `defaultUiMessages` is not frozen (consistent with `defaultMessages`).
+
+**Task 11 (guide data)**
+- The `WidgetContext.guide()` breaking change was documented only in the report (now in the changeset).
+- Ruling R6: the `'kind'` key stays a literal in visual and assist code (the `documents` root model's discriminator); a host `documents` format with another discriminator would need a `Guide.kindKey`.
