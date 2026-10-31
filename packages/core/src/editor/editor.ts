@@ -431,7 +431,7 @@ export function createEditorWithContext(
     if (next === format) return;
     format = next;
     cache.clear();
-    shell.setBadge(next ? badgeText(next) : ui.formatNone);
+    shell.setBadge(next ? badgeText(ui, next) : ui.formatNone);
     updatePanes(null);
     void scheduler.run(); // a new format means new problems: now, rather than after the debounce
     refreshRecipes();
@@ -480,7 +480,7 @@ export function createEditorWithContext(
   function clearLoadFailure(): void {
     if (!failureShown) return;
     failureShown = false;
-    shell.setBadge(format ? badgeText(format) : ui.formatNone);
+    shell.setBadge(format ? badgeText(ui, format) : ui.formatNone);
     visualPane.setNotice(undefined);
   }
 

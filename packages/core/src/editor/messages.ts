@@ -22,6 +22,8 @@ export interface UiMessages {
   readonly visualLabel: string;
   /** Format badge text while no format is resolved. */
   readonly formatNone: string;
+  /** Format badge text of the resolved format; `{label}` is its label, `{version}` its schema version. */
+  readonly formatBadge: string;
   /** The problem count, by plural category of `messages.locale`; `none` is used for 0 and `{count}` is the number. */
   readonly problemCount: PluralMessage;
   /** Heading and accessible name of the problems panel. */
@@ -139,7 +141,7 @@ export interface UiMessages {
   /** Text of the button that cancels a removal. */
   readonly confirmNo: string;
   /** Warning on a Secret value that is not base64-encoded UTF-8 text; it is shown as stored and cannot be edited visually. */
-  secretInvalidBase64: string;
+  readonly secretInvalidBase64: string;
   /** Warning on a Secret value whose text has a carriage return, which cannot be edited visually without changing it. */
   readonly secretCarriageReturn: string;
   /** Shown in the code pane when the code editor could not be loaded or mounted. */
@@ -210,6 +212,7 @@ export const defaultUiMessages: UiMessages = {
   codeLabel: 'YAML code',
   visualLabel: 'Visual editor',
   formatNone: 'No format',
+  formatBadge: '{label} {version}',
   problemCount: { none: 'No problems', one: '{count} problem', other: '{count} problems' },
   problemsLabel: 'Problems',
   problemPrefix: '{severity}: ',

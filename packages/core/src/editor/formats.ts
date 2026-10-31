@@ -1,6 +1,8 @@
 import type { ParsedText } from '../document/types.js';
 import { detectFormat } from '../formats/registry.js';
 import type { FormatDefinition } from '../formats/types.js';
+import { formatMessage } from './format-message.js';
+import type { UiMessages } from './messages.js';
 
 /**
  * Loads the built-in formats. Reached only through dynamic `import()` so the main entry never
@@ -34,7 +36,7 @@ export function resolveFormat(option: string, parsed: ParsedText, formats: reado
   return formats.find((f) => f.id === option);
 }
 
-/** The badge text of a format: its label and schema version. */
-export function badgeText(f: FormatDefinition): string {
-  return `${f.label} ${f.version}`;
+/** The badge text of a format: the `formatBadge` template filled with its label and schema version. */
+export function badgeText(ui: UiMessages, f: FormatDefinition): string {
+  return formatMessage(ui.formatBadge, { label: f.label, version: f.version });
 }

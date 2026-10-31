@@ -3,6 +3,7 @@ import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { parseText } from '../../src/document/parse.js';
 import { createEditorWithContext } from '../../src/editor/editor.js';
 import type { ManifestEditorOptions } from '../../src/editor/editor.js';
+import { defaultUiMessages } from '../../src/editor/messages.js';
 import { BUILTIN_FORMAT_IDS, badgeText, loadBuiltinFormats, mergeFormats, resolveFormat } from '../../src/editor/formats.js';
 import type { FormatDefinition } from '../../src/formats/types.js';
 import { createFakeAdapter } from '../helpers/fake-adapter.js';
@@ -97,8 +98,20 @@ describe('format resolution', () => {
   it('badge shows label and version', async () => {
     const { ctx } = await mount({ value: COMPOSE });
     const f = ctx.format()!;
-    expect(badgeText(f)).toBe(`${f.label} ${f.version}`);
+    expect(badgeText(defaultUiMessages, f)).toBe(`${f.label} ${f.version}`);
     expect(el.querySelector('.sw-format-badge')!.textContent).toBe(`${f.label} ${f.version}`);
+  });
+
+  it('the badge text is the formatBadge template (C2)', async () => {
+    const { ctx, editor } = await mount({ value: COMPOSE, messages: { ui: { formatBadge: '{label} (Schema {version}) {label}' } } });
+    const f = ctx.format()!;
+    expect(el.querySelector('.sw-format-badge')!.textContent).toBe(`${f.label} (Schema ${f.version}) ${f.label}`);
+    editor.setFormat('kubernetes');
+    expect(el.querySelector('.sw-format-badge')!.textContent).toMatch(/^Kubernetes \(Schema [\d.]+\) Kubernetes$/);
+  });
+
+  it('the formatBadge default is byte-identical to label and version', () => {
+    expect(defaultUiMessages.formatBadge).toBe('{label} {version}');
   });
 
   it('unknown explicit id resolves to no format', () => {
