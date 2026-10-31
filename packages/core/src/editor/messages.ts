@@ -140,6 +140,38 @@ export interface UiMessages {
   schemaFailed: string;
   /** Note on a field whose input widget failed, so it is shown read-only. */
   widgetFailed: string;
+  /** Heading of the Variables section and its outline entry. */
+  variables: string;
+  /** Text of the button that adds a variable. */
+  addVariable: string;
+  /** Label of a variable's name input. */
+  variableName: string;
+  /** Label of a variable's type select. */
+  variableType: string;
+  /** Label of a variable's default value control. */
+  variableDefault: string;
+  /** Label of the input that lists the allowed values of a one-of-a-list variable. */
+  variableEnumValues: string;
+  /** Label of a variable's description input. */
+  variableDescription: string;
+  /** Text and accessible name of the button that removes a variable; `{name}` is replaced by its name. */
+  removeVariable: string;
+  /** Shown when a variable name is not a valid name. */
+  variableNameInvalid: string;
+  /** Shown when renaming a variable to a name that is taken; `{name}` is replaced by it. */
+  variableNameTaken: string;
+  /** Shown while there are no variables. */
+  variablesEmpty: string;
+  /** Label of the text variable type. */
+  variableTypeString: string;
+  /** Label of the number variable type. */
+  variableTypeNumber: string;
+  /** Label of the yes/no variable type. */
+  variableTypeBoolean: string;
+  /** Label of the port variable type. */
+  variableTypePort: string;
+  /** Label of the one-of-a-list variable type. */
+  variableTypeEnum: string;
 }
 
 /** The English UI strings. */
@@ -214,4 +246,20 @@ export const defaultUiMessages: UiMessages = {
   formatsFailed: 'Formats could not be loaded',
   schemaFailed: 'Schema could not be loaded; fields are read-only here.',
   widgetFailed: 'This field’s input failed, so it is shown read-only.',
+  variables: 'Variables',
+  addVariable: 'Add variable',
+  variableName: 'Name',
+  variableType: 'Type',
+  variableDefault: 'Default',
+  variableEnumValues: 'Allowed values (comma-separated)',
+  variableDescription: 'Description',
+  removeVariable: 'Remove variable {name}',
+  variableNameInvalid: 'Use letters, digits and _, starting with a letter or _.',
+  variableNameTaken: 'A variable named {name} already exists.',
+  variablesEmpty: 'No variables yet. Variables keep values like ports and tags in one place; fields refer to them as ${NAME}.',
+  variableTypeString: 'Text',
+  variableTypeNumber: 'Number',
+  variableTypeBoolean: 'Yes/No',
+  variableTypePort: 'Port',
+  variableTypeEnum: 'One of a list',
 };

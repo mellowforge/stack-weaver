@@ -654,6 +654,72 @@
   outline-offset: 2px;
 }
 
+.sw-variables {
+  display: grid;
+  gap: var(--sw-gap);
+  padding: var(--sw-gap);
+}
+
+.sw-variables-list {
+  display: grid;
+  gap: var(--sw-gap);
+}
+
+.sw-variables-empty {
+  margin: 0;
+  color: var(--sw-muted);
+}
+
+.sw-variables-add {
+  justify-self: start;
+  min-block-size: 24px;
+}
+
+.sw-variable {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+  gap: 8px var(--sw-gap);
+  margin: 0;
+  padding: var(--sw-gap);
+  border: 1px solid var(--sw-border);
+  border-radius: var(--sw-radius);
+}
+
+.sw-variable-legend {
+  padding: 0 4px;
+  font-weight: 600;
+}
+
+.sw-variable-field {
+  display: grid;
+  gap: 2px;
+}
+
+.sw-variable-label {
+  color: var(--sw-muted);
+  font-size: 12px;
+}
+
+.sw-variable-field-description,
+.sw-variable-field-enum {
+  grid-column: 1 / -1;
+}
+
+.sw-variable-field .sw-input {
+  min-block-size: 24px;
+}
+
+.sw-variable-remove {
+  justify-self: start;
+  align-self: end;
+  min-block-size: 24px;
+}
+
+.sw-variable-error {
+  grid-column: 1 / -1;
+  margin: 0;
+}
+
 .sw-visual-toolbar {
   display: flex;
   justify-content: flex-end;

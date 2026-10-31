@@ -21,8 +21,8 @@ export interface OutlineNode {
    * has no kind), a map key's label, or a sequence item's name (`Item N` when it has none).
    */
   readonly label: string;
-  /** Document root, mapping or sequence. */
-  readonly type: 'document' | 'map' | 'seq';
+  /** Document root, mapping or sequence; `variables` is the Variables section, which has no node in the text. */
+  readonly type: 'document' | 'map' | 'seq' | 'variables';
   /** Only mapping and sequence children; scalars are not outline nodes. */
   readonly children: readonly OutlineNode[];
   /** Why the node cannot be edited visually. */
@@ -47,6 +47,7 @@ const unique = (keys: readonly string[]): string[] => [...new Set(keys)];
  * @param isUnknown - Whether a document with this `apiVersion` and `kind` has no schema.
  * @param isManaged - Whether a widget edits the mapping at `ref` itself (`WidgetFactory.managesKeys`); such a
  *   mapping is not an outline node, its parent's section shows the widget.
+ * @param hiddenRootKey - A top-level key of a `mapping` format to leave out (the variables block, which has its own section).
  * @internal
  */
 export function buildOutline(
@@ -56,6 +57,7 @@ export function buildOutline(
   messages: UiMessages,
   isUnknown: (doc: number, apiVersion: string, kind: string) => boolean = () => false,
   isManaged: (ref: NodeRef) => boolean = () => false,
+  hiddenRootKey?: string,
 ): readonly OutlineNode[] {
   const make = (ref: NodeRef, label: string, view: NodeView, data: unknown, depth: number): OutlineNode => {
     const readOnly: EditRefusal | undefined = view.type === 'alias' ? 'alias' : view.readOnly;
@@ -94,6 +96,7 @@ export function buildOutline(
     if (root?.type !== 'map') return out;
     const data = safeData(p, 0);
     for (const key of unique(root.keys ?? [])) {
+      if (key === hiddenRootKey) continue;
       const ref: NodeRef = { doc: 0, path: [key] };
       const view = describeNode(p, ref);
       if (!view || view.type === 'scalar' || (view.type === 'map' && isManaged(ref))) continue;

@@ -22,6 +22,15 @@ const build = (text: string, f = fmt('documents'), unknown?: (doc: number, a: st
 const walk = (nodes: readonly OutlineNode[]): OutlineNode[] => nodes.flatMap((n) => [n, ...walk(n.children)]);
 
 describe('buildOutline', () => {
+  it('a mapping format skips hiddenRootKey', () => {
+    const text = 'x-variables:\n  A:\n    type: string\nservices:\n  web:\n    image: nginx\n';
+    const f = fmt('mapping');
+    const labels = (hidden?: string) =>
+      buildOutline(parseText(text), f, labelFor, defaultUiMessages, undefined, undefined, hidden).map((n) => n.label);
+    expect(labels()).toEqual(['x-variables', 'services']);
+    expect(labels('x-variables')).toEqual(['services']);
+  });
+
   it('documents become roots labelled by kind and name', () => {
     const roots = build('apiVersion: apps/v1\nkind: Deployment\nmetadata:\n  name: web\n---\napiVersion: v1\nkind: Service\n');
     expect(roots.map((r) => [r.id, r.label, r.type])).toEqual([

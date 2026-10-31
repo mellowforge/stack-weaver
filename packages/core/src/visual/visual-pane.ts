@@ -12,11 +12,22 @@ import { createOutline } from './outline.js';
 import { createAddResource } from './picker.js';
 import { createRemoveControl } from './remove-section.js';
 import { mountSection } from './section.js';
+import { mountVariablesSection } from './variables-section.js';
 import { isRecord, safeData } from './util.js';
 import type { Section, SectionSlots } from './section.js';
 
 /** How long after the last `'code'` change the visual pane re-renders. */
 const CODE_SYNC_MS = 100;
+
+const VARIABLES_ID = 'variables';
+
+/** Gives the Variables section the shape of a node section; it has no rows to focus by key. */
+const variablesAsSection = (v: ReturnType<typeof mountVariablesSection>): Section => ({
+  el: v.el,
+  update: () => v.update(),
+  focusRow: () => false,
+  destroy: () => v.destroy(),
+});
 
 const NO_SLOTS: SectionSlots = { field: () => undefined, addSlot: () => undefined };
 
@@ -55,6 +66,7 @@ export function createVisualPane(
     label: ui.outlineLabel,
     onSelect: (n) => {
       choose(n.ref);
+      if (n.type === 'variables') return; // no text of its own to reveal
       // Split mode: the code pane follows the outline (frame 2). Not while the text is broken: its ranges are stale.
       if (!ctx.store.parsed.ok) return;
       const view = describeNode(ctx.store.parsed, n.ref);
@@ -79,6 +91,12 @@ export function createVisualPane(
   const body = h(doc, 'div', { class: 'sw-visual-body' }, [outline.el, host]);
   const toolbar = h(doc, 'div', { class: 'sw-visual-toolbar' }, [addResource.el]);
   o.el.append(banner.el, toolbar, body, empty);
+
+  /** The root key of the variables block when it is shown as the Variables section instead of as a node. */
+  const hiddenKey = (): string | undefined => {
+    const vs = ctx.variables();
+    return vs?.kind === 'x-variables' ? ctx.format()?.variables?.key : undefined;
+  };
 
   const bundleKeyOf = (parsed: ParsedText, d: number): string | undefined => {
     const f = ctx.format();
@@ -120,7 +138,9 @@ export function createVisualPane(
       const hit = flat.get(nodeId({ doc: ref.doc, path: ref.path.slice(0, n) }));
       if (hit) return hit;
     }
-    return undefined;
+    // The variables block has no node of its own: its section stands for it (as does the root, for a `mapping` format).
+    const key = hiddenKey();
+    return ref.doc === 0 && (ref.path.length === 0 || (key !== undefined && ref.path[0] === key)) ? flat.get(VARIABLES_ID) : undefined;
   };
 
   function showCard(node: OutlineNode, parsed: ParsedText | undefined, broken: boolean): void {
@@ -139,7 +159,7 @@ export function createVisualPane(
   function renderSelection(sel: OutlineNode | undefined, parsed: ParsedText | undefined, broken: boolean): void {
     body.hidden = nodes.length === 0;
     empty.hidden = nodes.length > 0;
-    removal.setTarget(sel ? { ref: sel.ref, label: sel.label } : undefined);
+    removal.setTarget(sel && sel.type !== 'variables' ? { ref: sel.ref, label: sel.label } : undefined);
     if (!sel) {
       section?.handle.destroy();
       section = undefined;
@@ -173,7 +193,7 @@ export function createVisualPane(
       return;
     }
     section?.handle.destroy();
-    const handle = mountSection(ctx, sel.ref, slots, doc);
+    const handle: Section = sel.type === 'variables' ? variablesAsSection(mountVariablesSection(ctx, doc)) : mountSection(ctx, sel.ref, slots, doc);
     section = { id: sel.id, handle };
     content.append(handle.el);
   }
@@ -192,9 +212,12 @@ export function createVisualPane(
     toolbar.hidden = addResource.el.hidden;
     o.el.toggleAttribute('data-sw-readonly', broken || ctx.readOnly());
     if (parsed && format) requestBundles(parsed);
-    nodes = parsed && format
-      ? buildOutline(parsed, format, makeLabelFor(ctx, parsed), ui, (_d, apiVersion, kind) => unknownKeys.has(kindKey(apiVersion, kind)), (r) => slots.manages?.(r) === true)
+    const outlined = parsed && format
+      ? buildOutline(parsed, format, makeLabelFor(ctx, parsed), ui, (_d, apiVersion, kind) => unknownKeys.has(kindKey(apiVersion, kind)), (r) => slots.manages?.(r) === true, hiddenKey())
       : [];
+    nodes = parsed && format && ctx.variables()
+      ? [{ id: VARIABLES_ID, ref: { doc: 0, path: [] }, label: ui.variables, type: 'variables', children: [] }, ...outlined]
+      : outlined;
     flat = new Map();
     const index = (list: readonly OutlineNode[]): void => {
       for (const n of list) {
@@ -203,7 +226,7 @@ export function createVisualPane(
       }
     };
     index(nodes);
-    const sel = (selectedRef ? nearest(selectedRef) : undefined) ?? nodes[0];
+    const sel = (selectedRef ? nearest(selectedRef) : undefined) ?? nodes.find((n) => n.type !== 'variables') ?? nodes[0];
     outline.update(nodes, sel?.id);
     renderSelection(sel, parsed, broken);
   }
