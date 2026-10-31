@@ -4,15 +4,15 @@ import { sameProblemList } from '../validation/problems.js';
 import { validateText } from '../validation/validate.js';
 import { dataBundleKey } from './context.js';
 import type { EditorContext } from './context.js';
+import { formatPlural } from './format-message.js';
 import type { UiMessages } from './messages.js';
 
 /** How long after the last change validation runs, in milliseconds. */
 export const VALIDATION_DELAY_MS = 150;
 
-/** The text of the problem count, such as "2 problems". */
-export function problemCountText(ui: UiMessages, count: number): string {
-  if (count === 0) return ui.problemsNone;
-  return count === 1 ? ui.problemsOne : ui.problemsMany.replace('{count}', String(count));
+/** The text of the problem count, such as "2 problems", with the plural rules of `locale`. */
+export function problemCountText(ui: UiMessages, count: number, locale: string): string {
+  return formatPlural(ui.problemCount, count, locale);
 }
 
 // Used while no format is resolved: it can report YAML syntax problems, and nothing else.

@@ -1,6 +1,7 @@
 import type { NodeRef } from '../document/types.js';
 import type { EditorContext } from '../editor/context.js';
 import { h } from '../editor/dom.js';
+import { formatMessage } from '../editor/format-message.js';
 
 /**
  * The "Remove section" control of the section header.
@@ -42,7 +43,7 @@ export function createRemoveControl(ctx: EditorContext, doc: Document = document
   button.addEventListener('click', () => {
     if (!target) return;
     errorEl.textContent = '';
-    question.textContent = ui.confirmRemove.replace('{label}', target.label);
+    question.textContent = formatMessage(ui.confirmRemove, { label: target.label });
     showConfirm(true);
     no.focus();
   });

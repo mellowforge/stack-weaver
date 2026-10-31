@@ -17,6 +17,7 @@ import { fitsField } from '../../variables/fit.js';
 import { pickWidget } from './registry.js';
 import { mountVariableBinding } from './variable-binding.js';
 import type { WidgetInstance, WidgetRef, WidgetRegistry } from './types.js';
+import { formatMessage } from '../../editor/format-message.js';
 
 let nextId = 0;
 
@@ -347,7 +348,7 @@ function createFieldRow(ctx: EditorContext, registry: WidgetRegistry, envFor: (p
     toggleBtn.disabled = readOnly;
 
     labelEl.textContent = label;
-    removeBtn.setAttribute('aria-label', ui.removeField.replace('{label}', label));
+    removeBtn.setAttribute('aria-label', formatMessage(ui.removeField, { label }));
     removeBtn.disabled = readOnly;
     const required = typeof key === 'string' && parent?.required.includes(key) === true;
     if (required && !badge.isConnected) head.insertBefore(badge, removeBtn);
@@ -366,7 +367,7 @@ function createFieldRow(ctx: EditorContext, registry: WidgetRegistry, envFor: (p
       if (valueEl.textContent !== shown) valueEl.textContent = shown;
     }
     if (cardBtn) {
-      const text = ui.openSection.replace('{label}', label);
+      const text = formatMessage(ui.openSection, { label });
       if (cardBtn.textContent !== text) cardBtn.textContent = text;
     }
 

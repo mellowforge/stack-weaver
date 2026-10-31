@@ -69,6 +69,17 @@ describe('buildOutline', () => {
     ]);
   });
 
+  it('no ui message is concatenated: item and document labels come from templates', () => {
+    const ui = { ...defaultUiMessages, itemLabel: 'Eintrag {n}.', documentLabel: '{n}. Dokument' };
+    const labels = (text: string) => {
+      const [root] = buildOutline(parseText(text), fmt('documents'), labelFor, ui);
+      return root!;
+    };
+    const doc = labels('spec:\n  list:\n    - x: 1\n');
+    expect(doc.label).toBe('1. Dokument');
+    expect(doc.children[0]!.children[0]!.children[0]!.label).toBe('Eintrag 1.');
+  });
+
   it('alias nodes are readOnly "alias"', () => {
     const [root] = build('kind: Pod\napiVersion: v1\nbase: &b\n  a: 1\ncopy: *b\n');
     const copy = root!.children.find((c) => c.label === 'copy');

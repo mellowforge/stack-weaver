@@ -34,6 +34,11 @@ export type EditorMessages = {
   readonly ui?: Partial<UiMessages>;
   /** Validation messages. */
   readonly schema?: Partial<SchemaMessages>;
+  /**
+   * BCP 47 language tag whose plural rules pick the form of a `PluralMessage` (the problem count). Default
+   * `'en'`. Init-only: it is read once, when the editor is created.
+   */
+  readonly locale?: string;
 };
 
 /**
@@ -220,6 +225,7 @@ export function createEditorWithContext(
   const win = el.ownerDocument.defaultView;
   const store = new DocumentStore(options.value ?? '');
   const ui: UiMessages = { ...defaultUiMessages, ...options.messages?.ui };
+  const locale = options.messages?.locale ?? 'en';
   const hostFormats = options.formats ?? [];
   /** The `format` option: `'auto'` or a format id. Changed by `setFormat`. */
   let formatOption: string = options.format ?? 'auto';
@@ -316,6 +322,7 @@ export function createEditorWithContext(
 
   const shell = createShell(el, {
     ui,
+    locale,
     mode,
     theme: themeNow(),
     onMode: (m) => setMode(m),
@@ -336,7 +343,7 @@ export function createEditorWithContext(
   });
   const panes: Pane[] = [visualPane, codePane];
 
-  const panel = createProblemsPanel(shell.problemsEl, { ui, onFix: (p) => ctx.applyFix(p).ok,
+  const panel = createProblemsPanel(shell.problemsEl, { ui, locale, onFix: (p) => ctx.applyFix(p).ok,
     // The panel hid itself around the focus: the current mode's radio is always visible.
     restoreFocus: () => shell.root.querySelector<HTMLElement>(`.sw-mode-radio[data-sw-mode="${mode}"]`)?.focus(),
     onSelect: (p) => {
@@ -359,7 +366,7 @@ export function createEditorWithContext(
   };
   const scheduler = createProblemScheduler(ctx, (next) => {
     problems = next;
-    shell.setProblemCount(problemCountText(ui, next.length));
+    shell.setProblemCount(problemCountText(ui, next.length, locale));
     panel.update(next);
     codePane.setProblems(next);
     for (const fn of [...problemListeners]) guarded('a problems callback', () => fn(next));

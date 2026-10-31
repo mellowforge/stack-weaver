@@ -95,3 +95,5 @@ export type { ActionRefusal, ActionResult, VariableStore, VariablesOption } from
 export type { EditorTheme, ResolvedTheme } from './editor/theme.js';
 export { defaultUiMessages } from './editor/messages.js';
 export type { UiMessages } from './editor/messages.js';
+export { formatMessage, formatPlural } from './editor/format-message.js';
+export type { PluralMessage } from './editor/format-message.js';

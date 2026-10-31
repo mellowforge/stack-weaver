@@ -1,191 +1,189 @@
+import type { PluralMessage } from './format-message.js';
+
 /** The editor's own UI strings. Pass a partial table as `messages.ui` to translate or reword them. */
 export interface UiMessages {
   /** Accessible name of the whole editor. */
-  editorLabel: string;
+  readonly editorLabel: string;
   /** Accessible name of the mode switch. */
-  modeLabel: string;
+  readonly modeLabel: string;
   /** Label of the visual mode. */
-  modeVisual: string;
+  readonly modeVisual: string;
   /** Label of the split mode. */
-  modeSplit: string;
+  readonly modeSplit: string;
   /** Label of the code mode. */
-  modeCode: string;
+  readonly modeCode: string;
   /** Label of the undo button. */
-  undo: string;
+  readonly undo: string;
   /** Label of the redo button. */
-  redo: string;
+  readonly redo: string;
   /** Accessible name of the code editing surface. */
-  codeLabel: string;
+  readonly codeLabel: string;
   /** Accessible name of the visual pane. */
-  visualLabel: string;
+  readonly visualLabel: string;
   /** Format badge text while no format is resolved. */
-  formatNone: string;
-  /** Problem count when there are none. */
-  problemsNone: string;
-  /** Problem count when there is one. */
-  problemsOne: string;
-  /** Problem count for several; `{count}` is replaced by the number. */
-  problemsMany: string;
+  readonly formatNone: string;
+  /** The problem count, by plural category of `messages.locale`; `zero` is used for none and `{count}` is the number. */
+  readonly problemCount: PluralMessage;
   /** Heading and accessible name of the problems panel. */
-  problemsLabel: string;
+  readonly problemsLabel: string;
   /** Text alternative of the error icon. */
-  severityError: string;
+  readonly severityError: string;
   /** Text alternative of the warning icon. */
-  severityWarning: string;
+  readonly severityWarning: string;
   /** Text alternative of the information icon. */
-  severityInfo: string;
+  readonly severityInfo: string;
   /** Accessible name of the breadcrumb that shows where the caret is. */
-  breadcrumbLabel: string;
+  readonly breadcrumbLabel: string;
   /** Accessible name of the path to the shown section in the visual pane (distinct from the code breadcrumb). */
-  sectionPathLabel: string;
+  readonly sectionPathLabel: string;
   /** Heading of the starter recipes. */
-  recipesTitle: string;
+  readonly recipesTitle: string;
   /** Label of the button that skips the recipes. */
-  recipesBlank: string;
+  readonly recipesBlank: string;
   /** Completion section name for recommended items. */
-  tierRecommended: string;
+  readonly tierRecommended: string;
   /** Completion section name for common items. */
-  tierCommon: string;
+  readonly tierCommon: string;
   /** Completion section name for advanced items. */
-  tierAdvanced: string;
-  /** Fallback name of a sequence item; the item number follows. */
-  item: string;
-  /** Fallback name of a document without a kind; the document number follows. */
-  document: string;
+  readonly tierAdvanced: string;
+  /** Fallback name of a sequence item; `{n}` is its 1-based number. */
+  readonly itemLabel: string;
+  /** Fallback name of a document without a kind; `{n}` is its 1-based number. */
+  readonly documentLabel: string;
   /** Accessible name of the outline tree. */
-  outlineLabel: string;
+  readonly outlineLabel: string;
   /** Shown in the visual pane while there is nothing to show. */
-  visualEmpty: string;
+  readonly visualEmpty: string;
   /** Banner shown while the YAML cannot be parsed. */
-  bannerBroken: string;
+  readonly bannerBroken: string;
   /** Button in the banner that moves to the first YAML error. */
-  jumpToError: string;
+  readonly jumpToError: string;
   /** Card text for a document whose kind has no schema. */
-  unknownKind: string;
+  readonly unknownKind: string;
   /** Button that moves to the part in the code editor. */
-  editInCode: string;
+  readonly editInCode: string;
   /** Note on a part that cannot be edited visually. */
-  readOnlyNode: string;
+  readonly readOnlyNode: string;
   /** Badge on a field the schema requires. */
-  required: string;
+  readonly required: string;
   /** Accessible name of the button that removes a field or item; `{label}` is replaced by its name. */
-  removeField: string;
+  readonly removeField: string;
   /** Note on a value that is anchored, so editing it changes every alias of it. */
-  aliasNote: string;
+  readonly aliasNote: string;
   /** Note on a field the schema does not know. */
-  unknownField: string;
+  readonly unknownField: string;
   /** Text of the button that opens a nested part of the document; `{label}` is replaced by its name. */
-  openSection: string;
+  readonly openSection: string;
   /** Shown when a typed value is not a number. */
-  invalidNumber: string;
+  readonly invalidNumber: string;
   /** Shown when a typed value is not a whole number. */
-  invalidInteger: string;
+  readonly invalidInteger: string;
   /** Shown when a typed value is not a valid resource quantity. */
-  invalidQuantity: string;
+  readonly invalidQuantity: string;
   /** Shown when the edit cannot be made visually. */
-  editRefused: string;
+  readonly editRefused: string;
   /** Text of the button that adds an item to a list. */
-  addItem: string;
+  readonly addItem: string;
   /** Text of the button that adds an entry to a key-value list. */
-  addEntry: string;
+  readonly addEntry: string;
   /** Accessible name of the key input of a key-value list. */
-  entryKey: string;
+  readonly entryKey: string;
   /** Accessible name of the value input of a key-value list. */
-  entryValue: string;
+  readonly entryValue: string;
   /** Accessible name of the input that holds a new list item. */
-  newItem: string;
+  readonly newItem: string;
   /** Shown when renaming a key to one that already exists. */
-  keyExists: string;
+  readonly keyExists: string;
   /** Accessible name of the region that adds fields, keys or items to a section. */
-  addSlotLabel: string;
+  readonly addSlotLabel: string;
   /** Text of the disclosure that shows advanced fields. */
-  showAdvanced: string;
+  readonly showAdvanced: string;
   /** Text of the disclosure that hides advanced fields. */
-  hideAdvanced: string;
+  readonly hideAdvanced: string;
   /** Text of the button that adds a new key to a key-value section. */
-  addKey: string;
+  readonly addKey: string;
   /** Accessible name of the input for a new key's name. */
-  newKeyName: string;
+  readonly newKeyName: string;
   /** Text of the button that adds an item to a list section. */
-  addListItem: string;
+  readonly addListItem: string;
   /** Text of the button that opens the resource picker. */
-  addResource: string;
+  readonly addResource: string;
   /** Heading and accessible name of the resource picker. */
-  pickerTitle: string;
+  readonly pickerTitle: string;
   /** Accessible name of the picker's search box. */
-  pickerSearch: string;
+  readonly pickerSearch: string;
   /** Accessible name of the picker's close button. */
-  pickerClose: string;
+  readonly pickerClose: string;
   /** Shown when no resource kind matches the search. */
-  pickerEmpty: string;
+  readonly pickerEmpty: string;
   /** Shown when the chosen resource kind could not be loaded. */
-  pickerLoadFailed: string;
+  readonly pickerLoadFailed: string;
   /** Text of the button that removes the shown section. */
-  removeSection: string;
+  readonly removeSection: string;
   /** Question asked before removing a section; `{label}` is replaced by its name. */
-  confirmRemove: string;
+  readonly confirmRemove: string;
   /** Text of the button that confirms a removal. */
-  confirmYes: string;
+  readonly confirmYes: string;
   /** Text of the button that cancels a removal. */
-  confirmNo: string;
+  readonly confirmNo: string;
   /** Warning on a Secret value that is not base64-encoded UTF-8 text; it is shown as stored and cannot be edited visually. */
   secretInvalidBase64: string;
   /** Warning on a Secret value whose text has a carriage return, which cannot be edited visually without changing it. */
-  secretCarriageReturn: string;
+  readonly secretCarriageReturn: string;
   /** Shown in the code pane when the code editor could not be loaded or mounted. */
-  codeEditorFailed: string;
+  readonly codeEditorFailed: string;
   /** Format badge text, and the visual pane's empty message, when the built-in formats could not be loaded. */
-  formatsFailed: string;
+  readonly formatsFailed: string;
   /** Note on a section whose schema could not be loaded, so its fields are read-only. */
-  schemaFailed: string;
+  readonly schemaFailed: string;
   /** Note on a field whose input widget failed, so it is shown read-only. */
-  widgetFailed: string;
+  readonly widgetFailed: string;
   /** Heading of the Variables section and its outline entry. */
-  variables: string;
+  readonly variables: string;
   /** Text of the button that adds a variable. */
-  addVariable: string;
+  readonly addVariable: string;
   /** Label of a variable's name input. */
-  variableName: string;
+  readonly variableName: string;
   /** Label of a variable's type select. */
-  variableType: string;
+  readonly variableType: string;
   /** Label of a variable's default value control. */
-  variableDefault: string;
+  readonly variableDefault: string;
   /** Label of the input that lists the allowed values of a one-of-a-list variable. */
-  variableEnumValues: string;
+  readonly variableEnumValues: string;
   /** Label of a variable's description input. */
-  variableDescription: string;
+  readonly variableDescription: string;
   /** Text and accessible name of the button that removes a variable; `{name}` is replaced by its name. */
-  removeVariable: string;
+  readonly removeVariable: string;
   /** Shown when a variable name is not a valid name. */
-  variableNameInvalid: string;
+  readonly variableNameInvalid: string;
   /** Shown when renaming a variable to a name that is taken; `{name}` is replaced by it. */
-  variableNameTaken: string;
+  readonly variableNameTaken: string;
   /** Shown while there are no variables. */
-  variablesEmpty: string;
+  readonly variablesEmpty: string;
   /** Label of the text variable type. */
-  variableTypeString: string;
+  readonly variableTypeString: string;
   /** Label of the number variable type. */
-  variableTypeNumber: string;
+  readonly variableTypeNumber: string;
   /** Label of the yes/no variable type. */
-  variableTypeBoolean: string;
+  readonly variableTypeBoolean: string;
   /** Label of the port variable type. */
-  variableTypePort: string;
+  readonly variableTypePort: string;
   /** Label of the one-of-a-list variable type. */
-  variableTypeEnum: string;
+  readonly variableTypeEnum: string;
   /** Shown when the allowed values of a one-of-a-list variable are left empty. */
-  variableEnumValuesRequired: string;
+  readonly variableEnumValuesRequired: string;
   /** Announced when a type change removes the variable's default because it no longer fits; `{value}` is the removed default. */
-  variableDefaultDropped: string;
+  readonly variableDefaultDropped: string;
   /** Accessible name of the button that switches a field between its own value and a variable. */
-  useVariable: string;
+  readonly useVariable: string;
   /** Accessible name of the variable select of a field; `{label}` is replaced by the field's label. */
-  variableSelect: string;
+  readonly variableSelect: string;
   /** Shown instead of the variable select when no variable fits the field. */
-  variableNone: string;
+  readonly variableNone: string;
   /** Option for a referenced variable that is not declared or does not fit the field; `{name}` is replaced by it. */
-  variableUndeclared: string;
+  readonly variableUndeclared: string;
   /** Heading of the variable names offered as code completions. */
-  variableCompletion: string;
+  readonly variableCompletion: string;
 }
 
 /** The English UI strings. */
@@ -200,9 +198,7 @@ export const defaultUiMessages: UiMessages = {
   codeLabel: 'YAML code',
   visualLabel: 'Visual editor',
   formatNone: 'No format',
-  problemsNone: 'No problems',
-  problemsOne: '1 problem',
-  problemsMany: '{count} problems',
+  problemCount: { zero: 'No problems', one: '{count} problem', other: '{count} problems' },
   problemsLabel: 'Problems',
   severityError: 'Error',
   severityWarning: 'Warning',
@@ -214,8 +210,8 @@ export const defaultUiMessages: UiMessages = {
   tierRecommended: 'Recommended',
   tierCommon: 'Common',
   tierAdvanced: 'Advanced',
-  item: 'Item',
-  document: 'Document',
+  itemLabel: 'Item {n}',
+  documentLabel: 'Document {n}',
   outlineLabel: 'Outline',
   visualEmpty: 'Nothing to show yet. Start from a template or write YAML in code.',
   bannerBroken: 'The YAML has errors. The visual editor shows the last valid version and is read-only until they are fixed.',

@@ -287,6 +287,19 @@ describe('problems UI', () => {
     expect(count.textContent).toBe('2 problems');
   });
 
+  it('the problem count text follows locale and host plural table', async () => {
+    await mount({
+      format: 'two',
+      formats: [twoErrors],
+      value: 'a: 1\nb: 2\n',
+      messages: {
+        locale: 'ru',
+        ui: { problemCount: { one: '{count} проблема', few: '{count} проблемы', many: '{count} проблем', other: '{count} проблемы' } },
+      },
+    });
+    expect(el.querySelector('.sw-problem-count')!.textContent).toBe('2 проблемы');
+  });
+
   it('count says "No problems" when clean', async () => {
     await mount({ format: 'kubernetes', value: 'apiVersion: v1\nkind: Namespace\nmetadata:\n  name: demo\n' });
     expect(el.querySelector('.sw-problem-count')!.textContent).toBe('No problems');

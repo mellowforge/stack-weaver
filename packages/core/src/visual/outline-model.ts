@@ -6,6 +6,7 @@ import type { NodeRef, ParsedText } from '../document/types.js';
 import type { UiMessages } from '../editor/messages.js';
 import type { FormatDefinition } from '../formats/types.js';
 import { isRecord, safeData } from './util.js';
+import { formatMessage } from '../editor/format-message.js';
 
 /**
  * One node of the outline tree: a document, or a mapping or sequence inside it.
@@ -76,7 +77,7 @@ export function buildOutline(
         if (!cv || cv.type === 'scalar') continue;
         const item = Array.isArray(data) ? (data[i] as unknown) : undefined;
         const name = isRecord(item) && typeof item['name'] === 'string' ? item['name'] : undefined;
-        children.push(make(childRef, name ?? `${messages.item} ${i + 1}`, cv, item, depth + 1));
+        children.push(make(childRef, name ?? formatMessage(messages.itemLabel, { n: i + 1 }), cv, item, depth + 1));
       }
     }
     return {
@@ -116,7 +117,7 @@ export function buildOutline(
     const meta = isRecord(data) ? data['metadata'] : undefined;
     const name = isRecord(meta) && typeof meta['name'] === 'string' ? meta['name'] : undefined;
     const shaped = typeof apiVersion === 'string' && typeof kind === 'string';
-    const base = shaped ? labelFor(ref, kind) : `${messages.document} ${doc + 1}`;
+    const base = shaped ? labelFor(ref, kind) : formatMessage(messages.documentLabel, { n: doc + 1 });
     const label = name !== undefined ? `${base} ${name}` : base;
     const unknown = shaped && isUnknown(doc, apiVersion, kind);
     // An unknown kind is a leaf: nothing below it is offered visually.

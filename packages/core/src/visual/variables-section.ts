@@ -4,6 +4,7 @@ import type { UiMessages } from '../editor/messages.js';
 import type { ActionResult } from '../editor/variables.js';
 import type { VariableDecl, VariableType } from '../formats/types.js';
 import { NAME_PATTERN, VARIABLE_TYPES, validateVariableDecl } from '../variables/decl.js';
+import { formatMessage } from '../editor/format-message.js';
 
 /**
  * The Variables section of the visual pane.
@@ -119,7 +120,7 @@ export function mountVariablesSection(ctx: EditorContext, doc: Document): Variab
   /** The message for a refused action on `decl`: name taken and invalid declarations say what is wrong, anything else is `editRefused`. */
   function refusalText(r: ActionResult, decl: VariableDecl): string {
     if (r.ok) return '';
-    if (r.reason === 'name-taken') return ui.variableNameTaken.replace('{name}', decl.name);
+    if (r.reason === 'name-taken') return formatMessage(ui.variableNameTaken, { name: decl.name });
     if (r.reason === 'invalid') {
       const issue = validateVariableDecl(decl);
       if (issue === 'badName') return ui.variableNameInvalid;
@@ -166,7 +167,7 @@ export function mountVariablesSection(ctx: EditorContext, doc: Document): Variab
       return;
     }
     if (names().includes(value)) {
-      showError(card, card.name, ui.variableNameTaken.replace('{name}', value));
+      showError(card, card.name, formatMessage(ui.variableNameTaken, { name: value }));
       return;
     }
     // The card moves to its new key first, so the update the store fires patches this card (and its focus) in place.
@@ -188,7 +189,7 @@ export function mountVariablesSection(ctx: EditorContext, doc: Document): Variab
     const next = fitted(retyped);
     const ok = commit(card, next, control);
     if (ok && retyped.default !== undefined && next.default === undefined) {
-      status.textContent = ui.variableDefaultDropped.replace('{value}', String(retyped.default));
+      status.textContent = formatMessage(ui.variableDefaultDropped, { value: String(retyped.default) });
     }
     return ok;
   }
@@ -301,7 +302,7 @@ export function mountVariablesSection(ctx: EditorContext, doc: Document): Variab
     setValue(card.name, decl.name);
     setValue(card.type, effective);
     setValue(card.description, decl.description ?? '');
-    card.remove.textContent = ui.removeVariable.replace('{name}', decl.name);
+    card.remove.textContent = formatMessage(ui.removeVariable, { name: decl.name });
 
     if (effective === 'enum') {
       if (!card.enumField.isConnected) card.typeField.after(card.enumField);

@@ -259,9 +259,25 @@ createManifestEditor(el, {
   messages: {
     ui: { undo: 'Rückgängig', redo: 'Wiederholen' }, // every key is in `defaultUiMessages`
     schema: {}, // validation messages: every key is in `defaultMessages`
+    locale: 'de', // plural rules for count messages; default 'en'; read once, when the editor is created
   },
 });
 ```
+
+Texts with a `{name}` placeholder (`removeField`, `openSection`, `confirmRemove`, `removeVariable`, `variableNameTaken`,
+`variableSelect`, `variableUndeclared`, `variableDefaultDropped`, `itemLabel`, `documentLabel`) are filled in one pass:
+a value is inserted as written, never expanded again, and an unknown `{x}` stays as is. A message that depends on a
+count is a plural table, `problemCount`, with `zero` (used for 0 when present), `one`, `two`, `few`, `many` and a
+required `other`; `locale` picks the category with `Intl.PluralRules`. `{count}` is the number:
+
+```ts
+messages: {
+  locale: 'ru',
+  ui: { problemCount: { zero: 'Нет проблем', one: '{count} проблема', few: '{count} проблемы', many: '{count} проблем', other: '{count} проблемы' } },
+}
+```
+
+`formatMessage(template, params)` and `formatPlural(message, count, locale, params)` are exported for your own strings.
 
 ### Widgets
 

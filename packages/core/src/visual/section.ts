@@ -6,6 +6,7 @@ import { h } from '../editor/dom.js';
 import type { Problem } from '../validation/problems.js';
 import { makeLabelFor } from './labels.js';
 import { isRecord, safeData } from './util.js';
+import { formatMessage } from '../editor/format-message.js';
 
 /** What a field row is built from. */
 export interface FieldRowInit {
@@ -210,7 +211,7 @@ export function mountSection(ctx: EditorContext, ref: NodeRef, slots: SectionSlo
       live.add(rowKey);
       const value = (cv.type === 'scalar' ? cv.value : valueAt(data, childRef.path)) as YamlValue;
       const rowProblems = problems.filter((p) => p.doc === ref.doc && startsWith(p.path, childRef.path));
-      const label = typeof key === 'number' ? `${ui.item} ${key + 1}` : labelFor(childRef, key);
+      const label = typeof key === 'number' ? formatMessage(ui.itemLabel, { n: key + 1 }) : labelFor(childRef, key);
       row.update(cv, label, value ?? null, sectionReadOnly || cv.readOnly !== undefined, rowProblems);
       desired.push(row);
     }

@@ -34,7 +34,7 @@ let nextId = 0;
  */
 export function createProblemsPanel(
   host: HTMLElement,
-  o: { ui: UiMessages; onSelect(problem: Problem): void; onFix(problem: Problem): boolean; restoreFocus(): void },
+  o: { ui: UiMessages; locale: string; onSelect(problem: Problem): void; onFix(problem: Problem): boolean; restoreFocus(): void },
 ): ProblemsPanel {
   const doc = host.ownerDocument;
   const listId = `sw-problem-list-${++nextId}`;
@@ -70,7 +70,7 @@ export function createProblemsPanel(
       const hiding = problems.length === 0;
       if (hiding && !host.hidden && host.contains(doc.activeElement)) o.restoreFocus();
       host.hidden = hiding;
-      toggle.textContent = `${o.ui.problemsLabel}: ${problemCountText(o.ui, problems.length)}`;
+      toggle.textContent = `${o.ui.problemsLabel}: ${problemCountText(o.ui, problems.length, o.locale)}`;
       const items = problems.map((p, i) => {
         const button = h(doc, 'button', { type: 'button', class: 'sw-problem', 'data-sw-severity': p.severity }, [
           h(doc, 'span', { class: 'sw-problem-icon', 'aria-hidden': 'true' }, [ICONS[p.severity]]),

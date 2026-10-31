@@ -2,10 +2,11 @@ import type { EditResult } from '../../document/edit.js';
 import type { YamlValue } from '../../document/types.js';
 import { h } from '../../editor/dom.js';
 import type { WidgetContext, WidgetFactory } from './types.js';
+import { formatMessage } from '../../editor/format-message.js';
 
 const isScalar = (v: unknown): v is string | number | boolean | null => v === null || ['string', 'number', 'boolean'].includes(typeof v);
 const textOf = (v: unknown): string => (v === null || v === undefined || !isScalar(v) ? '' : String(v));
-const fill = (template: string, label: string): string => template.replace('{label}', label);
+const fill = (template: string, label: string): string => formatMessage(template, { label });
 
 /**
  * Shared frame of the list widgets: the group, an error line and the add row.

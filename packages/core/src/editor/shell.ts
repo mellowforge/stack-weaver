@@ -1,5 +1,6 @@
 import { h } from './dom.js';
 import type { EditorMode } from './editor.js';
+import { formatPlural } from './format-message.js';
 import type { UiMessages } from './messages.js';
 import type { ResolvedTheme } from './theme.js';
 
@@ -39,6 +40,7 @@ export function createShell(
   host: HTMLElement,
   o: {
     ui: UiMessages;
+    locale: string;
     mode: EditorMode;
     theme: ResolvedTheme;
     onMode(mode: EditorMode): void;
@@ -119,6 +121,6 @@ export function createShell(
     },
   };
   shell.setMode(o.mode);
-  shell.setProblemCount(o.ui.problemsNone);
+  shell.setProblemCount(formatPlural(o.ui.problemCount, 0, o.locale));
   return shell;
 }

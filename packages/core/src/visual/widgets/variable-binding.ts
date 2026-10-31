@@ -4,6 +4,7 @@ import { h } from '../../editor/dom.js';
 import type { JsonSchema, VariableDecl } from '../../formats/types.js';
 import { fitsField } from '../../variables/fit.js';
 import type { WidgetInstance } from './types.js';
+import { formatMessage } from '../../editor/format-message.js';
 
 /**
  * The widget of a field in variable mode: a select of the variables that fit the field, or a note
@@ -58,7 +59,7 @@ export function mountVariableBinding(
       return;
     }
     if (!select) {
-      select = h(doc, 'select', { id: o.id, class: 'sw-input', 'aria-label': ui.variableSelect.replace('{label}', o.label) });
+      select = h(doc, 'select', { id: o.id, class: 'sw-input', 'aria-label': formatMessage(ui.variableSelect, { label: o.label }) });
       select.addEventListener('change', () => choose(select!.value));
       root.replaceChildren(select, error);
       sig = '';
@@ -68,7 +69,7 @@ export function mountVariableBinding(
       select.replaceChildren(
         h(doc, 'option', { value: '' }),
         ...names.map((n) => h(doc, 'option', { value: n }, [n])),
-        ...(listed !== undefined ? [h(doc, 'option', { value: listed }, [ui.variableUndeclared.replace('{name}', listed)])] : []),
+        ...(listed !== undefined ? [h(doc, 'option', { value: listed }, [formatMessage(ui.variableUndeclared, { name: listed })])] : []),
       );
     }
     select.value = name ?? '';
