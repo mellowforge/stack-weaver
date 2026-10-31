@@ -10,9 +10,31 @@ import { fileURLToPath } from 'node:url';
 
 const SPECIFIER =
   /(?:^|[;\s}])(?:import|export)\s+(?:[^'"()]*?\s+from\s+)?['"]([^'"]+)['"]|\bimport\(\s*['"]([^'"]+)['"]\s*\)/g;
-// Block comments, and line comments that start a line or follow whitespace (so 'http://' in a string survives).
-const COMMENTS = /\/\*[\s\S]*?\*\/|(^|\s)\/\/[^\n]*/gm;
 const isYaml = (spec) => spec === 'yaml' || spec.startsWith('yaml/');
+
+/** Drops `//` and block comments outside string and template literals; strings are copied verbatim. */
+function stripComments(text) {
+  let out = '';
+  for (let i = 0; i < text.length; ) {
+    const c = text[i];
+    if (c === "'" || c === '"' || c === '`') {
+      let j = i + 1;
+      while (j < text.length && text[j] !== c) j += text[j] === '\\' ? 2 : 1;
+      out += text.slice(i, j + 1);
+      i = j + 1;
+    } else if (c === '/' && text[i + 1] === '/') {
+      while (i < text.length && text[i] !== '\n') i++;
+    } else if (c === '/' && text[i + 1] === '*') {
+      const end = text.indexOf('*/', i + 2);
+      out += ' ';
+      i = end < 0 ? text.length : end + 2;
+    } else {
+      out += c;
+      i++;
+    }
+  }
+  return out;
+}
 
 function resolveDts(from, spec) {
   const base = resolve(dirname(from), spec);
@@ -30,7 +52,7 @@ export function reachedYamlImports(entry) {
     const file = queue.pop();
     if (seen.has(file)) continue;
     seen.add(file);
-    const source = readFileSync(file, 'utf8').replace(COMMENTS, '$1');
+    const source = stripComments(readFileSync(file, 'utf8'));
     for (const match of source.matchAll(SPECIFIER)) {
       const spec = match[1] ?? match[2];
       if (isYaml(spec)) offenders.add(file);

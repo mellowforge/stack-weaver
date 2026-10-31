@@ -74,6 +74,18 @@ describe('check-types reachedYamlImports', () => {
     expect(reachedYamlImports(join(dir, 'index.d.ts'))).toEqual([]);
   });
 
+  it('is string-aware: a glob string before a later block comment does not swallow imports', () => {
+    write('index.d.ts', "export type G = 'src/*';\nexport * from './a.js';\n/** doc */\nexport type H = 1;\n");
+    write('a.d.ts', "import 'yaml';\n");
+    expect(reachedYamlImports(join(dir, 'index.d.ts'))).toEqual([join(dir, 'a.d.ts')]);
+  });
+
+  it('is string-aware: // inside a string does not drop the rest of the line', () => {
+    write('index.d.ts', "export type S = 'a // b'; export * from './a.js';\n");
+    write('a.d.ts', "import 'yaml';\n");
+    expect(reachedYamlImports(join(dir, 'index.d.ts'))).toEqual([join(dir, 'a.d.ts')]);
+  });
+
   const built = resolve(dirname(fileURLToPath(import.meta.url)), '../../dist/index.d.ts');
   it.skipIf(!existsSync(built))('today, dist reaches yaml imports (baseline for Task 2)', () => {
     expect(reachedYamlImports(built).length).toBeGreaterThan(0);
