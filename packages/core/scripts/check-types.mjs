@@ -10,6 +10,8 @@ import { fileURLToPath } from 'node:url';
 
 const SPECIFIER =
   /(?:^|[;\s}])(?:import|export)\s+(?:[^'"()]*?\s+from\s+)?['"]([^'"]+)['"]|\bimport\(\s*['"]([^'"]+)['"]\s*\)/g;
+// Block comments, and line comments that start a line or follow whitespace (so 'http://' in a string survives).
+const COMMENTS = /\/\*[\s\S]*?\*\/|(^|\s)\/\/[^\n]*/gm;
 const isYaml = (spec) => spec === 'yaml' || spec.startsWith('yaml/');
 
 function resolveDts(from, spec) {
@@ -28,13 +30,14 @@ export function reachedYamlImports(entry) {
     const file = queue.pop();
     if (seen.has(file)) continue;
     seen.add(file);
-    const source = readFileSync(file, 'utf8');
+    const source = readFileSync(file, 'utf8').replace(COMMENTS, '$1');
     for (const match of source.matchAll(SPECIFIER)) {
       const spec = match[1] ?? match[2];
       if (isYaml(spec)) offenders.add(file);
       else if (spec.startsWith('.')) {
         const target = resolveDts(file, spec);
-        if (target) queue.push(target);
+        if (!target) throw new Error(`${file} imports ${spec}, which does not resolve to a .d.ts file`);
+        queue.push(target);
       }
     }
   }

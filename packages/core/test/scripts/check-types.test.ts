@@ -45,6 +45,35 @@ describe('check-types reachedYamlImports', () => {
     expect(reachedYamlImports(join(dir, 'index.d.ts'))).toEqual([join(dir, 'b.d.ts')]);
   });
 
+  it('throws on an unresolved relative specifier, naming file and specifier', () => {
+    write('index.d.ts', "export * from './missing.js';\n");
+    expect(() => reachedYamlImports(join(dir, 'index.d.ts'))).toThrow(/index\.d\.ts imports \.\/missing\.js/);
+  });
+
+  it('resolves ./dir/index.js, extensionless and trailing-slash directory specifiers', () => {
+    write('index.d.ts', "export * from './a/index.js';\nexport * from './b';\nexport * from './c/';\n");
+    write('a/index.d.ts', "import type { D } from 'yaml';\nexport type A = D;\n");
+    write('b.d.ts', "import 'yaml';\n");
+    write('c/index.d.ts', "export * from '../e.js';\n");
+    write('e.d.ts', "export type E = import('yaml').Document;\n");
+    expect(reachedYamlImports(join(dir, 'index.d.ts'))).toEqual([join(dir, 'a/index.d.ts'), join(dir, 'b.d.ts'), join(dir, 'e.d.ts')]);
+  });
+
+  it.each([
+    ['inline type modifier', "import { type X } from 'yaml';\n"],
+    ['side-effect import', "import 'yaml';\n"],
+    ['multi-line export-from', "export {\n  A,\n  B\n} from 'yaml';\n"],
+    ['inline import() type query', "export type T = typeof import(\"yaml\");\n"],
+  ])('detects yaml via %s', (_name, body) => {
+    write('index.d.ts', body);
+    expect(reachedYamlImports(join(dir, 'index.d.ts'))).toEqual([join(dir, 'index.d.ts')]);
+  });
+
+  it('ignores specifiers inside block and line comments', () => {
+    write('index.d.ts', "/**\n * @example\n * import { parse } from 'yaml';\n */\n// import 'yaml';\nexport type A = 1;\n");
+    expect(reachedYamlImports(join(dir, 'index.d.ts'))).toEqual([]);
+  });
+
   const built = resolve(dirname(fileURLToPath(import.meta.url)), '../../dist/index.d.ts');
   it.skipIf(!existsSync(built))('today, dist reaches yaml imports (baseline for Task 2)', () => {
     expect(reachedYamlImports(built).length).toBeGreaterThan(0);
