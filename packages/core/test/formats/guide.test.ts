@@ -87,8 +87,8 @@ describe('mergeGuide field-name knowledge', () => {
     const files = ['visual/suggest.ts', 'visual/widgets/reference.ts', 'visual/outline-model.ts', 'visual/widgets/field-row.ts', 'assist/hover.ts'];
     for (const f of files) {
       const src = readFileSync(new URL(`../../src/${f}`, import.meta.url), 'utf8');
-      for (const lit of ["'name'", "'metadata'", "'Secret'", "'ConfigMap'", "'data'", "'stringData'", "'binaryData'"]) {
-        expect(src, `${f} contains ${lit}`).not.toContain(lit);
+      for (const word of ['name', 'metadata', 'Secret', 'ConfigMap', 'data', 'stringData', 'binaryData']) {
+        for (const q of ["'", '"']) expect(src, `${f} contains ${q}${word}${q}`).not.toContain(`${q}${word}${q}`);
       }
     }
   });

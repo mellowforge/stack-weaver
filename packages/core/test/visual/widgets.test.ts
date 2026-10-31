@@ -75,7 +75,8 @@ describe('string-list suggestions', () => {
     const store = new DocumentStore('a:\n  - ReadWriteOnce\n');
     const ctx = createWidgetContext(store, {
       id: 'w1', label: 'Modes', description: '', ref: { doc: 0, path: ['a'] }, value: ['ReadWriteOnce'], schema: STRING_ARRAY, readOnly: false,
-      options: ['ReadWriteOnce', 'ReadOnlyMany'], messages: defaultUiMessages, guide: () => ({ groups: [], kinds: {}, fields: {} }),
+      options: ['ReadWriteOnce', 'ReadOnlyMany'], messages: defaultUiMessages,
+      guide: () => ({ groups: [], kinds: {}, fields: {} }),
     });
     const w = defaultWidgets['string-list']!.create(ctx);
     host.append(w.el);
@@ -169,7 +170,8 @@ function setup(name: string, text: string, path: YamlPath, schema: JsonSchema, e
     value: valueAt(store, path),
     schema,
     readOnly,
-    messages: defaultUiMessages, guide: () => ({ groups: [], kinds: {}, fields: {} }),
+    messages: defaultUiMessages,
+    guide: () => ({ groups: [], kinds: {}, fields: {} }),
   });
   const w = defaultWidgets[name]!.create(ctx);
   const label = document.createElement('label');

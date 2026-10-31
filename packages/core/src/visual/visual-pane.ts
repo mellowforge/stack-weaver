@@ -219,7 +219,16 @@ export function createVisualPane(
     o.el.toggleAttribute('data-sw-readonly', broken || ctx.readOnly());
     if (parsed && format) requestBundles(parsed);
     const outlined = parsed && format
-      ? buildOutline(parsed, format, makeLabelFor(ctx, parsed), ui, (_d, apiVersion, kind) => unknownKeys.has(kindKey(apiVersion, kind)), (r) => slots.manages?.(r) === true, hiddenKey(), ctx.guide())
+      ? buildOutline(
+          parsed,
+          format,
+          makeLabelFor(ctx, parsed),
+          ui,
+          (_d, apiVersion, kind) => unknownKeys.has(kindKey(apiVersion, kind)),
+          (r) => slots.manages?.(r) === true,
+          hiddenKey(),
+          ctx.guide(),
+        )
       : [];
     nodes = parsed && format && ctx.variables()
       ? [{ id: VARIABLES_ID, ref: { doc: 0, path: [] }, label: ui.variables, type: 'variables', children: [] }, ...outlined]

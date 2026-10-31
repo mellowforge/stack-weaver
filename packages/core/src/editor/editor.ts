@@ -284,6 +284,7 @@ export function createEditorWithContext(
   watchScheme(theme === 'auto');
 
   const cache = createBundleCache({ store, format: () => format, isDestroyed: () => destroyed });
+  let guideMemo: { format: FormatDefinition; override: GuideOverride; merged: Guide } | undefined;
   const ctx: EditorContext = {
     store,
     messages: { ui, schema: options.messages?.schema ?? {} },
@@ -291,7 +292,10 @@ export function createEditorWithContext(
     guide() {
       if (!format) return EMPTY_GUIDE;
       const override = options.guide?.[format.id];
-      return override ? mergeGuide(format.guide, override) : format.guide;
+      if (!override) return format.guide;
+      // Merged once per (format, override): rows ask for the guide on every update.
+      if (guideMemo?.format !== format || guideMemo.override !== override) guideMemo = { format, override, merged: mergeGuide(format.guide, override) };
+      return guideMemo.merged;
     },
     readOnly: () => readOnly,
     problems: () => problems,

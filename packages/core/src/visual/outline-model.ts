@@ -79,7 +79,7 @@ export function buildOutline(
         const cv = describeNode(p, childRef);
         if (!cv || cv.type === 'scalar') continue;
         const item = Array.isArray(data) ? (data[i] as unknown) : undefined;
-        children.push(make(childRef, itemLabelOf(guide, item) ??formatMessage(messages.itemLabel, { n: i + 1 }), cv, item, depth + 1));
+        children.push(make(childRef, itemLabelOf(guide, item) ?? formatMessage(messages.itemLabel, { n: i + 1 }), cv, item, depth + 1));
       }
     }
     return {

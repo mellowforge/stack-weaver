@@ -79,7 +79,8 @@ function mountWidget(name: string, param: string | undefined, text: string, doc:
     schema: { type: 'string' },
     readOnly: false,
     ...(param !== undefined && { param }),
-    messages: defaultUiMessages, guide: () => guide,
+    messages: defaultUiMessages,
+    guide: () => guide,
   });
   const w = defaultWidgets[name]!.create(ctx);
   host.append(w.el);

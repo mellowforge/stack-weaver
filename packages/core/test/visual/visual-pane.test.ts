@@ -372,3 +372,27 @@ describe('Variables selection', () => {
     expect(editor.getValue()).toBe(COMPOSE);
   });
 });
+
+describe('host guide field-name data', () => {
+  const TEXT =
+    'apiVersion: apps/v1\nkind: Deployment\nmetadata:\n  name: web\n  title: Frontend\nspec:\n  template:\n    spec:\n      containers:\n        - id: main\n          name: ignored\n          image: nginx\n';
+  const CONTAINERS = ['spec', 'template', 'spec', 'containers'];
+  const rowLabel = () => el.querySelector('.sw-section .sw-row[data-sw-key="0"] .sw-row-label')?.textContent;
+  const outlineLabels = () => items().map((i) => i.querySelector('.sw-outline-label')!.textContent);
+
+  it('labelKeys and resourceLabel from the guide option label outline items, documents and field rows', async () => {
+    const { ctx } = await mount({ mode: 'visual', value: TEXT, guide: { kubernetes: { labelKeys: ['id'], resourceLabel: ['metadata', 'title'] } } });
+    expect(outlineLabels()).toContain('Deployment Frontend');
+    ctx.select({ doc: 0, path: CONTAINERS });
+    await vi.waitFor(() => expect(rowLabel()).toBe('main'));
+    expect(outlineLabels()).toContain('main');
+  });
+
+  it('without the override the built-in name key labels them', async () => {
+    const { ctx } = await mount({ mode: 'visual', value: TEXT });
+    ctx.select({ doc: 0, path: CONTAINERS });
+    await vi.waitFor(() => expect(rowLabel()).toBe('ignored'));
+    expect(outlineLabels()).toContain('Deployment web');
+    expect(outlineLabels()).toContain('ignored');
+  });
+});

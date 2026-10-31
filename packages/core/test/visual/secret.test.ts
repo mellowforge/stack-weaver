@@ -37,7 +37,8 @@ function mount(text: string, readOnly = false) {
     value: dataOf(store),
     schema: { type: 'object', additionalProperties: { type: 'string', format: 'byte' } },
     readOnly,
-    messages: defaultUiMessages, guide: () => ({ groups: [], kinds: {}, fields: {} }),
+    messages: defaultUiMessages,
+    guide: () => ({ groups: [], kinds: {}, fields: {} }),
   });
   const w = defaultWidgets['secret-data']!.create(ctx);
   host.append(w.el);
