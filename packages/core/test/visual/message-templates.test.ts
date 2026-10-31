@@ -27,7 +27,7 @@ const ui = {
 
 function widget(name: string, text: string, path: string[], schema: JsonSchema, value: YamlValue) {
   const store = new DocumentStore(text);
-  const ctx = createWidgetContext(store, { id: 'w', label: 'L', description: '', ref: { doc: 0, path }, value, schema, readOnly: false, messages: ui });
+  const ctx = createWidgetContext(store, { id: 'w', label: 'L', description: '', ref: { doc: 0, path }, value, schema, readOnly: false, messages: ui, guide: () => ({ groups: [], kinds: {}, fields: {} }) });
   const w = defaultWidgets[name]!.create(ctx);
   host.append(w.el);
   return w;

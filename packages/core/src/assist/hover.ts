@@ -5,6 +5,7 @@ import { refAtOffset } from '../document/paths.js';
 import type { ParsedText } from '../document/types.js';
 import { fieldHint, firstSentence } from '../engine/addable.js';
 import { resolveAt } from '../engine/resolve.js';
+import { resourceNameOf } from '../formats/guide.js';
 import type { Guide, SchemaBundle } from '../formats/types.js';
 
 /** What to show when the pointer rests on a key. */
@@ -67,27 +68,31 @@ export function hoverAt(p: ParsedText, offset: number, bundle: SchemaBundle | un
 
 /**
  * The path from the document root to the node at `offset`, for a breadcrumb bar. The first entry
- * names the document: `<kind> <metadata.name>`, or the kind alone, or `Document <n>` (1-based).
- * The rest are the path segments as strings (sequence indexes too: `'0'`).
+ * names the document: `<kind> <name>`, or the kind alone, or `Document <n>` (1-based). The name is the
+ * value at the guide's `resourceLabel` path; without `guide` (or with a guide that has none) documents
+ * are named by their kind alone. The rest are the path segments as strings (sequence indexes too: `'0'`).
  *
  * @param p - The parsed text.
  * @param offset - UTF-16 offset into `p.text`.
  * @param documentLabel - Template for a document without a kind; `{n}` is its 1-based number. Default `'Document {n}'`.
+ * @param guide - The guide whose `resourceLabel` names documents, such as the format's `guide`. Default none.
  * @returns The segments; empty when `offset` is outside every document.
  * @throws {TypeError} When `p` was not made by `parseText`.
  */
-export function breadcrumbAt(p: ParsedText, offset: number, documentLabel = 'Document {n}'): readonly string[] {
+export function breadcrumbAt(
+  p: ParsedText,
+  offset: number,
+  documentLabel = 'Document {n}',
+  guide?: Pick<Guide, 'resourceLabel'>,
+): readonly string[] {
   const ref = refAtOffset(p, offset);
   if (!ref) return [];
-  return [documentTitle(dataOf(p, ref.doc), ref.doc, documentLabel), ...ref.path.map(String)];
+  return [documentTitle(dataOf(p, ref.doc), ref.doc, documentLabel, guide), ...ref.path.map(String)];
 }
 
-function documentTitle(data: unknown, doc: number, documentLabel: string): string {
-  const obj = (v: unknown): Record<string, unknown> | undefined =>
-    typeof v === 'object' && v !== null && !Array.isArray(v) ? (v as Record<string, unknown>) : undefined;
-  const root = obj(data);
-  const kind = root?.['kind'];
+function documentTitle(data: unknown, doc: number, documentLabel: string, guide: Pick<Guide, 'resourceLabel'> | undefined): string {
+  const kind = typeof data === 'object' && data !== null && !Array.isArray(data) ? (data as Record<string, unknown>)['kind'] : undefined;
   if (typeof kind !== 'string' || kind === '') return formatMessage(documentLabel, { n: doc + 1 });
-  const name = obj(root?.['metadata'])?.['name'];
-  return typeof name === 'string' && name !== '' ? `${kind} ${name}` : kind;
+  const name = guide ? resourceNameOf(guide, data) : undefined;
+  return name !== undefined ? `${kind} ${name}` : kind;
 }

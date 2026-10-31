@@ -8,6 +8,7 @@ import type { Guide } from '../types.js';
 export const composeGuide: Guide = deepFreeze<Guide>({
   groups: [{ id: 'services', label: 'Services', order: 1 }],
   kinds: {},
+  labelKeys: [],
   fields: {
     'service#image': { label: 'Image', tier: 'recommended', order: 1, example: 'nginx:1.27', description: 'The container image to run, for example nginx:1.27.' },
     'service#ports': { label: 'Ports', tier: 'recommended', order: 2, description: 'Ports to open, as "host:container", for example "8080:80".' },

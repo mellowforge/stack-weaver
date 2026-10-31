@@ -54,6 +54,12 @@ export const kubernetesGuide: Guide = deepFreeze<Guide>({
       order: 1,
     },
   },
+  labelKeys: ['name'],
+  resourceLabel: ['metadata', 'name'],
+  references: {
+    Secret: { nameKey: 'name', dataKeys: ['data', 'stringData'] },
+    ConfigMap: { nameKey: 'name', dataKeys: ['data', 'stringData', 'binaryData'] },
+  },
   fields: {
     // Shared: metadata.
     [`${META}#name`]: { label: 'Name', tier: 'recommended', order: 1, description: 'The name of this resource. It must be unique among resources of the same kind in the namespace.' },

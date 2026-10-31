@@ -26,6 +26,7 @@ export type {
   GuideGroup,
   GuideKind,
   GuideOverride,
+  GuideReference,
   Tier,
   FormatDefinition,
   DetectInput,

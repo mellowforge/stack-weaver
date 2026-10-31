@@ -8,6 +8,8 @@ import { defaultUiMessages } from '../../src/editor/messages.js';
 import { suggestKeys, suggestNames } from '../../src/visual/suggest.js';
 import { createWidgetContext } from '../../src/visual/widgets/context.js';
 import { defaultWidgets } from '../../src/visual/widgets/registry.js';
+import { kubernetesGuide } from '../../src/formats/kubernetes/guide.js';
+import type { Guide } from '../../src/formats/types.js';
 import { createFakeAdapter } from '../helpers/fake-adapter.js';
 
 const host = document.createElement('div');
@@ -66,7 +68,7 @@ function valueAt(store: DocumentStore, doc: number, path: YamlPath): YamlValue {
   return (cur ?? null) as YamlValue;
 }
 
-function mountWidget(name: string, param: string | undefined, text: string, doc: number, path: YamlPath) {
+function mountWidget(name: string, param: string | undefined, text: string, doc: number, path: YamlPath, guide: Guide = kubernetesGuide) {
   const store = new DocumentStore(text);
   const ctx = createWidgetContext(store, {
     id: 'w1',
@@ -77,7 +79,7 @@ function mountWidget(name: string, param: string | undefined, text: string, doc:
     schema: { type: 'string' },
     readOnly: false,
     ...(param !== undefined && { param }),
-    messages: defaultUiMessages,
+    messages: defaultUiMessages, guide: () => guide,
   });
   const w = defaultWidgets[name]!.create(ctx);
   host.append(w.el);
@@ -89,23 +91,23 @@ describe('suggestNames / suggestKeys', () => {
   const p = new DocumentStore(DOCS).parsed;
 
   it('lists metadata.name of the matching kind in the same text', () => {
-    expect(suggestNames(p, 'Secret')).toEqual(['db-creds', 'api-token']);
-    expect(suggestNames(p, 'ConfigMap')).toEqual(['app-config']);
+    expect(suggestNames(p, kubernetesGuide, 'Secret')).toEqual(['db-creds', 'api-token']);
+    expect(suggestNames(p, kubernetesGuide, 'ConfigMap')).toEqual(['app-config']);
   });
 
   it('lists data and stringData keys, and binaryData keys for a ConfigMap only', () => {
-    expect(suggestKeys(p, 'Secret', 'db-creds')).toEqual(['password', 'username']);
-    expect(suggestKeys(p, 'ConfigMap', 'app-config')).toEqual(['LOG_LEVEL', 'logo']);
-    expect(suggestKeys(p, 'Secret', 'api-token')).toEqual(['token']);
+    expect(suggestKeys(p, kubernetesGuide, 'Secret', 'db-creds')).toEqual(['password', 'username']);
+    expect(suggestKeys(p, kubernetesGuide, 'ConfigMap', 'app-config')).toEqual(['LOG_LEVEL', 'logo']);
+    expect(suggestKeys(p, kubernetesGuide, 'Secret', 'api-token')).toEqual(['token']);
   });
 
   it('no matching docs gives an empty list, not an error', () => {
-    expect(suggestNames(new DocumentStore('').parsed, 'Secret')).toEqual([]);
-    expect(suggestNames(new DocumentStore('a: [').parsed, 'Secret')).toEqual([]);
-    expect(suggestNames(new DocumentStore('- 1\n- 2\n').parsed, 'Secret')).toEqual([]);
-    expect(suggestKeys(p, 'Secret', 'nope')).toEqual([]);
-    expect(suggestKeys(p, 'Secret', 'app-config')).toEqual([]); // wrong kind
-    expect(suggestNames(new DocumentStore('kind: Secret\nmetadata: 3\n').parsed, 'Secret')).toEqual([]);
+    expect(suggestNames(new DocumentStore('').parsed, kubernetesGuide, 'Secret')).toEqual([]);
+    expect(suggestNames(new DocumentStore('a: [').parsed, kubernetesGuide, 'Secret')).toEqual([]);
+    expect(suggestNames(new DocumentStore('- 1\n- 2\n').parsed, kubernetesGuide, 'Secret')).toEqual([]);
+    expect(suggestKeys(p, kubernetesGuide, 'Secret', 'nope')).toEqual([]);
+    expect(suggestKeys(p, kubernetesGuide, 'Secret', 'app-config')).toEqual([]); // wrong kind
+    expect(suggestNames(new DocumentStore('kind: Secret\nmetadata: 3\n').parsed, kubernetesGuide, 'Secret')).toEqual([]);
   });
 });
 
@@ -148,6 +150,20 @@ describe('reference widgets', () => {
     expect(mountWidget('ref-key', 'Secret', only, 0, ['spec', 'secretKeyRef', 'key']).options()).toEqual([]);
     expect(mountWidget('ref', undefined, DOCS, 3, [...REF, 'name']).options()).toEqual([]); // no param
     expect(mountWidget('ref', 'Pod', DOCS, 3, [...REF, 'name']).options()).toEqual([]); // not a reference kind
+  });
+
+  it('references drive the ref-key suggestions (a host kind with its own dataKeys)', () => {
+    const guide: Guide = {
+      ...kubernetesGuide,
+      references: { Vault: { nameKey: 'ref', dataKeys: ['entries'] } },
+    };
+    const text = 'kind: Vault\nmetadata:\n  name: v1\nentries:\n  alpha: 1\n  beta: 2\ndata:\n  ignored: 1\n---\nuse:\n  ref: v1\n  key: a\n';
+    expect(mountWidget('ref', 'Vault', text, 1, ['use', 'ref'], guide).options()).toEqual(['v1']);
+    expect(mountWidget('ref-key', 'Vault', text, 1, ['use', 'key'], guide).options()).toEqual(['alpha', 'beta']);
+    // Secret is not listed by this guide: no suggestions, no crash.
+    expect(mountWidget('ref-key', 'Secret', DOCS, 3, [...REF, 'key'], guide).options()).toEqual([]);
+    expect(mountWidget('ref', 'Secret', DOCS, 3, [...REF, 'name'], guide).options()).toEqual([]);
+    expect(mountWidget('ref', 'constructor', DOCS, 3, [...REF, 'name'], guide).options()).toEqual([]);
   });
 
   it('the list follows the document while the widget is shown', () => {

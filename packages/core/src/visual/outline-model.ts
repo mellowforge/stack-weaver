@@ -4,7 +4,8 @@ import { isEmptyDocument } from '../document/data.js';
 import type { EditRefusal } from '../document/edit.js';
 import type { NodeRef, ParsedText } from '../document/types.js';
 import type { UiMessages } from '../editor/messages.js';
-import type { FormatDefinition } from '../formats/types.js';
+import { itemLabelOf, resourceNameOf } from '../formats/guide.js';
+import type { FormatDefinition, Guide } from '../formats/types.js';
 import { isRecord, safeData } from './util.js';
 import { formatMessage } from '../editor/format-message.js';
 
@@ -49,6 +50,7 @@ const unique = (keys: readonly string[]): string[] => [...new Set(keys)];
  * @param isManaged - Whether a widget edits the mapping at `ref` itself (`WidgetDefinition.managesKeys`); such a
  *   mapping is not an outline node, its parent's section shows the widget.
  * @param hiddenRootKey - A top-level key of a `mapping` format to leave out (the variables block, which has its own section).
+ * @param guide - The guide whose `labelKeys` and `resourceLabel` name items and documents; default the format's own.
  * @internal
  */
 export function buildOutline(
@@ -59,6 +61,7 @@ export function buildOutline(
   isUnknown: (doc: number, apiVersion: string, kind: string) => boolean = () => false,
   isManaged: (ref: NodeRef) => boolean = () => false,
   hiddenRootKey?: string,
+  guide: Guide = format.guide,
 ): readonly OutlineNode[] {
   const make = (ref: NodeRef, label: string, view: NodeView, data: unknown, depth: number): OutlineNode => {
     const readOnly: EditRefusal | undefined = view.type === 'alias' ? 'alias' : view.readOnly;
@@ -76,8 +79,7 @@ export function buildOutline(
         const cv = describeNode(p, childRef);
         if (!cv || cv.type === 'scalar') continue;
         const item = Array.isArray(data) ? (data[i] as unknown) : undefined;
-        const name = isRecord(item) && typeof item['name'] === 'string' ? item['name'] : undefined;
-        children.push(make(childRef, name ?? formatMessage(messages.itemLabel, { n: i + 1 }), cv, item, depth + 1));
+        children.push(make(childRef, itemLabelOf(guide, item) ??formatMessage(messages.itemLabel, { n: i + 1 }), cv, item, depth + 1));
       }
     }
     return {
@@ -114,8 +116,7 @@ export function buildOutline(
     const data = safeData(p, doc);
     const apiVersion = isRecord(data) ? data['apiVersion'] : undefined;
     const kind = isRecord(data) ? data['kind'] : undefined;
-    const meta = isRecord(data) ? data['metadata'] : undefined;
-    const name = isRecord(meta) && typeof meta['name'] === 'string' ? meta['name'] : undefined;
+    const name = resourceNameOf(guide, data);
     const shaped = typeof apiVersion === 'string' && typeof kind === 'string';
     const base = shaped ? labelFor(ref, kind) : formatMessage(messages.documentLabel, { n: doc + 1 });
     const label = name !== undefined ? `${base} ${name}` : base;

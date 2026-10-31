@@ -5,7 +5,7 @@ import type { EditorContext } from '../../editor/context.js';
 import { h } from '../../editor/dom.js';
 import { resolveAt } from '../../engine/resolve.js';
 import type { ResolvedSchema } from '../../engine/resolve.js';
-import { guideFieldOf } from '../../formats/guide.js';
+import { guideFieldOf, itemLabelOf } from '../../formats/guide.js';
 import type { JsonSchema, SchemaBundle } from '../../formats/types.js';
 import { sameProblemList } from '../../validation/problems.js';
 import type { Problem } from '../../validation/problems.js';
@@ -206,6 +206,7 @@ function createFieldRow(ctx: EditorContext, registry: WidgetRegistry, envFor: (p
                     ...(picked.param !== undefined && { param: picked.param }),
                     ...(options !== undefined && { options }),
                     messages: ui,
+                    guide: ctx.guide,
                   },
                   () => readOnlyNow,
                 ),
@@ -321,7 +322,7 @@ function createFieldRow(ctx: EditorContext, registry: WidgetRegistry, envFor: (p
     const nextKey = mode === 'widget' && picked ? `widget:${picked.name}:${picked.param ?? ''}` : mode;
 
     // Label: the guide's, else an item's name, else the section's.
-    const itemName = typeof key === 'number' && isRecord(value) && typeof value['name'] === 'string' && value['name'] !== '' ? value['name'] : undefined;
+    const itemName = typeof key === 'number' ? itemLabelOf(ctx.guide(), value) : undefined;
     label = gf?.label ?? itemName ?? sectionLabel;
     const description = gf?.description ?? child?.description ?? '';
 

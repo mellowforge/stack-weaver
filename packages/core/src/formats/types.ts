@@ -112,6 +112,23 @@ export interface Guide {
   readonly kinds: Readonly<Record<string, GuideKind>>;
   /** Field hints, keyed `"<defName>#<property>"`. */
   readonly fields: Readonly<Record<string, GuideField>>;
+  /** Keys whose string value labels a sequence item in the outline and field rows, first match wins. Default none. */
+  readonly labelKeys?: readonly string[];
+  /** Path whose string value labels a document next to its kind (`Deployment web`). Default none. */
+  readonly resourceLabel?: YamlPath;
+  /**
+   * What the `ref` and `ref-key` widgets suggest, keyed by the referenced kind (the widget's `param`). A kind
+   * that is not listed gets no suggestions.
+   */
+  readonly references?: Readonly<Record<string, GuideReference>>;
+}
+
+/** How documents of one kind are referred to by name and where they keep their keys. */
+export interface GuideReference {
+  /** The key, next to a `ref-key` field, that holds the referenced resource's name. */
+  readonly nameKey: string;
+  /** Top-level keys of the referenced document whose map keys are offered as `ref-key` suggestions. */
+  readonly dataKeys: readonly string[];
 }
 
 /**
@@ -125,6 +142,12 @@ export interface GuideOverride {
   readonly kinds?: Readonly<Record<string, Partial<GuideKind>>>;
   /** Field overrides, merged per key. */
   readonly fields?: Readonly<Record<string, Partial<GuideField>>>;
+  /** Replaces the base `labelKeys` whole. */
+  readonly labelKeys?: readonly string[];
+  /** Replaces the base `resourceLabel` whole. */
+  readonly resourceLabel?: YamlPath;
+  /** Reference entries, merged per kind: an entry replaces that kind's base entry. */
+  readonly references?: Readonly<Record<string, GuideReference>>;
 }
 
 /** A starter document offered while the editor is empty. */

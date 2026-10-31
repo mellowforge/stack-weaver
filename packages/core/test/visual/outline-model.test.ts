@@ -1,11 +1,13 @@
 import { describe, expect, it } from 'vitest';
 import { parseText } from '../../src/document/parse.js';
 import { defaultUiMessages } from '../../src/editor/messages.js';
-import type { FormatDefinition } from '../../src/formats/types.js';
+import type { FormatDefinition, Guide } from '../../src/formats/types.js';
+import { composeGuide } from '../../src/formats/compose/guide.js';
+import { mergeGuide } from '../../src/formats/guide.js';
 import { buildOutline } from '../../src/visual/outline-model.js';
 import type { OutlineNode } from '../../src/visual/outline-model.js';
 
-const guide = { groups: [], kinds: {}, fields: {} };
+const guide: Guide = { groups: [], kinds: {}, fields: {}, labelKeys: ['name'], resourceLabel: ['metadata', 'name'] };
 const fmt = (rootModel: 'documents' | 'mapping'): FormatDefinition => ({
   id: rootModel,
   label: rootModel,
@@ -67,6 +69,28 @@ describe('buildOutline', () => {
       ['app', ['spec', 'containers', 0]],
       ['Item 2', ['spec', 'containers', 1]],
     ]);
+  });
+
+  it('a host guide override labelKeys: ["id"] labels items by id', () => {
+    const text = 'kind: Pod\napiVersion: v1\nspec:\n  items:\n    - id: first\n      name: ignored\n    - name: second\n';
+    const g = mergeGuide(guide, { labelKeys: ['id'] });
+    const [root] = buildOutline(parseText(text), fmt('documents'), labelFor, defaultUiMessages, undefined, undefined, undefined, g);
+    expect(root!.children[0]!.children[0]!.children.map((c) => c.label)).toEqual(['first', 'Item 2']);
+  });
+
+  it('a compose sequence of mappings with a name key is labelled "Item N" (compose has no labelKeys)', () => {
+    const f: FormatDefinition = { ...fmt('mapping'), guide: composeGuide };
+    const [root] = buildOutline(parseText('services:\n  web:\n    extra:\n      - name: a\n      - name: b\n'), f, labelFor, defaultUiMessages);
+    const extra = root!.children[0]!.children[0]!;
+    expect(extra.children.map((c) => c.label)).toEqual(['Item 1', 'Item 2']);
+  });
+
+  it('resourceLabel drives the outline document label', () => {
+    const text = 'apiVersion: v1\nkind: Thing\nspec:\n  title: hello\n';
+    const g = mergeGuide(guide, { resourceLabel: ['spec', 'title'] });
+    expect(buildOutline(parseText(text), fmt('documents'), labelFor, defaultUiMessages, undefined, undefined, undefined, g)[0]!.label).toBe('Thing hello');
+    const none = mergeGuide(guide, {});
+    expect(buildOutline(parseText(text), fmt('documents'), labelFor, defaultUiMessages, undefined, undefined, undefined, { ...none, resourceLabel: [] })[0]!.label).toBe('Thing');
   });
 
   it('no ui message is concatenated: item and document labels come from templates', () => {

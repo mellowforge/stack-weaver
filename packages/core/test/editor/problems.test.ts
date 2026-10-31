@@ -380,7 +380,7 @@ describe('code assist', () => {
     expect(crumb.getAttribute('aria-label')).toBe('Location');
     const at = text.indexOf('name');
     fake.setCaret(at);
-    const parts = breadcrumbAt(ctx.store.parsed, at);
+    const parts = breadcrumbAt(ctx.store.parsed, at, undefined, ctx.guide());
     expect(parts.length).toBeGreaterThan(1);
     expect(crumb.textContent).toBe(parts.join(' › '));
   });

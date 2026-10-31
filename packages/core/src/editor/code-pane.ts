@@ -66,7 +66,7 @@ export function createCodePane(
   const showCrumb = (at: number): void => {
     let parts: readonly string[] = [];
     try {
-      parts = breadcrumbAt(ctx.store.parsed, at, ui.documentLabel);
+      parts = breadcrumbAt(ctx.store.parsed, at, ui.documentLabel, ctx.guide());
     } catch {
       // The breadcrumb is a convenience; a document it cannot read shows nothing.
     }

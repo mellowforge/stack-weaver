@@ -1,7 +1,7 @@
 import type { EditOp, EditRefusal, EditResult } from '../../document/edit.js';
 import type { NodeRef, ParsedText, ScalarValue, YamlValue } from '../../document/types.js';
 import type { UiMessages } from '../../editor/messages.js';
-import type { JsonSchema } from '../../formats/types.js';
+import type { Guide, JsonSchema } from '../../formats/types.js';
 
 /** What a widget is built from: the field it edits and the ways to change it. */
 export interface WidgetContext {
@@ -25,6 +25,8 @@ export interface WidgetContext {
   readonly options?: readonly string[];
   /** The editor's UI strings. */
   readonly messages: UiMessages;
+  /** The format's guide with the host override merged in; `references` tell the reference widgets what to suggest. */
+  guide(): Guide;
   /** The current parse, for widgets that suggest values from the document. */
   parsed(): ParsedText;
   /**

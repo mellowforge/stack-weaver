@@ -1,4 +1,6 @@
+import { readFileSync } from 'node:fs';
 import { describe, expect, it } from 'vitest';
+import { composeGuide } from '../../src/formats/compose/guide.js';
 import { kindCatalog } from '../../src/engine/catalog.js';
 import { kubernetesGuide } from '../../src/formats/kubernetes/guide.js';
 import { kubernetesFormat } from '../../src/formats/kubernetes/index.js';
@@ -41,6 +43,54 @@ describe('mergeGuide', () => {
       { id: 'c', label: 'C', order: 5 },
     ]);
     expect(base.groups[0]).toEqual({ id: 'a', label: 'A', order: 2 });
+  });
+});
+
+describe('mergeGuide field-name knowledge', () => {
+  const g: Guide = {
+    ...base,
+    labelKeys: ['name'],
+    resourceLabel: ['metadata', 'name'],
+    references: { Secret: { nameKey: 'name', dataKeys: ['data'] }, Vault: { nameKey: 'n', dataKeys: ['x'] } },
+  };
+
+  it('keeps the base values without an override, and omits them when neither has them', () => {
+    expect(mergeGuide(g, {})).toMatchObject({ labelKeys: ['name'], resourceLabel: ['metadata', 'name'], references: g.references });
+    const m = mergeGuide(base, {});
+    expect('labelKeys' in m || 'resourceLabel' in m || 'references' in m).toBe(false);
+  });
+
+  it('replaces labelKeys and resourceLabel whole', () => {
+    const m = mergeGuide(g, { labelKeys: ['id', 'title'], resourceLabel: ['spec', 'title'] });
+    expect(m.labelKeys).toEqual(['id', 'title']);
+    expect(m.resourceLabel).toEqual(['spec', 'title']);
+    expect(mergeGuide(g, { labelKeys: [] }).labelKeys).toEqual([]);
+  });
+
+  it('merges references per kind', () => {
+    const m = mergeGuide(g, { references: { Secret: { nameKey: 'id', dataKeys: ['items'] }, Other: { nameKey: 'name', dataKeys: [] } } });
+    expect(m.references).toEqual({
+      Secret: { nameKey: 'id', dataKeys: ['items'] },
+      Vault: { nameKey: 'n', dataKeys: ['x'] },
+      Other: { nameKey: 'name', dataKeys: [] },
+    });
+  });
+
+  it('the built-in guides carry the field names', () => {
+    expect(kubernetesGuide.labelKeys).toEqual(['name']);
+    expect(kubernetesGuide.resourceLabel).toEqual(['metadata', 'name']);
+    expect(kubernetesGuide.references?.['ConfigMap']?.dataKeys).toEqual(['data', 'stringData', 'binaryData']);
+    expect(composeGuide.labelKeys).toEqual([]);
+  });
+
+  it('visual/ and assist/ sources contain none of the field-name literals', () => {
+    const files = ['visual/suggest.ts', 'visual/widgets/reference.ts', 'visual/outline-model.ts', 'visual/widgets/field-row.ts', 'assist/hover.ts'];
+    for (const f of files) {
+      const src = readFileSync(new URL(`../../src/${f}`, import.meta.url), 'utf8');
+      for (const lit of ["'name'", "'metadata'", "'Secret'", "'ConfigMap'", "'data'", "'stringData'", "'binaryData'"]) {
+        expect(src, `${f} contains ${lit}`).not.toContain(lit);
+      }
+    }
   });
 });
 

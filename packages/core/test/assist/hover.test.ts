@@ -63,7 +63,15 @@ describe('hoverAt', () => {
 describe('breadcrumbAt', () => {
   it('breadcrumb for a container image', () => {
     const p = parseText(TEXT);
-    expect(breadcrumbAt(p, inside('image: nginx'))).toEqual(['Deployment web', 'spec', 'template', 'spec', 'containers', '0', 'image']);
+    expect(breadcrumbAt(p, inside('image: nginx'), undefined, kubernetesGuide)).toEqual(['Deployment web', 'spec', 'template', 'spec', 'containers', '0', 'image']);
+  });
+
+  it('without guide data a document is named by its kind alone; resourceLabel names it otherwise', () => {
+    const p = parseText(TEXT);
+    expect(breadcrumbAt(p, inside('image: nginx'))[0]).toBe('Deployment');
+    expect(breadcrumbAt(p, inside('image: nginx'), undefined, { resourceLabel: ['spec', 'template', 'spec'] })[0]).toBe('Deployment');
+    const q = parseText('kind: Thing\nspec:\n  title: hello\n');
+    expect(breadcrumbAt(q, q.text.indexOf('title'), undefined, { resourceLabel: ['spec', 'title'] })[0]).toBe('Thing hello');
   });
 
   it('starts with the kind alone when there is no metadata.name', () => {
