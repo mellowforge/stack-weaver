@@ -37,7 +37,7 @@ Editor
 - The `format` option is settable at runtime (`setFormat`, `update`); under `format: 'auto'` the format is detected again when the text is set through the API and on undo and redo (typing never switches it).
 - `getFormat()` returns the format option (`'auto'` or an id), so `setFormat(getFormat())` is a no-op; the resolved format id is `getActiveFormat()`. Do not confuse it with the root export `getFormat(id)`, which reads the global format registry (`registerFormat`), which the editor does not read.
 - The problems array the editor publishes (`getProblems()`, `onProblemsChange`) is frozen.
-- A host format whose `detect` throws is logged (`console.error`) and resolves to no format: `setFormat` and `update` no longer throw, and `ready` no longer rejects, because of it.
+- A host format whose `detect` throws is logged (`console.error`) and, when the format option is applied (creation, `setFormat`, `update({ format })`), resolves to no format: `setFormat` and `update` no longer throw, and `ready` no longer rejects, because of it. A throw on a later text change under `'auto'` is logged and keeps the current format.
 - An invalid `messages.locale` logs a `console.warn` once per editor (it still counts as `'en'`).
 - A code editor that fails to load or mount after `destroy()` is logged with `console.error` (nothing is shown, and `ready` resolves).
 - `setReadOnly`, `setTheme` and `setFormat` are no-ops when the value is current.

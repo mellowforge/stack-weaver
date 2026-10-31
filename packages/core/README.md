@@ -131,7 +131,8 @@ The controller (`ManifestEditorController`) also has `getFormat()`, `getActiveFo
 panes, and `getVariables()`, `setVariables(decls)` and `applyFix(problem)` for variables and quick fixes (below).
 `getFormat()` returns the format option (`'auto'` or an id), so it round-trips with `setFormat` as `getMode()` does
 with `setMode`: bind both to keep `'auto'` detecting. `getActiveFormat()` returns the id of the format it resolved to,
-or `undefined`. A host format whose `detect` throws is logged and resolves to no format.
+or `undefined`. A host format whose `detect` throws is logged; applying the format option then resolves to no format,
+and a later text change keeps the current one.
 
 Not every action can run: `applyFix` returns an `ActionResult`, `{ ok: true }` or `{ ok: false, reason }`.
 `reason` is an `ActionRefusal`: `'no-fix'`, `'read-only'`, `'destroyed'`, `'unavailable'` (no variables for this
