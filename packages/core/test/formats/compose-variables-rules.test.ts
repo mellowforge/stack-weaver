@@ -19,6 +19,7 @@ describe('undeclared-variable', () => {
       ['rule.undeclared-variable', 'warning', 'Variable "N" is not declared.', '${N}'],
     ]);
     expect(ps[0]?.fix).toEqual({
+      id: 'fix.declare-variable',
       label: 'Declare variable WEB_PORT',
       action: { kind: 'declareVariable', decl: { name: 'WEB_PORT', type: 'string' } },
     });

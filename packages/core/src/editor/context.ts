@@ -10,7 +10,7 @@ import type { SchemaMessages } from '../validation/messages.js';
 import type { Problem } from '../validation/problems.js';
 import { loadBuiltinFormats } from './formats.js';
 import type { UiMessages } from './messages.js';
-import type { VariableStore } from './variables.js';
+import type { ActionResult, VariableStore } from './variables.js';
 import type { VariableDecl } from '../formats/types.js';
 
 /**
@@ -65,8 +65,8 @@ export interface EditorContext {
   variables(): VariableStore | undefined;
   /** Subscribes to changes of the declarations (including the host's `setVariables`); returns an unsubscribe function. */
   onVariables(fn: (decls: readonly VariableDecl[]) => void): () => void;
-  /** Applies the quick fix of `problem`; false when it has none, the editor is read-only, its variable is already declared, or an edit is refused. */
-  applyFix(problem: Problem): boolean;
+  /** Applies the quick fix of `problem` to the current text; refused with a reason when it has none, the editor is read-only or destroyed, its variable is already declared, or an edit is refused. */
+  applyFix(problem: Problem): ActionResult;
 }
 
 /**

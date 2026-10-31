@@ -154,7 +154,7 @@ export function createCodePane(
                 {
                   label: fix.label,
                   apply: () => {
-                    if (!ctx.applyFix(p)) o.onFixRefused();
+                    if (!ctx.applyFix(p).ok) o.onFixRefused();
                   },
                 },
               ],

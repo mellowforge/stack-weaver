@@ -39,7 +39,7 @@ describe('@stack-weaver/core', () => {
       [
         'DocumentStore', 'VERSION', 'kindKey', 'valueTemplateAt', 'addableAt', 'applyEdit', 'canEdit', 'defaultMessages', 'describeNode', 'detectFormat', 'diffText',
         'getFormat', 'guideField', 'kindCatalog', 'mergeGuide', 'parseText', 'refAtOffset',
-        'registerFormat', 'resolveAt', 'toData', 'toLineCol', 'validateText',
+        'registerFormat', 'resolveAt', 'toData', 'sameProblem', 'toLineCol', 'validateText',
         'cursorContext', 'completionsFor', 'hoverAt', 'breadcrumbAt', 'createManifestEditor', 'defaultUiMessages', 'pickWidget', 'defaultWidgets',
       ].sort(),
     );

@@ -9,7 +9,7 @@ import type { FormatDefinition, Rule, SchemaBundle, SchemaError, VariableDecl } 
 import { defaultMessages, messageFor } from './messages.js';
 import type { SchemaMessages } from './messages.js';
 import { SEVERITY_RANK } from './problems.js';
-import type { Problem, Severity } from './problems.js';
+import type { Problem, ProblemCode, Severity } from './problems.js';
 
 const WRAPPERS = new Set(['anyOf', 'oneOf']);
 const UNKNOWN_KEY = new Set(['additionalProperties', 'unevaluatedProperties']);
@@ -155,7 +155,7 @@ function runRule(
       const found = problem(p, f.doc, f.severity, 'rule', code, table, { ...f.params }, f.path, range);
       if (!f.fix) return found;
       const label = messageFor({ instancePath: '', keyword: f.fix.key, params: { ...f.fix.params } }, table);
-      return { ...found, fix: { label, action: f.fix.action } };
+      return { ...found, fix: { id: f.fix.key, label, action: f.fix.action } };
     });
   } catch (err) {
     // The problem carries only the message; the log keeps the stack.
@@ -342,14 +342,14 @@ function docAt(p: ParsedText, offset: number): number {
   return doc;
 }
 
-function yamlProblem(p: ParsedText, y: YamlProblem, severity: Severity, code: string): Problem {
+function yamlProblem(p: ParsedText, y: YamlProblem, severity: Severity, code: ProblemCode): Problem {
   return {
     severity, source: 'yaml', code, message: y.message,
     doc: docAt(p, y.from), path: [], from: y.from, to: y.to, line: y.line, col: y.col,
   };
 }
 
-/** A problem whose message comes from the table entry `key` with `params`; `code` defaults to `key`. */
+/** A problem whose message comes from the table entry `key` with `params`; `code` defaults to `key`, which is then a {@link ProblemCode}. */
 function problem(
   p: ParsedText,
   doc: number,
@@ -360,7 +360,7 @@ function problem(
   params: Record<string, unknown>,
   path: YamlPath,
   [from, to]: Range,
-  code = key,
+  code = key as ProblemCode,
 ): Problem {
   const message = messageFor({ instancePath: '', keyword: key, params }, messages);
   const { line, col } = toLineCol(p, from);

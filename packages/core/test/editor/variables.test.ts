@@ -46,11 +46,11 @@ describe('x-variables store', () => {
     const { editor } = await mount({ value: UNDECLARED, onVariablesChange });
     const problem = find(editor.getProblems(), 'rule.undeclared-variable')!;
     expect(problem.fix).toBeDefined();
-    expect(editor.applyFix(problem)).toBe(true);
+    expect(editor.applyFix(problem).ok).toBe(true);
     expect(editor.getValue()).toContain('x-variables:');
     expect(editor.getVariables().map((d) => d.name)).toEqual(['PORT']);
     expect(onVariablesChange).toHaveBeenCalledTimes(1);
-    expect(editor.undo()).toBe(true);
+    expect(editor.undo()).toBe(true);;
     expect(editor.getValue()).toBe(UNDECLARED);
     expect(editor.getVariables()).toEqual([]);
     expect(onVariablesChange).toHaveBeenCalledTimes(2);
@@ -72,27 +72,27 @@ describe('x-variables store', () => {
     const { editor, ctx } = await mount({ value: WITH_BLOCK });
     const vs = ctx.variables()!;
     expect(vs.kind).toBe('x-variables');
-    expect(vs.set({ name: 'HOST', type: 'string' })).toBe(true);
+    expect(vs.set({ name: 'HOST', type: 'string' }).ok).toBe(true);
     expect(editor.getVariables().map((d) => d.name)).toEqual(['PORT', 'HOST']);
-    expect(vs.set({ name: 'HOST', type: 'string' }, 'PORT')).toBe(false);
-    expect(vs.set({ name: 'bad name', type: 'string' })).toBe(false);
-    expect(vs.remove('NOPE')).toBe(false);
-    expect(editor.undo()).toBe(true);
+    expect(vs.set({ name: 'HOST', type: 'string' }, 'PORT').ok).toBe(false);
+    expect(vs.set({ name: 'bad name', type: 'string' }).ok).toBe(false);
+    expect(vs.remove('NOPE').ok).toBe(false);
+    expect(editor.undo()).toBe(true);;
     expect(editor.getVariables().map((d) => d.name)).toEqual(['PORT']);
-    expect(vs.remove('PORT')).toBe(true);
+    expect(vs.remove('PORT').ok).toBe(true);
     expect(editor.getVariables()).toEqual([]);
-    expect(editor.undo()).toBe(true);
+    expect(editor.undo()).toBe(true);;
     expect(editor.getValue()).toBe(WITH_BLOCK);
   });
 
   it('is refused while the text does not parse, and while read-only', async () => {
     const { editor, ctx, fake } = await mount({ value: WITH_BLOCK });
     editor.setReadOnly(true);
-    expect(ctx.variables()!.set({ name: 'A', type: 'string' })).toBe(false);
+    expect(ctx.variables()!.set({ name: 'A', type: 'string' }).ok).toBe(false);
     editor.setReadOnly(false);
     fake.type(WITH_BLOCK + 'a: [\n');
     expect(editor.getVariables()).toEqual([{ name: 'PORT', type: 'port' }]); // last good parse
-    expect(ctx.variables()!.set({ name: 'A', type: 'string' })).toBe(false);
+    expect(ctx.variables()!.set({ name: 'A', type: 'string' }).ok).toBe(false);
   });
 });
 
@@ -102,11 +102,11 @@ describe('flow-style x-variables entries', () => {
   it('a type change that drops the default is one edit in flow style; one undo restores', async () => {
     const onVariablesChange = vi.fn();
     const { editor, ctx } = await mount({ value: FLOW, onVariablesChange });
-    expect(ctx.variables()!.set({ name: 'WEB_PORT', type: 'boolean', description: 'Public port' })).toBe(true);
+    expect(ctx.variables()!.set({ name: 'WEB_PORT', type: 'boolean', description: 'Public port' }).ok).toBe(true);
     expect(editor.getValue()).toBe(FLOW.replace('{ type: port, default: 8080, description: Public port }', '{ type: boolean, description: Public port }'));
     expect(editor.getVariables()).toEqual([{ name: 'WEB_PORT', type: 'boolean', description: 'Public port' }]);
     expect(onVariablesChange).toHaveBeenCalledTimes(1);
-    expect(editor.undo()).toBe(true);
+    expect(editor.undo()).toBe(true);;
     expect(editor.getValue()).toBe(FLOW);
   });
 
@@ -114,11 +114,11 @@ describe('flow-style x-variables entries', () => {
     const transact = vi.spyOn(DocumentStore.prototype, 'transact');
     const onVariablesChange = vi.fn();
     const { editor, ctx } = await mount({ value: FLOW, onVariablesChange });
-    expect(ctx.variables()!.set({ name: 'WEB_PORT', type: 'boolean', description: 'Public port' })).toBe(true);
+    expect(ctx.variables()!.set({ name: 'WEB_PORT', type: 'boolean', description: 'Public port' }).ok).toBe(true);
     expect(transact).toHaveBeenCalledTimes(1);
     expect(transact.mock.calls[0]![0].length).toBeGreaterThan(1);
     expect(onVariablesChange).toHaveBeenCalledTimes(1);
-    expect(editor.undo()).toBe(true);
+    expect(editor.undo()).toBe(true);;
     expect(editor.getValue()).toBe(FLOW);
   });
 
@@ -128,9 +128,9 @@ describe('flow-style x-variables entries', () => {
     const { editor, ctx } = await mount({ value: text, onVariablesChange });
     expect(editor.getVariables()).toEqual([{ name: 'WEB_PORT', type: 'port', default: 8080, description: 'Public port' }]);
     // `set type` alone would succeed; `delete default` in a multi-line flow map is refused.
-    expect(ctx.variables()!.set({ name: 'WEB_PORT', type: 'boolean', description: 'Public port' })).toBe(false);
+    expect(ctx.variables()!.set({ name: 'WEB_PORT', type: 'boolean', description: 'Public port' }).ok).toBe(false);
     expect(editor.getValue()).toBe(text);
-    expect(editor.undo()).toBe(false);
+    expect(editor.undo()).toBe(false);;
     expect(onVariablesChange).not.toHaveBeenCalled();
   });
 });
@@ -153,7 +153,7 @@ describe('external store', () => {
     const { editor } = await mount({ value: UNDECLARED, variables: { store: 'external', value: [] }, onVariablesChange });
     const problem = find(editor.getProblems(), 'rule.undeclared-variable')!;
     expect(problem).toBeDefined();
-    expect(editor.applyFix(problem)).toBe(true);
+    expect(editor.applyFix(problem).ok).toBe(true);
     expect(editor.getValue()).toBe(UNDECLARED);
     expect(onVariablesChange).toHaveBeenCalledTimes(1);
     expect(editor.getVariables().map((d) => d.name)).toEqual(['PORT']);
@@ -178,12 +178,12 @@ describe('external store', () => {
   it('set refuses a rename onto a taken name; same name replaces', async () => {
     const { ctx } = await mount({ variables: { store: 'external', value: [{ name: 'A', type: 'string' }, { name: 'B', type: 'string' }] } });
     const vs = ctx.variables()!;
-    expect(vs.set({ name: 'B', type: 'number' }, 'A')).toBe(false);
-    expect(vs.set({ name: 'C', type: 'number' }, 'A')).toBe(true);
+    expect(vs.set({ name: 'B', type: 'number' }, 'A').ok).toBe(false);
+    expect(vs.set({ name: 'C', type: 'number' }, 'A').ok).toBe(true);
     expect(vs.get().map((d) => d.name)).toEqual(['C', 'B']);
-    expect(vs.set({ name: 'B', type: 'number' })).toBe(true);
+    expect(vs.set({ name: 'B', type: 'number' }).ok).toBe(true);
     expect(vs.get()).toHaveLength(2);
-    expect(vs.remove('C')).toBe(true);
+    expect(vs.remove('C').ok).toBe(true);
   });
 });
 
@@ -223,14 +223,14 @@ spec:
     const problem = editor.getProblems().find((p) => p.fix)!;
     expect(problem).toBeDefined();
     editor.setReadOnly(true);
-    expect(editor.applyFix(problem)).toBe(false);
+    expect(editor.applyFix(problem).ok).toBe(false);
     expect(editor.getValue()).toBe(DEPLOY);
     editor.setReadOnly(false);
-    expect(editor.applyFix(problem)).toBe(true);
+    expect(editor.applyFix(problem).ok).toBe(true);
     expect(editor.getValue()).toContain('resources:');
-    expect(editor.undo()).toBe(true);
+    expect(editor.undo()).toBe(true);;
     expect(editor.getValue()).toBe(DEPLOY);
-    expect(editor.applyFix({ ...problem, fix: undefined } as Problem)).toBe(false);
+    expect(editor.applyFix({ ...problem, fix: undefined } as Problem).ok).toBe(false);
   });
 });
 
@@ -261,13 +261,13 @@ describe('declarations handed out are frozen', () => {
     const heard: (readonly VariableDecl[])[] = [];
     ctx.onVariables((d) => heard.push(d));
     expect(editor.getVariables()).toEqual([ENUM]);
-    expect(deeplyFrozen(editor.getVariables())).toBe(true);
-    expect(deeplyFrozen(ctx.variables()!.get())).toBe(true);
-    expect(ctx.variables()!.set({ name: 'B', type: 'boolean' })).toBe(true);
+    expect(deeplyFrozen(editor.getVariables())).toBe(true);;
+    expect(deeplyFrozen(ctx.variables()!.get())).toBe(true);;
+    expect(ctx.variables()!.set({ name: 'B', type: 'boolean' }).ok).toBe(true);
     expect(heard).toHaveLength(1);
     expect(onVariablesChange).toHaveBeenCalledTimes(1);
-    expect(deeplyFrozen(heard[0]!)).toBe(true);
-    expect(deeplyFrozen(onVariablesChange.mock.calls[0]![0] as readonly VariableDecl[])).toBe(true);
+    expect(deeplyFrozen(heard[0]!)).toBe(true);;
+    expect(deeplyFrozen(onVariablesChange.mock.calls[0]![0] as readonly VariableDecl[])).toBe(true);;
     expect(editor.getVariables()).toEqual([ENUM, { name: 'B', type: 'boolean' }]);
   });
 
@@ -278,7 +278,7 @@ describe('declarations handed out are frozen', () => {
     editor.setVariables(value);
     value.pop();
     expect(editor.getVariables().map((d) => d.name)).toEqual(['A', 'B']);
-    expect(deeplyFrozen(editor.getVariables())).toBe(true);
+    expect(deeplyFrozen(editor.getVariables())).toBe(true);;
   });
 });
 
@@ -289,18 +289,18 @@ describe('applyFix(edit) steps', () => {
 
   it('applies several ops as one undo step', async () => {
     const { editor } = await mount({ format: 'kubernetes', value: YAML });
-    expect(editor.applyFix(fix([add('b'), add('c')]))).toBe(true);
+    expect(editor.applyFix(fix([add('b'), add('c')])).ok).toBe(true);
     expect(editor.getValue()).toBe('a: 1\nb: v\nc: v\n');
-    expect(editor.undo()).toBe(true);
+    expect(editor.undo()).toBe(true);;
     expect(editor.getValue()).toBe(YAML);
   });
 
   it('on a refused op returns false and changes nothing (all or nothing)', async () => {
     const { editor } = await mount({ format: 'kubernetes', value: YAML });
     const bad = { op: 'set', at: { doc: 0, path: ['nope', 'deeper'] }, value: 1 };
-    expect(editor.applyFix(fix([add('b'), bad]))).toBe(false);
+    expect(editor.applyFix(fix([add('b'), bad])).ok).toBe(false);
     expect(editor.getValue()).toBe(YAML);
-    expect(editor.undo()).toBe(false);
+    expect(editor.undo()).toBe(false);;
   });
 });
 
@@ -326,10 +326,10 @@ describe('destroy and failures', () => {
     editor.destroy();
     expect(() => editor.setVariables([{ name: 'B', type: 'string' }])).not.toThrow();
     expect(() => editor.setVariables([{ name: 'B', type: 'string' }, { name: 'B', type: 'string' }])).not.toThrow(); // destroyed: not even validated
-    expect(vs.set({ name: 'C', type: 'string' })).toBe(false);
-    expect(vs.remove('A')).toBe(false);
-    expect(editor.applyFix(problem)).toBe(false);
-    expect(ctx.applyFix(problem)).toBe(false);
+    expect(vs.set({ name: 'C', type: 'string' }).ok).toBe(false);
+    expect(vs.remove('A').ok).toBe(false);
+    expect(editor.applyFix(problem).ok).toBe(false);
+    expect(ctx.applyFix(problem).ok).toBe(false);
     expect(onVariablesChange).not.toHaveBeenCalled();
     expect(heard).not.toHaveBeenCalled();
   });
@@ -343,8 +343,8 @@ describe('destroy and failures', () => {
     const fix = { fix: { label: '', action: { kind: 'declareVariable', decl: { name: 'A', type: 'string' } } } } as unknown as Problem;
     editor.destroy();
     fake.type(WITH_BLOCK.replace('type: port', 'type: string'));
-    expect(vs.set({ name: 'A', type: 'string' })).toBe(false);
-    expect(editor.applyFix(fix)).toBe(false);
+    expect(vs.set({ name: 'A', type: 'string' }).ok).toBe(false);
+    expect(editor.applyFix(fix).ok).toBe(false);
     expect(onVariablesChange).not.toHaveBeenCalled();
     expect(heard).not.toHaveBeenCalled();
   });
@@ -357,7 +357,100 @@ describe('destroy and failures', () => {
         throw new Error('boom');
       },
     });
-    expect(ctx.variables()!.set({ name: 'A', type: 'string' })).toBe(true);
+    expect(ctx.variables()!.set({ name: 'A', type: 'string' }).ok).toBe(true);
     expect(err).toHaveBeenCalledWith(expect.stringContaining('onVariablesChange'), expect.any(Error));
+  });
+});
+
+describe('action results', () => {
+  const FLOW = 'x-variables:\n  WEB_PORT: { type: port, default: 8080,\n    description: Public port }\nservices:\n  web:\n    image: nginx\n';
+  const declare = (name: string, type = 'string') =>
+    ({ fix: { id: 'fix.declare-variable', label: '', action: { kind: 'declareVariable', decl: { name, type } } } }) as unknown as Problem;
+  const A: VariableDecl = { name: 'A', type: 'string' };
+
+  it('ok results are { ok: true }', async () => {
+    const { editor, ctx } = await mount({ value: WITH_BLOCK });
+    expect(ctx.variables()!.set({ name: 'B', type: 'string' })).toEqual({ ok: true });
+    expect(ctx.variables()!.remove('B')).toEqual({ ok: true });
+    expect(editor.applyFix(find(editor.getProblems(), 'rule.undeclared-variable') ?? declare('Z'))).toEqual({ ok: true });
+  });
+
+  it.each([
+    [
+      'read-only',
+      async () => {
+        const { editor, ctx } = await mount({ value: WITH_BLOCK });
+        editor.setReadOnly(true);
+        return [ctx.variables()!.set(A), ctx.variables()!.remove('PORT'), editor.applyFix(declare('Z'))];
+      },
+    ],
+    [
+      'destroyed',
+      async () => {
+        const { editor, ctx } = await mount({ value: WITH_BLOCK });
+        const vs = ctx.variables()!;
+        editor.destroy();
+        return [vs.set(A), vs.remove('PORT'), editor.applyFix(declare('Z'))];
+      },
+    ],
+    [
+      'unavailable',
+      async () => {
+        const broken = await mount({ value: WITH_BLOCK });
+        const vs = broken.ctx.variables()!;
+        broken.fake.type('a: [\n');
+        const kube = await mount({ format: 'kubernetes', value: 'a: 1\n' });
+        return [vs.set(A), vs.remove('PORT'), kube.editor.applyFix(declare('Z'))];
+      },
+    ],
+    [
+      'invalid',
+      async () => {
+        const { ctx } = await mount({ value: WITH_BLOCK });
+        return [ctx.variables()!.set({ name: 'bad name', type: 'string' })];
+      },
+    ],
+    [
+      'name-taken',
+      async () => {
+        const { ctx } = await mount({ value: WITH_BLOCK, variables: { store: 'external', value: [A, { name: 'B', type: 'string' }] } });
+        return [ctx.variables()!.set({ name: 'B', type: 'string' }, 'A')];
+      },
+    ],
+    [
+      'not-found',
+      async () => {
+        const { ctx } = await mount({ value: WITH_BLOCK });
+        return [ctx.variables()!.set(A, 'NOPE'), ctx.variables()!.remove('NOPE')];
+      },
+    ],
+    [
+      'already-declared',
+      async () => {
+        const { editor } = await mount({ value: WITH_BLOCK });
+        return [editor.applyFix(declare('PORT'))];
+      },
+    ],
+    [
+      'no-fix',
+      async () => {
+        const { editor } = await mount({ value: WITH_BLOCK });
+        return [editor.applyFix({ ...find(editor.getProblems(), 'rule.undeclared-variable')!, fix: undefined } as unknown as Problem)];
+      },
+    ],
+  ] as const)('set/remove/applyFix report %s', async (reason, run) => {
+    const results = await run();
+    expect(results.length).toBeGreaterThan(0);
+    for (const r of results) expect(r).toEqual({ ok: false, reason });
+  });
+
+  it('edit-refused carries the edit reason (flow) for set and for a fix', async () => {
+    const { ctx, editor } = await mount({ value: FLOW });
+    expect(ctx.variables()!.set({ name: 'WEB_PORT', type: 'boolean', description: 'Public port' })).toEqual({ ok: false, reason: 'edit-refused', edit: 'flow' });
+    const pod = 'apiVersion: v1\nkind: Pod\nmetadata:\n  name: p\nspec:\n  containers:\n    - { name: web, image: nginx }\n';
+    const kube = await mount({ format: 'kubernetes', value: pod });
+    const fix = kube.editor.getProblems().find((p) => p.fix)!;
+    expect(kube.editor.applyFix(fix)).toEqual({ ok: false, reason: 'edit-refused', edit: 'flow' });
+    expect(editor.getValue()).toContain('WEB_PORT');
   });
 });

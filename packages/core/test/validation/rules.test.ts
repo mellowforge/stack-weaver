@@ -106,7 +106,7 @@ describe('rules in validateText', () => {
       { 'rule.demo': () => 'bad', 'fix.demo': (e) => `Fix ${String(e.params['n'])}` },
     );
     const [p] = await validateText(parseText('a: 5\n'), fake({ rules: [r] }));
-    expect(p!.fix).toEqual({ label: 'Fix X', action });
+    expect(p!.fix).toEqual({ id: 'fix.demo', label: 'Fix X', action });
   });
 
   it('a throwing rule becomes one rule.failed error, logged with its stack, and other rules still run', async () => {

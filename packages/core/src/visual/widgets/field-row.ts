@@ -7,6 +7,7 @@ import { resolveAt } from '../../engine/resolve.js';
 import type { ResolvedSchema } from '../../engine/resolve.js';
 import { guideFieldOf } from '../../formats/guide.js';
 import type { JsonSchema, SchemaBundle } from '../../formats/types.js';
+import { sameProblemList } from '../../validation/problems.js';
 import type { Problem } from '../../validation/problems.js';
 import type { FieldRowHandle, FieldRowInit, SectionSlots } from '../section.js';
 import { destroyAddSlot, renderAddSlot, updateAddSlot } from '../add-slot.js';
@@ -120,7 +121,7 @@ function createFieldRow(ctx: EditorContext, registry: WidgetRegistry, envFor: (p
   let cardBtn: HTMLButtonElement | undefined;
   let lastView: NodeView = init.view;
   let readOnlyNow = false;
-  let problemsSig = '';
+  let shownProblems: readonly Problem[] = [];
   let lastValue: YamlValue = null;
   let lastProblems: readonly Problem[] = [];
   let lastSchema: JsonSchema | undefined;
@@ -355,9 +356,8 @@ function createFieldRow(ctx: EditorContext, registry: WidgetRegistry, envFor: (p
       if (cardBtn.textContent !== text) cardBtn.textContent = text;
     }
 
-    const sig = problems.map((p) => `${p.severity}\u0000${p.message}\u0000${p.fix ? `${p.fix.label}\u0000${p.from}\u0000${p.to}\u0000${JSON.stringify(p.fix.action)}` : ''}`).join('\u0001');
-    if (sig !== problemsSig) {
-      problemsSig = sig;
+    if (!sameProblemList(problems, shownProblems)) {
+      shownProblems = problems;
       fixButtons = [];
       problemsEl.replaceChildren(
         ...problems.map((p, i) => {
@@ -371,7 +371,7 @@ function createFieldRow(ctx: EditorContext, registry: WidgetRegistry, envFor: (p
           if (p.fix) {
             const fixBtn = h(doc, 'button', { type: 'button', class: 'sw-row-fix', 'aria-describedby': msgId }, [p.fix.label]);
             fixBtn.addEventListener('click', () => {
-              const ok = ctx.applyFix(p);
+              const ok = ctx.applyFix(p).ok;
               errorEl.textContent = ok ? '' : ui.editRefused;
               errorEl.hidden = ok;
               // The button goes away with its problem: keep the focus on something that stays. A

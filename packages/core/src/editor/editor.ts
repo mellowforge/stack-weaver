@@ -18,7 +18,7 @@ import { createProblemsPanel } from './problems-panel.js';
 import { createRecipeCards } from './recipes.js';
 import { createShell } from './shell.js';
 import { createVariables } from './variables.js';
-import type { VariablesOption } from './variables.js';
+import type { ActionResult, VariablesOption } from './variables.js';
 import type { EditorTheme, ResolvedTheme } from './theme.js';
 import { createVisualPane } from '../visual/visual-pane.js';
 import { defaultWidgets } from '../visual/widgets/registry.js';
@@ -132,11 +132,12 @@ export interface ManifestEditor {
   setVariables(decls: readonly VariableDecl[]): void;
   /**
    * Applies the quick fix of `problem` (declaring a variable, or edits) as one undo step, all of it
-   * or nothing. False, changing nothing, when the problem has no fix, the editor is read-only or
-   * destroyed, the variable it declares is already declared (a declaration is never replaced), or
-   * any of its edits is refused.
+   * or nothing. The fix applies to the current text (its edits address nodes by path), not to the
+   * text the problem was found in. Refused, changing nothing, with `no-fix`, `read-only`,
+   * `destroyed`, `already-declared` (a declaration is never replaced), `unavailable` or
+   * `edit-refused` (with the edit's own reason in `edit`).
    */
-  applyFix(problem: Problem): boolean;
+  applyFix(problem: Problem): ActionResult;
   /**
    * Resolves once the format is resolved, the code editor is mounted and the first validation has
    * finished. Rejects if the code editor or built-in formats fail to load (the failure is also
@@ -281,7 +282,7 @@ export function createEditorWithContext(
   });
   const panes: Pane[] = [visualPane, codePane];
 
-  const panel = createProblemsPanel(shell.problemsEl, { ui, onFix: (p) => ctx.applyFix(p),
+  const panel = createProblemsPanel(shell.problemsEl, { ui, onFix: (p) => ctx.applyFix(p).ok,
     // The panel hid itself around the focus: the current mode's radio is always visible.
     restoreFocus: () => shell.root.querySelector<HTMLElement>(`.sw-mode-radio[data-sw-mode="${mode}"]`)?.focus(),
     onSelect: (p) => {
@@ -452,7 +453,7 @@ export function createEditorWithContext(
     },
     getVariables: () => variables.get(),
     setVariables: (decls) => variables.setAll(decls),
-    applyFix: (problem) => !destroyed && variables.applyFix(problem),
+    applyFix: (problem) => variables.applyFix(problem),
     ready,
     destroy() {
       if (destroyed) return;

@@ -1,9 +1,36 @@
-import type { EditOp } from '../document/edit.js';
+import type { EditOp, EditRefusal } from '../document/edit.js';
 import type { DocumentStore } from '../document/store.js';
 import type { FormatDefinition, VariableDecl } from '../formats/types.js';
 import type { Problem } from '../validation/problems.js';
 import { deepFreeze } from '../formats/freeze.js';
 import { checkDecl } from '../variables/decl.js';
+
+/**
+ * Why a variable or fix action was refused: `no-fix` (the problem has no fix), `read-only` and
+ * `destroyed` (the editor), `unavailable` (the format has no variables, the text does not parse,
+ * or the format could not write the change), `invalid` (the declaration fails validation),
+ * `name-taken` (a rename onto an existing name), `not-found` (no such declaration),
+ * `already-declared` (a declaration fix for a name that is already declared) and `edit-refused`
+ * (the text edit was refused; see {@link ActionResult.edit}).
+ */
+export type ActionRefusal =
+  | 'no-fix'
+  | 'read-only'
+  | 'destroyed'
+  | 'unavailable'
+  | 'invalid'
+  | 'name-taken'
+  | 'not-found'
+  | 'already-declared'
+  | 'edit-refused';
+
+/** The result of a refusable editor action: done, or refused with a reason (and, for `edit-refused`, the edit's own reason in `edit`). Nothing changes when refused. */
+export type ActionResult =
+  | { readonly ok: true }
+  | { readonly ok: false; readonly reason: ActionRefusal; readonly edit?: EditRefusal };
+
+const OK: ActionResult = Object.freeze({ ok: true });
+const refuse = (reason: ActionRefusal): ActionResult => ({ ok: false, reason });
 
 /**
  * Where declarations live: in the document's variables block, or in a list the host owns.
@@ -28,10 +55,14 @@ export interface VariableStore {
    * text is broken).
    */
   get(): readonly VariableDecl[];
-  /** Adds or replaces (by `replaces ?? decl.name`); false when refused (read-only, invalid, name taken, edit refused), changing nothing. */
-  set(decl: VariableDecl, replaces?: string): boolean;
-  /** Removes the declaration named `name`; false, changing nothing, when there is none, the editor is read-only, or the edit is refused. */
-  remove(name: string): boolean;
+  /**
+   * Adds or replaces (by `replaces ?? decl.name`). Refused, changing nothing, with `read-only`,
+   * `destroyed`, `invalid`, `not-found` (`replaces` names no declaration), `name-taken`,
+   * `unavailable` or `edit-refused`.
+   */
+  set(decl: VariableDecl, replaces?: string): ActionResult;
+  /** Removes the declaration named `name`. Refused, changing nothing, with `read-only`, `destroyed`, `not-found`, `unavailable` or `edit-refused`. */
+  remove(name: string): ActionResult;
 }
 
 /** Throws a `TypeError` unless `decls` are all valid and their names are unique. */
@@ -67,10 +98,11 @@ export interface Variables {
   /** Takes the current declarations as seen, without notifying. */
   reseed(): void;
   /**
-   * Applies the fix of `problem`, all of it or nothing; false when there is none or it was refused
-   * (a declaration fix for a name that is already declared is refused).
+   * Applies the fix of `problem` to the current text (its ops address nodes by path), all of it or
+   * nothing. Refused with `no-fix`, `read-only`, `destroyed`, `already-declared` (a declaration fix
+   * for a name that is already declared), `unavailable` or `edit-refused`.
    */
-  applyFix(problem: Problem): boolean;
+  applyFix(problem: Problem): ActionResult;
   /** Drops the listeners. */
   destroy(): void;
 }
@@ -137,10 +169,11 @@ export function createVariables(deps: {
    * hear of the net change once, so no subscriber, such as the visual pane, ever sees an
    * intermediate text (where a declaration can be invalid between two ops).
    */
-  const applyOps = (ops: readonly EditOp[], prefix: string): boolean => {
+  const applyOps = (ops: readonly EditOp[], prefix: string): ActionResult => {
     hold++;
     try {
-      return store.transact(ops, { group: `${prefix}:${++groupN}` }).ok;
+      const r = store.transact(ops, { group: `${prefix}:${++groupN}` });
+      return r.ok ? OK : { ok: false, reason: 'edit-refused', edit: r.reason };
     } finally {
       hold--;
       check();
@@ -152,30 +185,34 @@ export function createVariables(deps: {
     kind,
     get,
     set(decl, replaces) {
-      if (deps.isDestroyed() || deps.readOnly() || checkDecl(decl)) return false;
+      if (deps.isDestroyed()) return refuse('destroyed');
+      if (deps.readOnly()) return refuse('read-only');
+      if (checkDecl(decl)) return refuse('invalid');
       const target = replaces ?? decl.name;
       const taken = names();
-      if (replaces !== undefined && !taken.includes(replaces)) return false;
-      if (decl.name !== target && taken.includes(decl.name)) return false;
+      if (replaces !== undefined && !taken.includes(replaces)) return refuse('not-found');
+      if (decl.name !== target && taken.includes(decl.name)) return refuse('name-taken');
       if (kind === 'external') {
         external = deepFreeze(taken.includes(target) ? external.map((d) => (d.name === target ? copy(decl) : d)) : [...external, copy(decl)]);
         check();
-        return true;
+        return OK;
       }
       const f = fv();
-      if (!f || !store.parsed.ok) return false;
+      if (!f || !store.parsed.ok) return refuse('unavailable');
       const ops = f.writeOps(store.parsed, decl, replaces);
-      return ops !== undefined && applyOps(ops, 'variables');
+      return ops === undefined ? refuse('unavailable') : applyOps(ops, 'variables');
     },
     remove(name) {
-      if (deps.isDestroyed() || deps.readOnly() || !names().includes(name)) return false;
+      if (deps.isDestroyed()) return refuse('destroyed');
+      if (deps.readOnly()) return refuse('read-only');
+      if (!names().includes(name)) return refuse('not-found');
       if (kind === 'external') {
         external = Object.freeze(external.filter((d) => d.name !== name));
         check();
-        return true;
+        return OK;
       }
       const f = fv();
-      if (!f || !store.parsed.ok) return false;
+      if (!f || !store.parsed.ok) return refuse('unavailable');
       return applyOps(f.removeOps(store.parsed, name), 'variables');
     },
   };
@@ -208,9 +245,15 @@ export function createVariables(deps: {
     },
     applyFix(problem) {
       const action = problem.fix?.action;
-      if (!action || deps.isDestroyed() || deps.readOnly()) return false;
+      if (!action) return refuse('no-fix');
+      if (deps.isDestroyed()) return refuse('destroyed');
+      if (deps.readOnly()) return refuse('read-only');
       // A fix declares; it never replaces a declaration made since the problem was found.
-      if (action.kind === 'declareVariable') return !names().includes(action.decl.name) && (current()?.set(action.decl) ?? false);
+      if (action.kind === 'declareVariable') {
+        if (names().includes(action.decl.name)) return refuse('already-declared');
+        const vs = current();
+        return vs ? vs.set(action.decl) : refuse('unavailable');
+      }
       return applyOps(action.ops, 'fix');
     },
     destroy() {

@@ -61,7 +61,8 @@ export type { HoverInfo } from './assist/hover.js';
 
 // Validation
 export { validateText } from './validation/validate.js';
-export type { Severity, Problem, ProblemSource } from './validation/problems.js';
+export { sameProblem } from './validation/problems.js';
+export type { Severity, Problem, ProblemCode, ProblemSource } from './validation/problems.js';
 export { defaultMessages } from './validation/messages.js';
 export type { SchemaMessages, MessageFn } from './validation/messages.js';
 
@@ -82,7 +83,7 @@ export { pickWidget, defaultWidgets } from './visual/widgets/registry.js';
 // Editor
 export { createManifestEditor } from './editor/editor.js';
 export type { ManifestEditor, ManifestEditorOptions, EditorMode, EditorMessages } from './editor/editor.js';
-export type { VariableStore, VariablesOption } from './editor/variables.js';
+export type { ActionRefusal, ActionResult, VariableStore, VariablesOption } from './editor/variables.js';
 export type { EditorTheme, ResolvedTheme } from './editor/theme.js';
 export { defaultUiMessages } from './editor/messages.js';
 export type { UiMessages } from './editor/messages.js';

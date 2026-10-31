@@ -169,6 +169,8 @@ export type QuickFixAction =
 
 /** A one-click fix attached to a problem. */
 export interface QuickFix {
+  /** Which fix this is: the rule's fix message key, such as `fix.declare-variable`. */
+  readonly id: string;
   /** Button text. */
   readonly label: string;
   /** What the fix does. */

@@ -1,5 +1,6 @@
 import type { FormatDefinition } from '../formats/types.js';
 import type { Problem } from '../validation/problems.js';
+import { sameProblemList } from '../validation/problems.js';
 import { validateText } from '../validation/validate.js';
 import { dataBundleKey } from './context.js';
 import type { EditorContext } from './context.js';
@@ -12,11 +13,6 @@ export const VALIDATION_DELAY_MS = 150;
 export function problemCountText(ui: UiMessages, count: number): string {
   if (count === 0) return ui.problemsNone;
   return count === 1 ? ui.problemsOne : ui.problemsMany.replace('{count}', String(count));
-}
-
-/** Enough of a problem to tell whether the list changed, including a fix that changed on its own (such as a new inline default). */
-function signature(problems: readonly Problem[]): string {
-  return JSON.stringify(problems.map((p) => [p.severity, p.code, p.message, p.doc, p.from, p.to, p.fix?.label, JSON.stringify(p.fix?.action)]));
 }
 
 // Used while no format is resolved: it can report YAML syntax problems, and nothing else.
@@ -83,7 +79,7 @@ export interface ProblemScheduler {
 export function createProblemScheduler(ctx: EditorContext, publish: (problems: readonly Problem[]) => void): ProblemScheduler {
   let timer: ReturnType<typeof setTimeout> | undefined;
   let seq = 0;
-  let current = '[]';
+  let current: readonly Problem[] = [];
   let destroyed = false;
   /** The latest run while it is in flight, with the text it validates. */
   let inFlight: { seq: number; text: string } | undefined;
@@ -105,9 +101,9 @@ export function createProblemScheduler(ctx: EditorContext, publish: (problems: r
       if (inFlight?.seq === mine) inFlight = undefined;
     }
     if (destroyed || mine !== seq || ctx.store.text !== text) return;
-    const sig = signature(result);
-    if (sig === current) return;
-    current = sig;
+    // A fix that changed on its own (such as a new inline default) counts as a change.
+    if (sameProblemList(result, current)) return;
+    current = result;
     publish(result);
   };
 

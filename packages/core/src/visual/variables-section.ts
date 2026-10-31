@@ -1,6 +1,7 @@
 import type { EditorContext } from '../editor/context.js';
 import { h } from '../editor/dom.js';
 import type { UiMessages } from '../editor/messages.js';
+import type { ActionResult } from '../editor/variables.js';
 import type { VariableDecl, VariableType } from '../formats/types.js';
 import { NAME_PATTERN, checkDecl } from '../variables/decl.js';
 
@@ -106,6 +107,22 @@ export function mountVariablesSection(ctx: EditorContext, doc: Document): Variab
     control?.setAttribute('aria-describedby', card.error.id);
   }
 
+  /** The message for a refused action on `decl`: name taken and invalid declarations say what is wrong, anything else is `editRefused`. */
+  function refusalText(r: ActionResult, decl: VariableDecl): string {
+    if (r.ok) return '';
+    if (r.reason === 'name-taken') return ui.variableNameTaken.replace('{name}', decl.name);
+    if (r.reason === 'invalid') {
+      const issue = checkDecl(decl);
+      if (issue === 'badName') return ui.variableNameInvalid;
+      if (issue === 'noEnumValues') return ui.variableEnumValuesRequired;
+      if (issue === 'badDefault') return decl.type === 'port' ? ui.invalidInteger : ui.invalidNumber;
+    }
+    return ui.editRefused;
+  }
+
+  /** The store's answer, or `unavailable` while the format has no variables. */
+  const unavailable: ActionResult = { ok: false, reason: 'unavailable' };
+
   /**
    * Writes `next` over the card's declaration. When the store refuses, retyping cannot help, so the
    * controls go back to the stored declaration (in place, keeping focus) and `control` shows `editRefused`.
@@ -116,10 +133,11 @@ export function mountVariablesSection(ctx: EditorContext, doc: Document): Variab
       showError(card, undefined, '');
       return true;
     }
-    if (!ctx.variables()?.set(d, replaces)) {
+    const result = ctx.variables()?.set(d, replaces) ?? unavailable;
+    if (!result.ok) {
       showError(card, undefined, ''); // unmarked, so patch resets every control
       patch(card, card.decl);
-      showError(card, control, ui.editRefused);
+      showError(card, control, refusalText(result, d));
       return false;
     }
     showError(card, undefined, '');
@@ -206,7 +224,7 @@ export function mountVariablesSection(ctx: EditorContext, doc: Document): Variab
   function onRemove(card: Card): void {
     const all = names();
     const next = all[all.indexOf(card.key) + 1];
-    if (!ctx.variables()?.remove(card.key)) {
+    if (!(ctx.variables()?.remove(card.key) ?? unavailable).ok) {
       showError(card, card.remove, ui.editRefused);
       return;
     }
@@ -321,7 +339,7 @@ export function mountVariablesSection(ctx: EditorContext, doc: Document): Variab
     let n = 1;
     while (taken.has(`VAR_${n}`)) n++;
     const name = `VAR_${n}`;
-    const ok = ctx.variables()?.set({ name, type: 'string' }) === true;
+    const ok = (ctx.variables()?.set({ name, type: 'string' }) ?? unavailable).ok;
     addError.textContent = ok ? '' : ui.editRefused; // refused: the focus stays on the button
     if (ok) cards.get(name)?.name.focus();
   });
