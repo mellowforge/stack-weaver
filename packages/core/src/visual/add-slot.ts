@@ -45,7 +45,7 @@ function isFreeForm(bundle: SchemaBundle, path: YamlPath, data: unknown): boolea
 
 /**
  * Whether the widget picked for the field at `path` declares that it manages the mapping's keys
- * itself (`WidgetFactory.managesKeys`, as the Secret `data` widget does), so its section must not
+ * itself (`WidgetDefinition.managesKeys`, as the Secret `data` widget does), so its section must not
  * offer to add free-form keys.
  */
 function widgetManagesKeys(bundle: SchemaBundle, guide: Guide, registry: WidgetRegistry, path: YamlPath, data: unknown): boolean {

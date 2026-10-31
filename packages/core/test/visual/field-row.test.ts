@@ -177,12 +177,14 @@ describe('field rows', () => {
 
   it('a host widget replaces a built-in one by name', async () => {
     const widgets = {
-      integer: (ctx: { id: string; value: unknown }) => {
-        const b = document.createElement('button');
-        b.id = ctx.id;
-        b.className = 'my-widget';
-        b.textContent = String(ctx.value);
-        return { el: b, update() {}, focus() {} };
+      integer: {
+        create: (ctx: { id: string; value: unknown }) => {
+          const b = document.createElement('button');
+          b.id = ctx.id;
+          b.className = 'my-widget';
+          b.textContent = String(ctx.value);
+          return { el: b, update() {}, focus() {} };
+        },
       },
     };
     await mount({ value: TEXT, widgets: widgets as never });

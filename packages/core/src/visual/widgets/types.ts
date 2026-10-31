@@ -19,7 +19,7 @@ export interface WidgetContext {
   readonly schema: JsonSchema;
   /** True when the widget was built read-only; `update` delivers later changes. */
   readonly readOnly: boolean;
-  /** The part after the colon of a guide widget such as `"name:param"`. */
+  /** The `param` of the guide's {@link WidgetRef}. */
   readonly param?: string;
   /** The guide's suggested values for the field (`GuideField.options`), for widgets that offer them. */
   readonly options?: readonly string[];
@@ -51,17 +51,31 @@ export interface WidgetInstance {
   destroy?(): void;
 }
 
-/**
- * Builds a widget for a field.
- *
- * A factory for a mapping may carry `managesKeys: true` to say that the widget adds, shows and
- * removes the mapping's keys itself. The mapping is then not an outline node or a section of its
- * own: the widget is a row in its parent's section, and no "Add key" is offered for the mapping.
- */
-export type WidgetFactory = ((ctx: WidgetContext) => WidgetInstance) & {
-  /** True when the widget manages the keys of its mapping: it is a row in the parent's section, with no outline node and no "Add key" for the mapping. */
-  readonly managesKeys?: boolean;
-};
+/** Builds a widget for a field. */
+export type WidgetFactory = (ctx: WidgetContext) => WidgetInstance;
 
-/** Widget factories by name. A guide's `widget` names one of these. */
-export type WidgetRegistry = Readonly<Record<string, WidgetFactory>>;
+/**
+ * A widget the editor can mount: how to build it, and how it relates to the mapping it edits.
+ * A host's `widgets` entry must be a definition; a bare factory function is not accepted.
+ */
+export interface WidgetDefinition {
+  /** Builds the widget for a field. */
+  readonly create: WidgetFactory;
+  /**
+   * True when the widget adds, shows and removes the keys of its mapping itself. The mapping is
+   * then not an outline node or a section of its own: the widget is a row in its parent's section,
+   * and no "Add key" is offered for the mapping.
+   */
+  readonly managesKeys?: boolean;
+}
+
+/** Widget definitions by name. A guide's `widget` names one of these. */
+export type WidgetRegistry = Readonly<Record<string, WidgetDefinition>>;
+
+/** A guide's choice of widget: the registry name and an optional parameter for the widget. */
+export interface WidgetRef {
+  /** The name of a registry entry. */
+  readonly name: string;
+  /** A parameter the widget reads from {@link WidgetContext.param}, such as the kind a reference points to. */
+  readonly param?: string;
+}

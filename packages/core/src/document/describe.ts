@@ -5,22 +5,14 @@ import type { EditRefusal } from './edit.js';
 import { getNode, getPairKey } from './internal.js';
 import type { NodeRef, ParsedText, ScalarValue, TextRange } from './types.js';
 
-/** A plain description of a node for views: kind, source ranges, content summary and editability. */
-export interface NodeView {
+/** What every {@link NodeView} carries. */
+interface NodeViewBase {
   /** The node described. */
   readonly ref: NodeRef;
-  /** What the node is: a mapping, a sequence, a scalar, or an alias (`*name`, never followed). */
-  readonly type: 'map' | 'seq' | 'scalar' | 'alias';
   /** The value node's source range. */
   readonly range: TextRange;
   /** The key's source range, when the node is a map pair's value. */
   readonly keyRange?: TextRange;
-  /** The scalar's value (scalars only). */
-  readonly value?: ScalarValue;
-  /** A map's keys in source order, as strings (a numeric key `8080` is `"8080"`; maps only). */
-  readonly keys?: readonly string[];
-  /** A sequence's item count (sequences only). */
-  readonly length?: number;
   /** True for a flow collection (`{ }` / `[ ]`), or a node inside one. */
   readonly flow: boolean;
   /** The node's own anchor name, without the `&`. */
@@ -28,6 +20,38 @@ export interface NodeView {
   /** Why the node cannot be edited (see {@link canEdit}); `undefined` when it is editable. */
   readonly readOnly?: EditRefusal;
 }
+
+/** A mapping. */
+export interface MapView extends NodeViewBase {
+  readonly type: 'map';
+  /** The keys in source order, as strings (a numeric key `8080` is `"8080"`). */
+  readonly keys: readonly string[];
+}
+
+/** A sequence. */
+export interface SeqView extends NodeViewBase {
+  readonly type: 'seq';
+  /** The item count. */
+  readonly length: number;
+}
+
+/** A scalar. */
+export interface ScalarView extends NodeViewBase {
+  readonly type: 'scalar';
+  /** The scalar's value. */
+  readonly value: ScalarValue;
+}
+
+/** An alias (`*name`), never followed. */
+export interface AliasView extends NodeViewBase {
+  readonly type: 'alias';
+}
+
+/**
+ * A plain description of a node for views: kind, source ranges, content summary and editability.
+ * Discriminated by `type`: only a map has `keys`, only a sequence `length`, only a scalar `value`.
+ */
+export type NodeView = MapView | SeqView | ScalarView | AliasView;
 
 const keyText = (k: unknown): string => String(isScalar(k) ? k.value : k);
 
@@ -55,7 +79,7 @@ export function describeNode(p: ParsedText, ref: NodeRef): NodeView | undefined 
   }
   const keyNode = getPairKey(p, ref);
   const readOnly = canEdit(p, ref);
-  const base = {
+  const base: NodeViewBase = {
     ref,
     range: rangeOf(node),
     ...(keyNode?.range ? { keyRange: rangeOf(keyNode) } : {}),

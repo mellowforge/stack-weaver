@@ -117,7 +117,7 @@ export function mountSection(ctx: EditorContext, ref: NodeRef, slots: SectionSlo
       kind: 'scalar',
       el: rowEl,
       update(view, label, value) {
-        const text = value === null || value === undefined ? '' : String(view.value ?? value);
+        const text = value === null || value === undefined ? '' : String((view.type === 'scalar' ? view.value : undefined) ?? value);
         if (valueEl.textContent !== text) valueEl.textContent = text;
         if (labelEl.textContent !== label) labelEl.textContent = label;
       },

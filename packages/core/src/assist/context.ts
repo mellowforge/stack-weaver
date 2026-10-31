@@ -1,15 +1,11 @@
 import type { YamlPath } from '../document/types.js';
 
-/** Where the cursor is in the text, as far as completion needs to know. */
-export interface CursorContext {
+/** What every {@link CursorContext} carries. */
+interface CursorBase {
   /** Zero-based index of the YAML document the cursor is in (counts `---` markers). */
   readonly doc: number;
   /** The map, or the sequence item, that the cursor adds to. */
   readonly path: YamlPath;
-  /** `'key'` when a key is being typed, `'value'` when the value after `key:` is. */
-  readonly position: 'key' | 'value';
-  /** Position `'value'`: the key whose value is being typed. */
-  readonly key?: string;
   /** The partial word before the cursor (may be empty). */
   readonly prefix: string;
   /** UTF-16 offset where `prefix` starts. */
@@ -17,6 +13,21 @@ export interface CursorContext {
   /** Column that new child keys of `path` start at. */
   readonly indent: number;
 }
+
+/** The cursor is typing a key. */
+export interface KeyCursor extends CursorBase {
+  readonly position: 'key';
+}
+
+/** The cursor is typing the value after `key:`. */
+export interface ValueCursor extends CursorBase {
+  readonly position: 'value';
+  /** The key whose value is being typed. */
+  readonly key?: string;
+}
+
+/** Where the cursor is in the text, as far as completion needs to know. Discriminated by `position`. */
+export type CursorContext = KeyCursor | ValueCursor;
 
 const KEY_LINE = /^(\s*)((?:-\s+)*)([\w.\-/]*)$/;
 const VALUE_LINE = /^(\s*)((?:-\s+)*)([^\s:#'"][^:#]*?):\s+([^\s#]*)$/;
@@ -195,13 +206,6 @@ export function cursorContext(text: string, offset: number): CursorContext | und
   const path = ancestorPath(lines, cursorLine, start, keyCol, lead.length, dashes);
   if (!path) return undefined;
 
-  return {
-    doc,
-    path,
-    position: value ? 'value' : 'key',
-    ...(value && { key: m[3]!.trim() }),
-    prefix,
-    from: offset - prefix.length,
-    indent: keyCol,
-  };
+  const base = { doc, path, prefix, from: offset - prefix.length, indent: keyCol };
+  return value ? { ...base, position: 'value', key: m[3]!.trim() } : { ...base, position: 'key' };
 }

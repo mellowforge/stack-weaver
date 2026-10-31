@@ -265,7 +265,7 @@ createManifestEditor(el, {
 
 ### Widgets
 
-A field is edited by a widget. The guide names one (`widget: 'ref:Secret'`); otherwise one is picked from the
+A field is edited by a widget. The guide names one (`widget: { name: 'ref', param: 'Secret' }`); otherwise one is picked from the
 schema's shape. The built-in names are `string`, `number`, `integer`, `boolean`, `enum`, `int-or-string`,
 `quantity`, `string-list`, `key-value`, `suggest`, `ref`, `ref-key` and `secret-data`. Add or replace one with the
 `widgets` option:
@@ -289,8 +289,8 @@ const approvedImage: WidgetFactory = (ctx) => {
 };
 
 createManifestEditor(el, {
-  widgets: { 'approved-image': approvedImage },
-  guide: { kubernetes: { fields: { 'io.k8s.api.core.v1.Container#image': { widget: 'approved-image' } } } },
+  widgets: { 'approved-image': { create: approvedImage } },
+  guide: { kubernetes: { fields: { 'io.k8s.api.core.v1.Container#image': { widget: { name: 'approved-image' } } } } },
 });
 ```
 
@@ -299,7 +299,7 @@ holds the property, so a container's image is `io.k8s.api.core.v1.Container#imag
 is `io.k8s.api.apps.v1.DeploymentSpec#replicas`. `guide.kinds` is keyed by kind key, `<apiVersion>/<kind>` as
 `kindKey(apiVersion, kind)` builds it, such as `apps/v1/Deployment`.
 
-A widget that edits a whole mapping and adds and removes its keys itself sets `managesKeys: true` on the factory,
+A widget that edits a whole mapping and adds and removes its keys itself sets `managesKeys: true` on its definition (`{ create, managesKeys: true }`),
 as the Secret `data` widget does. The mapping is then not an outline node or a section of its own: the widget is a
 row in its parent's section, and no "Add key" is offered for it.
 

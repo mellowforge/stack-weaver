@@ -16,7 +16,7 @@ import { createWidgetContext } from './context.js';
 import { fitsField } from '../../variables/fit.js';
 import { pickWidget } from './registry.js';
 import { mountVariableBinding } from './variable-binding.js';
-import type { WidgetInstance, WidgetRegistry } from './types.js';
+import type { WidgetInstance, WidgetRef, WidgetRegistry } from './types.js';
 
 let nextId = 0;
 
@@ -181,12 +181,12 @@ function createFieldRow(ctx: EditorContext, registry: WidgetRegistry, envFor: (p
     return (parsed ? describeNode(parsed, ref) : undefined) ?? init.view;
   }
 
-  function build(mode: Mode, picked: { name: string; param?: string } | undefined, child: ResolvedSchema | undefined, description: string, value: YamlValue, view: NodeView, options: readonly string[] | undefined): void {
+  function build(mode: Mode, picked: WidgetRef | undefined, child: ResolvedSchema | undefined, description: string, value: YamlValue, view: NodeView, options: readonly string[] | undefined): void {
     dropBody();
     failed = false;
     if ((mode === 'widget' || mode === 'variable') && picked && child) {
       widgetName = mode === 'variable' ? 'variable' : picked.name;
-      const factory = registry[picked.name]!;
+      const factory = registry[picked.name]!.create;
       try {
         widget =
           mode === 'variable'
@@ -292,7 +292,7 @@ function createFieldRow(ctx: EditorContext, registry: WidgetRegistry, envFor: (p
 
     // What to show.
     let mode: Mode;
-    let picked: { name: string; param?: string } | undefined;
+    let picked: WidgetRef | undefined;
     if (view.type === 'alias') mode = 'unknown';
     else if (!ready) mode = view.type === 'scalar' ? 'text' : 'card';
     else if (!child) mode = 'unknown';

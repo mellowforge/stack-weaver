@@ -148,7 +148,7 @@ describe('curated guide data', () => {
     for (const g of [kubernetesFormat.guide, composeFormat.guide]) {
       for (const [key, f] of Object.entries(g.fields)) {
         if (f.widget === undefined) continue;
-        expect(Object.keys(defaultWidgets), key).toContain(f.widget.split(':')[0]);
+        expect(Object.keys(defaultWidgets), key).toContain(f.widget.name);
       }
     }
     for (const name of ['ref', 'ref-key', 'secret-data', 'suggest']) expect(Object.keys(defaultWidgets)).toContain(name);
@@ -157,15 +157,15 @@ describe('curated guide data', () => {
   it('reference and Secret data widgets are curated as the brief says', () => {
     const f = kubernetesFormat.guide.fields;
     const v1 = 'io.k8s.api.core.v1.';
-    expect(f[`${v1}SecretKeySelector#name`]?.widget).toBe('ref:Secret');
-    expect(f[`${v1}SecretEnvSource#name`]?.widget).toBe('ref:Secret');
-    expect(f[`${v1}SecretVolumeSource#secretName`]?.widget).toBe('ref:Secret');
-    expect(f[`${v1}ConfigMapKeySelector#name`]?.widget).toBe('ref:ConfigMap');
-    expect(f[`${v1}ConfigMapEnvSource#name`]?.widget).toBe('ref:ConfigMap');
-    expect(f[`${v1}ConfigMapVolumeSource#name`]?.widget).toBe('ref:ConfigMap');
-    expect(f[`${v1}SecretKeySelector#key`]?.widget).toBe('ref-key:Secret');
-    expect(f[`${v1}ConfigMapKeySelector#key`]?.widget).toBe('ref-key:ConfigMap');
-    expect(f[`${v1}Secret#data`]?.widget).toBe('secret-data');
+    expect(f[`${v1}SecretKeySelector#name`]?.widget).toEqual({ name: 'ref', param: 'Secret' });
+    expect(f[`${v1}SecretEnvSource#name`]?.widget).toEqual({ name: 'ref', param: 'Secret' });
+    expect(f[`${v1}SecretVolumeSource#secretName`]?.widget).toEqual({ name: 'ref', param: 'Secret' });
+    expect(f[`${v1}ConfigMapKeySelector#name`]?.widget).toEqual({ name: 'ref', param: 'ConfigMap' });
+    expect(f[`${v1}ConfigMapEnvSource#name`]?.widget).toEqual({ name: 'ref', param: 'ConfigMap' });
+    expect(f[`${v1}ConfigMapVolumeSource#name`]?.widget).toEqual({ name: 'ref', param: 'ConfigMap' });
+    expect(f[`${v1}SecretKeySelector#key`]?.widget).toEqual({ name: 'ref-key', param: 'Secret' });
+    expect(f[`${v1}ConfigMapKeySelector#key`]?.widget).toEqual({ name: 'ref-key', param: 'ConfigMap' });
+    expect(f[`${v1}Secret#data`]?.widget).toEqual({ name: 'secret-data' });
     expect(f[`${v1}Secret#stringData`]?.tier).toBe('recommended');
   });
 

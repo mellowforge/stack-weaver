@@ -113,7 +113,7 @@ function listItemCompletions({ ctx, bundle, guide, data }: CompletionInput): Cod
 
 function valueCompletions(input: CompletionInput): CodeCompletion[] {
   const { ctx, bundle, data, kinds } = input;
-  const key = ctx.key;
+  const key = ctx.position === 'value' ? ctx.key : undefined;
   if (key === undefined) return [];
   if (ctx.path.length === 0 && kinds.length > 0) {
     const forRoot = rootValueCompletions(key, data, kinds);

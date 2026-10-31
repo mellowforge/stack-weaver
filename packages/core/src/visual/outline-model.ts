@@ -45,7 +45,7 @@ const unique = (keys: readonly string[]): string[] => [...new Set(keys)];
  * formats one root per top-level key of document 0.
  * @param labelFor - Label of a map key; called with `path: []` for a document root and the document's `kind`.
  * @param isUnknown - Whether a document with this `apiVersion` and `kind` has no schema.
- * @param isManaged - Whether a widget edits the mapping at `ref` itself (`WidgetFactory.managesKeys`); such a
+ * @param isManaged - Whether a widget edits the mapping at `ref` itself (`WidgetDefinition.managesKeys`); such a
  *   mapping is not an outline node, its parent's section shows the widget.
  * @param hiddenRootKey - A top-level key of a `mapping` format to leave out (the variables block, which has its own section).
  * @internal
@@ -120,7 +120,7 @@ export function buildOutline(
     const label = name !== undefined ? `${base} ${name}` : base;
     const unknown = shaped && isUnknown(doc, apiVersion, kind);
     // An unknown kind is a leaf: nothing below it is offered visually.
-    const node = make(ref, label, unknown ? { ...view, type: 'scalar' } : view, data, 0);
+    const node = make(ref, label, unknown ? { ...view, type: 'scalar', value: null } : view, data, 0);
     out.push({ ...node, type: 'document', ...(unknown ? { unknownKind: true } : {}) });
   }
   return out;

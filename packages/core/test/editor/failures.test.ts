@@ -63,7 +63,7 @@ describe('a pane that throws during an update (A5)', () => {
   it('a host widget whose update throws: onChange, history and the row still work', async () => {
     const log = vi.spyOn(console, 'error').mockImplementation(() => {});
     const onChange = vi.fn();
-    const { ctx, editor, fake } = await mount({ onChange, widgets: { integer: throwingUpdate(3) } });
+    const { ctx, editor, fake } = await mount({ onChange, widgets: { integer: { create: throwingUpdate(3) } } });
     outlineClick('spec');
     expect(row('replicas').querySelector('.host-widget')).not.toBeNull();
 
@@ -233,7 +233,7 @@ describe('schema and widget failures are not silent (A7)', () => {
     const boom: WidgetFactory = () => {
       throw new Error('factory failed');
     };
-    const { fake, editor } = await mount({ widgets: { integer: boom } });
+    const { fake, editor } = await mount({ widgets: { integer: { create: boom } } });
     outlineClick('spec');
     const note = row('replicas').querySelector<HTMLElement>('.sw-row-failed')!;
     expect(note.hidden).toBe(false);
@@ -257,7 +257,7 @@ describe('schema and widget failures are not silent (A7)', () => {
         },
       };
     };
-    const { ctx } = await mount({ mode: 'visual', widgets: { integer: throwingFocus } });
+    const { ctx } = await mount({ mode: 'visual', widgets: { integer: { create: throwingFocus } } });
     outlineClick('spec');
     expect(() => ctx.focusField(replicasAt)).not.toThrow();
     await settle();
@@ -295,7 +295,7 @@ describe('schema and widget failures are not silent (A7)', () => {
       };
     };
     const value = DEPLOY + '  minReadySeconds: 5\n  revisionHistoryLimit: 3\n';
-    await mount({ value, widgets: { integer: throwingDestroy } });
+    await mount({ value, widgets: { integer: { create: throwingDestroy } } });
     outlineClick('spec');
     expect(el.querySelectorAll('.sw-section .host-widget')).toHaveLength(3);
     outlineClick('metadata'); // the spec section and its rows go

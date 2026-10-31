@@ -8,7 +8,7 @@ describe('describeNode', () => {
   it('lists map keys in source order, numeric keys as strings', () => {
     const v = d('z: 1\n8080: x\na: 2\n');
     expect(v?.type).toBe('map');
-    expect(v?.keys).toEqual(['z', '8080', 'a']);
+    expect(v).toMatchObject({ keys: ['z', '8080', 'a'] });
     expect(v?.flow).toBe(false);
     expect(v?.readOnly).toBeUndefined();
   });
@@ -17,11 +17,11 @@ describe('describeNode', () => {
     const text = 'name: web\n';
     const v = d(text, 'name');
     expect(v?.type).toBe('scalar');
-    expect(v?.value).toBe('web');
+    expect(v).toMatchObject({ value: 'web' });
     expect(text.slice(v!.range.from, v!.range.to)).toBe('web');
     expect(text.slice(v!.keyRange!.from, v!.keyRange!.to)).toBe('name');
-    expect(v?.keys).toBeUndefined();
-    expect(v?.length).toBeUndefined();
+    expect('keys' in v!).toBe(false);
+    expect('length' in v!).toBe(false);
   });
 
   it('has no keyRange for roots and sequence items', () => {
@@ -30,15 +30,15 @@ describe('describeNode', () => {
   });
 
   it('describes numbers, booleans and null', () => {
-    expect(d('a: 3\n', 'a')?.value).toBe(3);
-    expect(d('a: true\n', 'a')?.value).toBe(true);
-    expect(d('a:\n', 'a')?.value).toBeNull();
+    expect(d('a: 3\n', 'a')).toMatchObject({ value: 3 });
+    expect(d('a: true\n', 'a')).toMatchObject({ value: true });
+    expect(d('a:\n', 'a')).toMatchObject({ value: null });
   });
 
   it('reports sequence length', () => {
     const v = d('s:\n  - a\n  - b\n  - c\n', 's');
     expect(v?.type).toBe('seq');
-    expect(v?.length).toBe(3);
+    expect(v).toMatchObject({ length: 3 });
   });
 
   it('marks flow collections and nodes inside them', () => {
@@ -65,5 +65,28 @@ describe('describeNode', () => {
   it('returns undefined for a missing path or document', () => {
     expect(d('a: 1\n', 'nope')).toBeUndefined();
     expect(describeNode(parseText('a: 1\n'), { doc: 3, path: [] })).toBeUndefined();
+  });
+
+  it('NodeView narrows: value only on scalar, keys only on map, length only on seq', () => {
+    const text = 'm: {a: 1}\ns: [1, 2]\nv: 3\nal: *x\n';
+    const root = parseText(text);
+    const at = (...path: (string | number)[]) => describeNode(root, { doc: 0, path })!;
+    const m = at('m');
+    const sq = at('s');
+    const sc = at('v');
+    if (m.type === 'map') expect(m.keys).toEqual(['a']);
+    if (sq.type === 'seq') expect(sq.length).toBe(2);
+    if (sc.type === 'scalar') expect(sc.value).toBe(3);
+    expect([m.type, sq.type, sc.type]).toEqual(['map', 'seq', 'scalar']);
+    // @ts-expect-error `keys` exists only on a map view
+    expect(sc.keys).toBeUndefined();
+    // @ts-expect-error `length` exists only on a sequence view
+    expect(m.length).toBeUndefined();
+    // @ts-expect-error `value` exists only on a scalar view
+    expect(sq.value).toBeUndefined();
+    const alias = describeNode(parseText('a: &x 1\nb: *x\n'), { doc: 0, path: ['b'] })!;
+    expect(alias.type).toBe('alias');
+    // @ts-expect-error `value` exists only on a scalar view
+    expect(alias.value).toBeUndefined();
   });
 });

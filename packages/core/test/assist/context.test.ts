@@ -121,4 +121,16 @@ describe('cursorContext', () => {
     const v = 'spec:\r\n  imagePullPolicy: If';
     expect(cursorContext(v, v.length)).toMatchObject({ path: ['spec'], position: 'value', key: 'imagePullPolicy', prefix: 'If', from: v.length - 2 });
   });
+
+  it('CursorContext has key only for a value position', () => {
+    const k = cursorContext('a:\n  ', 5)!;
+    expect(k.position).toBe('key');
+    // @ts-expect-error `key` exists only on a value cursor
+    expect(k.key).toBeUndefined();
+    expect('key' in k).toBe(false);
+    const v = cursorContext('a: x', 4)!;
+    expect(v.position).toBe('value');
+    if (v.position === 'value') expect(v.key).toBe('a');
+    else throw new Error('expected a value cursor');
+  });
 });

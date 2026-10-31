@@ -51,7 +51,8 @@ function isStructural(s: JsonSchema): boolean {
 }
 
 interface Flat {
-  schema: JsonSchema;
+  /** Built up while flattening, then handed out as a read-only {@link JsonSchema}. */
+  schema: Record<string, unknown>;
   required: string[];
   declaredIn: Record<string, string>;
   defName: string | undefined;

@@ -3,9 +3,10 @@ import type { NodeRef, ParsedText, TextRange, YamlPath, YamlValue } from '../doc
 import type { Severity } from '../validation/problems.js';
 import type { MessageFn } from '../validation/messages.js';
 import type { VARIABLE_TYPES } from '../variables/decl.js';
+import type { WidgetRef } from '../visual/widgets/types.js';
 
-/** A JSON Schema document as plain data. */
-export type JsonSchema = Record<string, unknown>;
+/** A JSON Schema document as plain data. Read-only: copy it to change it. */
+export type JsonSchema = Readonly<Record<string, unknown>>;
 
 /** One schema validation error, in ajv's shape. */
 export interface SchemaError {
@@ -66,8 +67,8 @@ export interface GuideField {
   readonly tier?: Tier;
   /** Sort order within a tier, ascending; properties without one sort after, by name. */
   readonly order?: number;
-  /** Name of a preferred input widget; interpreted by the UI layer. */
-  readonly widget?: string;
+  /** The preferred input widget, by registry name and optional parameter; interpreted by the UI layer. */
+  readonly widget?: WidgetRef;
   /** Never offer the property in `addableAt`. */
   readonly hidden?: boolean;
   /** Starting value used as the `valueTemplate` when the property is added. */

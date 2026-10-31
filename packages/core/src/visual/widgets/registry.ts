@@ -5,23 +5,25 @@ import { keyValueWidget, stringListWidget } from './collections.js';
 import { refKeyWidget, refWidget } from './reference.js';
 import { secretDataWidget } from './secret.js';
 import { integerWidget, intOrStringWidget, numberWidget, quantityWidget, stringWidget, suggestWidget } from './text.js';
-import type { WidgetRegistry } from './types.js';
+import type { WidgetDefinition, WidgetFactory, WidgetRef, WidgetRegistry } from './types.js';
+
+const plain = (create: WidgetFactory): WidgetDefinition => ({ create });
 
 /** The built-in widgets, by name. A host's `widgets` option is merged over these. */
 export const defaultWidgets: WidgetRegistry = {
-  string: stringWidget,
-  number: numberWidget,
-  integer: integerWidget,
-  boolean: booleanWidget,
-  enum: enumWidget,
-  'int-or-string': intOrStringWidget,
-  quantity: quantityWidget,
-  'string-list': stringListWidget,
-  'key-value': keyValueWidget,
-  suggest: suggestWidget,
-  ref: refWidget,
-  'ref-key': refKeyWidget,
-  'secret-data': secretDataWidget,
+  string: plain(stringWidget),
+  number: plain(numberWidget),
+  integer: plain(integerWidget),
+  boolean: plain(booleanWidget),
+  enum: plain(enumWidget),
+  'int-or-string': plain(intOrStringWidget),
+  quantity: plain(quantityWidget),
+  'string-list': plain(stringListWidget),
+  'key-value': plain(keyValueWidget),
+  suggest: plain(suggestWidget),
+  ref: plain(refWidget),
+  'ref-key': plain(refKeyWidget),
+  'secret-data': { create: secretDataWidget, managesKeys: true },
 };
 
 const isObj = (v: unknown): v is JsonSchema => typeof v === 'object' && v !== null && !Array.isArray(v);
@@ -71,7 +73,7 @@ function byShape(s: JsonSchema): string | undefined {
 
 /**
  * Chooses the widget for a field, in this order:
- * 1. the guide's `widget` (`name` or `name:param`), when the registry has `name`;
+ * 1. the guide's `widget` ({@link WidgetRef}), when the registry has its `name`;
  * 2. `suggest` (a text input with a `<datalist>`, so free text is still accepted) for a string field
  *    whose guide entry has non-empty `options` and whose schema has no `enum`;
  * 3. the schema shape (quantity, int-or-string, enum, boolean, integer, number, string, key-value,
@@ -86,14 +88,9 @@ function byShape(s: JsonSchema): string | undefined {
  * @param registry - The widgets available.
  * @returns The widget name and parameter, or `undefined` when the field is a nested part.
  */
-export function pickWidget(r: ResolvedSchema, field: GuideField | undefined, registry: WidgetRegistry): { name: string; param?: string } | undefined {
+export function pickWidget(r: ResolvedSchema, field: GuideField | undefined, registry: WidgetRegistry): WidgetRef | undefined {
   const wanted = field?.widget;
-  if (wanted) {
-    const colon = wanted.indexOf(':');
-    const name = colon < 0 ? wanted : wanted.slice(0, colon);
-    const param = colon < 0 ? '' : wanted.slice(colon + 1);
-    if (name !== '' && has(registry, name)) return param === '' ? { name } : { name, param };
-  }
+  if (wanted && has(registry, wanted.name)) return wanted.param === undefined || wanted.param === '' ? { name: wanted.name } : { name: wanted.name, param: wanted.param };
   if (field?.options && field.options.length > 0 && baseType(r.schema) === 'string' && r.schema['enum'] === undefined && has(registry, 'suggest')) return { name: 'suggest' };
   const shaped = byShape(r.schema);
   return shaped !== undefined && has(registry, shaped) ? { name: shaped } : undefined;

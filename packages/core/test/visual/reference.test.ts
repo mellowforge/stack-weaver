@@ -79,7 +79,7 @@ function mountWidget(name: string, param: string | undefined, text: string, doc:
     ...(param !== undefined && { param }),
     messages: defaultUiMessages,
   });
-  const w = defaultWidgets[name]!(ctx);
+  const w = defaultWidgets[name]!.create(ctx);
   host.append(w.el);
   const options = () => [...w.el.querySelectorAll('datalist option')].map((o) => (o as HTMLOptionElement).value);
   return { store, w, options, input: w.el.querySelector<HTMLInputElement>('input')!, refresh: () => w.update(valueAt(store, doc, path), false) };

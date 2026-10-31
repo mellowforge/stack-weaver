@@ -7,7 +7,7 @@ import { defaultUiMessages } from '../../src/editor/messages.js';
 import { resolveAt } from '../../src/engine/resolve.js';
 import type { ResolvedSchema } from '../../src/engine/resolve.js';
 import { loadKubernetesKind } from '../../src/formats/kubernetes/loader.js';
-import type { JsonSchema } from '../../src/formats/types.js';
+import type { GuideField, JsonSchema } from '../../src/formats/types.js';
 import { createWidgetContext } from '../../src/visual/widgets/context.js';
 import { defaultWidgets, pickWidget } from '../../src/visual/widgets/registry.js';
 
@@ -42,7 +42,7 @@ describe('pickWidget options', () => {
     expect(pickWidget(resolved({ type: 'string' }), opts, defaultWidgets)).toEqual({ name: 'suggest' });
     expect(pickWidget(resolved({ type: ['string', 'null'] }), opts, defaultWidgets)).toEqual({ name: 'suggest' });
     // An explicit guide widget wins over options.
-    expect(pickWidget(resolved({ type: 'string' }), { ...opts, widget: 'quantity' }, defaultWidgets)).toEqual({ name: 'quantity' });
+    expect(pickWidget(resolved({ type: 'string' }), { ...opts, widget: { name: 'quantity' } }, defaultWidgets)).toEqual({ name: 'quantity' });
     // Options win over the schema shape for strings, but do not change other shapes.
     expect(pickWidget(resolved({ type: 'integer' }), opts, defaultWidgets)).toEqual({ name: 'integer' });
     expect(pickWidget(resolved({ type: 'array', items: { type: 'string' } }), opts, defaultWidgets)).toEqual({ name: 'string-list' });
@@ -56,7 +56,7 @@ describe('pickWidget options', () => {
       options: ['Always', 'IfNotPresent', 'Never'], messages: defaultUiMessages, parsed: () => undefined as never,
       commit: (v: unknown) => (edits.push(v), undefined), edit: () => ({ ok: true }) as never,
     };
-    const w = defaultWidgets['suggest']!(ctx as never);
+    const w = defaultWidgets['suggest']!.create(ctx as never);
     host.append(w.el);
     const input = w.el.querySelector<HTMLInputElement>('input')!;
     const list = w.el.querySelector('datalist')!;
@@ -77,7 +77,7 @@ describe('string-list suggestions', () => {
       id: 'w1', label: 'Modes', description: '', ref: { doc: 0, path: ['a'] }, value: ['ReadWriteOnce'], schema: STRING_ARRAY, readOnly: false,
       options: ['ReadWriteOnce', 'ReadOnlyMany'], messages: defaultUiMessages,
     });
-    const w = defaultWidgets['string-list']!(ctx);
+    const w = defaultWidgets['string-list']!.create(ctx);
     host.append(w.el);
     const list = w.el.querySelector('datalist')!;
     expect([...list.querySelectorAll('option')].map((o) => o.value)).toEqual(['ReadWriteOnce', 'ReadOnlyMany']);
@@ -87,13 +87,30 @@ describe('string-list suggestions', () => {
   });
 });
 
+describe('widget definitions', () => {
+  it('a host registry entry { create } replaces a built-in widget', () => {
+    const create = vi.fn(defaultWidgets['string']!.create);
+    const registry = { ...defaultWidgets, string: { create } };
+    expect(pickWidget(resolved({ type: 'string' }), undefined, registry)).toEqual({ name: 'string' });
+    expect(registry.string.create).toBe(create);
+    expect(registry['string']).not.toBe(defaultWidgets['string']);
+  });
+
+  it('managesKeys comes from the definition', () => {
+    expect(defaultWidgets['secret-data']!.managesKeys).toBe(true);
+    expect(defaultWidgets['string']!.managesKeys).toBeUndefined();
+    expect(typeof defaultWidgets['secret-data']!.create).toBe('function');
+    expect((defaultWidgets['secret-data']!.create as { managesKeys?: boolean }).managesKeys).toBeUndefined();
+  });
+});
+
 describe('pickWidget', () => {
   it('pickWidget follows guide, then schema shape', async () => {
     const d = (await loadKubernetesKind('apps/v1', 'Deployment'))!;
     const s = (await loadKubernetesKind('v1', 'Service'))!;
     const c: YamlPath = ['spec', 'template', 'spec', 'containers', 0];
     const at = (b: typeof d, p: YamlPath): ResolvedSchema => resolveAt(b, p, undefined)!;
-    const name = (r: ResolvedSchema, guide?: { widget?: string }) => pickWidget(r, guide, defaultWidgets)?.name;
+    const name = (r: ResolvedSchema, guide?: GuideField) => pickWidget(r, guide, defaultWidgets)?.name;
 
     expect(name(at(d, [...c, 'image']))).toBe('string');
     expect(name(at(d, [...c, 'imagePullPolicy']))).toBe('string'); // upstream has no enum here
@@ -110,20 +127,28 @@ describe('pickWidget', () => {
     expect(name(resolved({ type: 'number' }))).toBe('number');
     expect(name(resolved({ type: ['string', 'null'] }))).toBe('string');
     // The guide wins, and carries a parameter.
-    expect(pickWidget(resolved({ type: 'string' }), { widget: 'quantity' }, defaultWidgets)).toEqual({ name: 'quantity' });
-    expect(pickWidget(resolved({ type: 'string' }), { widget: 'string-list:comma' }, defaultWidgets)).toEqual({ name: 'string-list', param: 'comma' });
+    expect(pickWidget(resolved({ type: 'string' }), { widget: { name: 'quantity' } }, defaultWidgets)).toEqual({ name: 'quantity' });
+    expect(pickWidget(resolved({ type: 'string' }), { widget: { name: 'string-list', param: 'comma' } }, defaultWidgets)).toEqual({ name: 'string-list', param: 'comma' });
   });
 
   it('unknown guide widget falls back to schema', () => {
-    expect(pickWidget(resolved({ type: 'integer' }), { widget: 'no-such-widget' }, defaultWidgets)).toEqual({ name: 'integer' });
-    expect(() => pickWidget(resolved({ type: 'integer' }), { widget: ':' }, defaultWidgets)).not.toThrow();
-    expect(pickWidget(resolved({ type: 'integer' }), { widget: 'toString' }, defaultWidgets)).toEqual({ name: 'integer' });
+    expect(pickWidget(resolved({ type: 'integer' }), { widget: { name: 'no-such-widget' } }, defaultWidgets)).toEqual({ name: 'integer' });
+    expect(() => pickWidget(resolved({ type: 'integer' }), { widget: { name: '' } }, defaultWidgets)).not.toThrow();
+    expect(pickWidget(resolved({ type: 'integer' }), { widget: { name: 'toString' } }, defaultWidgets)).toEqual({ name: 'integer' });
     expect(pickWidget(resolved({ type: 'object' }), undefined, defaultWidgets)).toBeUndefined();
+  });
+
+  it('GuideField.widget { name: "ref", param: "Secret" } picks the ref widget with param Secret', () => {
+    expect(pickWidget(resolved({ type: 'string' }), { widget: { name: 'ref', param: 'Secret' } }, defaultWidgets)).toEqual({ name: 'ref', param: 'Secret' });
+  });
+
+  it('a name with a colon is just a name: no string parsing', () => {
+    expect(pickWidget(resolved({ type: 'string' }), { widget: { name: 'ref:Secret' } }, defaultWidgets)).toEqual({ name: 'string' });
   });
 
   it('only names the registry has', () => {
     expect(pickWidget(resolved({ type: 'integer' }), undefined, {})).toBeUndefined();
-    expect(pickWidget(resolved({ type: 'integer' }), { widget: 'mine' }, { mine: defaultWidgets['string']! })).toEqual({ name: 'mine' });
+    expect(pickWidget(resolved({ type: 'integer' }), { widget: { name: 'mine' } }, { mine: defaultWidgets['string']! })).toEqual({ name: 'mine' });
   });
 });
 
@@ -146,7 +171,7 @@ function setup(name: string, text: string, path: YamlPath, schema: JsonSchema, e
     readOnly,
     messages: defaultUiMessages,
   });
-  const w = defaultWidgets[name]!(ctx);
+  const w = defaultWidgets[name]!.create(ctx);
   const label = document.createElement('label');
   label.id = 'w1-label';
   label.htmlFor = 'w1';

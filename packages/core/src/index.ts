@@ -12,7 +12,7 @@ export { DocumentStore } from './document/store.js';
 export type { ChangeOrigin, StoreEvent, StoreOptions } from './document/store.js';
 export { toData } from './document/data.js';
 export { describeNode } from './document/describe.js';
-export type { NodeView } from './document/describe.js';
+export type { NodeView, MapView, SeqView, ScalarView, AliasView } from './document/describe.js';
 
 // Formats
 export type {
@@ -61,7 +61,7 @@ export type { CatalogGroup, KindCatalog } from './engine/catalog.js';
 
 // Code-mode assist (DOM-free)
 export { cursorContext } from './assist/context.js';
-export type { CursorContext } from './assist/context.js';
+export type { CursorContext, KeyCursor, ValueCursor } from './assist/context.js';
 export { completionsFor } from './assist/complete.js';
 export type { CodeCompletion, CompletionInput } from './assist/complete.js';
 export { hoverAt, breadcrumbAt } from './assist/hover.js';
@@ -85,7 +85,7 @@ export type {
 } from './editors/adapter.js';
 
 // Widgets
-export type { WidgetContext, WidgetInstance, WidgetFactory, WidgetRegistry } from './visual/widgets/types.js';
+export type { WidgetContext, WidgetInstance, WidgetFactory, WidgetDefinition, WidgetRef, WidgetRegistry } from './visual/widgets/types.js';
 export { pickWidget, defaultWidgets } from './visual/widgets/registry.js';
 
 // Editor

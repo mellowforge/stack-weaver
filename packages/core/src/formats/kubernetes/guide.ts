@@ -112,14 +112,14 @@ export const kubernetesGuide: Guide = deepFreeze<Guide>({
     [`${V1}Volume#emptyDir`]: { label: 'Scratch space', order: 5, description: 'An empty folder that lives as long as the pod.' },
 
     // References to Secrets and ConfigMaps: pickers over the documents in the same text.
-    [`${SECRET_KEY}#name`]: { label: 'Secret', tier: 'recommended', order: 1, widget: 'ref:Secret', description: 'The name of the Secret.' },
-    [`${SECRET_KEY}#key`]: { label: 'Key', tier: 'recommended', order: 2, widget: 'ref-key:Secret', description: 'Which key of the Secret to use.' },
-    [`${V1}SecretEnvSource#name`]: { label: 'Secret', tier: 'recommended', order: 1, widget: 'ref:Secret', description: 'The name of the Secret.' },
-    [`${V1}SecretVolumeSource#secretName`]: { label: 'Secret', tier: 'recommended', order: 1, widget: 'ref:Secret', description: 'The name of the Secret.' },
-    [`${CONFIG_KEY}#name`]: { label: 'ConfigMap', tier: 'recommended', order: 1, widget: 'ref:ConfigMap', description: 'The name of the ConfigMap.' },
-    [`${CONFIG_KEY}#key`]: { label: 'Key', tier: 'recommended', order: 2, widget: 'ref-key:ConfigMap', description: 'Which key of the ConfigMap to use.' },
-    [`${V1}ConfigMapEnvSource#name`]: { label: 'ConfigMap', tier: 'recommended', order: 1, widget: 'ref:ConfigMap', description: 'The name of the ConfigMap.' },
-    [`${V1}ConfigMapVolumeSource#name`]: { label: 'ConfigMap', tier: 'recommended', order: 1, widget: 'ref:ConfigMap', description: 'The name of the ConfigMap.' },
+    [`${SECRET_KEY}#name`]: { label: 'Secret', tier: 'recommended', order: 1, widget: { name: 'ref', param: 'Secret' }, description: 'The name of the Secret.' },
+    [`${SECRET_KEY}#key`]: { label: 'Key', tier: 'recommended', order: 2, widget: { name: 'ref-key', param: 'Secret' }, description: 'Which key of the Secret to use.' },
+    [`${V1}SecretEnvSource#name`]: { label: 'Secret', tier: 'recommended', order: 1, widget: { name: 'ref', param: 'Secret' }, description: 'The name of the Secret.' },
+    [`${V1}SecretVolumeSource#secretName`]: { label: 'Secret', tier: 'recommended', order: 1, widget: { name: 'ref', param: 'Secret' }, description: 'The name of the Secret.' },
+    [`${CONFIG_KEY}#name`]: { label: 'ConfigMap', tier: 'recommended', order: 1, widget: { name: 'ref', param: 'ConfigMap' }, description: 'The name of the ConfigMap.' },
+    [`${CONFIG_KEY}#key`]: { label: 'Key', tier: 'recommended', order: 2, widget: { name: 'ref-key', param: 'ConfigMap' }, description: 'Which key of the ConfigMap to use.' },
+    [`${V1}ConfigMapEnvSource#name`]: { label: 'ConfigMap', tier: 'recommended', order: 1, widget: { name: 'ref', param: 'ConfigMap' }, description: 'The name of the ConfigMap.' },
+    [`${V1}ConfigMapVolumeSource#name`]: { label: 'ConfigMap', tier: 'recommended', order: 1, widget: { name: 'ref', param: 'ConfigMap' }, description: 'The name of the ConfigMap.' },
 
     // Deployment.
     'io.k8s.api.apps.v1.DeploymentSpec#replicas': { label: 'Replicas', tier: 'recommended', order: 1, example: 1, description: 'How many copies (pods) of your app to run.' },
@@ -198,7 +198,7 @@ export const kubernetesGuide: Guide = deepFreeze<Guide>({
     [`${V1}ConfigMap#data`]: { label: 'Data', tier: 'recommended', order: 1, description: 'Settings or config files as text. Each key can be an environment variable or a file.' },
     [`${V1}ConfigMap#binaryData`]: { label: 'Binary data', order: 2, description: 'Binary content, written as base64 text.' },
     [`${V1}Secret#stringData`]: { label: 'String data', tier: 'recommended', order: 1, description: 'Secret values as plain text. Kubernetes encodes them for you when the Secret is saved.' },
-    [`${V1}Secret#data`]: { label: 'Data (shown decoded)', order: 2, widget: 'secret-data', description: 'Existing values. They are stored as base64; here you see and edit the decoded text.' },
+    [`${V1}Secret#data`]: { label: 'Data (shown decoded)', order: 2, widget: { name: 'secret-data' }, description: 'Existing values. They are stored as base64; here you see and edit the decoded text.' },
     [`${V1}Secret#type`]: { label: 'Type', order: 3, description: 'What the Secret is for, for example Opaque or kubernetes.io/tls.' },
 
     // HorizontalPodAutoscaler.

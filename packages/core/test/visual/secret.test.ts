@@ -39,7 +39,7 @@ function mount(text: string, readOnly = false) {
     readOnly,
     messages: defaultUiMessages,
   });
-  const w = defaultWidgets['secret-data']!(ctx);
+  const w = defaultWidgets['secret-data']!.create(ctx);
   host.append(w.el);
   const input = (name: string) => w.el.querySelector<HTMLTextAreaElement>(`[data-sw-entry="${name}"]`)!;
   return { store, w, input, refresh: () => w.update(dataOf(store), readOnly) };
@@ -142,7 +142,7 @@ describe('Add key suppression is declared by the widget', () => {
   it('a free-form map with guide widget key-value still offers Add key', async () => {
     const el = document.createElement('div');
     document.body.append(el);
-    const guide = { kubernetes: { fields: { 'io.k8s.api.core.v1.Secret#stringData': { widget: 'key-value' } } } };
+    const guide = { kubernetes: { fields: { 'io.k8s.api.core.v1.Secret#stringData': { widget: { name: 'key-value' } } } } };
     const made = createEditorWithContext(el, { codeEditor: createFakeAdapter(), format: 'kubernetes', mode: 'visual', value: SECRET + 'stringData:\n  a: b\n', guide });
     await made.editor.ready;
     await made.ctx.loadBundle(0);
@@ -152,7 +152,7 @@ describe('Add key suppression is declared by the widget', () => {
     el.remove();
   });
 
-  it('only factories that declare managesKeys suppress it', () => {
+  it('only definitions that declare managesKeys suppress it', () => {
     expect(defaultWidgets['secret-data']!.managesKeys).toBe(true);
     expect(defaultWidgets['key-value']!.managesKeys).toBeUndefined();
   });

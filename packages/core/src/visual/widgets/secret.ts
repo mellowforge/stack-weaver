@@ -38,9 +38,9 @@ interface Entry {
  * text, writing it back as base64. A value that is not base64-encoded UTF-8 text is shown as
  * stored, read-only, with a warning; so is text with a carriage return, which a text area cannot
  * hold unchanged. Values are text areas, so multi-line text (certificates, keys) keeps its line
- * breaks. The factory declares `managesKeys`: there is no "Add key", new values go in `stringData`.
+ * breaks. Its registry entry declares `managesKeys`: there is no "Add key", new values go in `stringData`.
  */
-export const secretDataWidget: WidgetFactory = Object.assign<WidgetFactory, { managesKeys: true }>((ctx) => {
+export const secretDataWidget: WidgetFactory = (ctx) => {
   const ui = ctx.messages;
   const f = frame(ctx, 'secret-data');
   f.adder.remove();
@@ -110,4 +110,4 @@ export const secretDataWidget: WidgetFactory = Object.assign<WidgetFactory, { ma
     },
     focus: () => (rows.values().next().value?.input ?? f.el).focus(),
   };
-}, { managesKeys: true });
+};
