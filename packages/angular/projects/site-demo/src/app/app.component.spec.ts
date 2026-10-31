@@ -88,6 +88,23 @@ describe('Angular demo', () => {
     expect(root().querySelectorAll('textarea')).toHaveLength(1);
   });
 
+  // Both are recreations (a new variables store kind): the new editor starts with no format and no problems.
+  it('choosing Empty after Compose with external variables clears the format', async () => {
+    await mount();
+    await choose('compose-external');
+    await vi.waitFor(() => expect(status()).toContain('compose'));
+    await choose('empty');
+    await vi.waitFor(() => expect(status()).toContain('no format yet'));
+  });
+
+  it('choosing Compose with external variables after Broken clears the problems', async () => {
+    await mount();
+    await choose('broken');
+    await vi.waitFor(() => expect(status()).toMatch(/\d+ problems?/));
+    await choose('compose-external');
+    await vi.waitFor(() => expect(status()).toContain('No problems'));
+  });
+
   it('read-only blocks typing', async () => {
     await mount();
     const original = controller()!.getValue();

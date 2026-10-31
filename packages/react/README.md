@@ -86,7 +86,10 @@ export function Editor() {
   `theme` and an `external` `variables.value` are pushed when they change.
 - **Give the editor a height.** The editor fills its host's height (`.sw-editor` is `height: 100%`), so give the component a height with `className` or `style` on `<ManifestEditor>`.
 - **Recreation loses the undo history.** A recreated editor keeps the text, mode, format option, read-only state and
-  theme, but starts with nothing to undo.
+  theme, but starts with nothing to undo. If there was something to undo or redo, `onHistoryChange` is called with
+  `{ canUndo: false, canRedo: false }`. It also starts with no problems and no active format: if the old editor had
+  them, `onProblemsChange` is called with `[]` and `onFormatChange` with `undefined`, and the new editor then reports
+  its own, so `onFormatChange` reports the format again once it resolves.
 - **`ref` is the controller.** It receives the live `ManifestEditorController` (`getValue`, `undo`, `redo`, `reset`,
   `applyFix`, `ready`, ...) and `null` after unmount. A recreated editor is a new controller, so do not keep
   `ref.current` across renders.
@@ -105,17 +108,17 @@ editor owns its content.
 | --- | --- | --- | --- |
 | `value` | `string` | none | The text, controlled. Pushed only when it changes (see Rules). |
 | `defaultValue` | `string` | `''` | The initial text when `value` is not given. Read once. |
-| `onChange` | `(value: string, meta: { origin: ChangeOrigin }) => void` | none | Every text change: `'code'`, `'visual'`, `'history'` or `'api'`. Not called for a pushed `value`. |
+| `onChange` | `(value: string, meta: { origin: ChangeOrigin }) => void` | none | Every text change: `'code'`, `'visual'`, `'history'` or `'api'`. Not called for a pushed `value`. The same event as the Angular wrapper's `textChange` (`{ value, origin }`), in React's shape. |
 | `mode` | `'visual' \| 'split' \| 'code'` | `'split'` | Which panes are shown. Pushed only when it changes. |
 | `onModeChange` | `(mode: EditorMode) => void` | none | The mode switch, `ref.current.setMode`, or a control that opens Split. Not called for a pushed `mode`. |
 | `format` | `'auto' \| 'kubernetes' \| 'compose' \| string` | `'auto'` | The format option. `'auto'` detects the format from the text. |
-| `onFormatChange` | `(activeFormat: string \| undefined) => void` | none | The resolved format changed. Also called once when the editor first resolves its format. |
+| `onFormatChange` | `(activeFormat: string \| undefined) => void` | none | The resolved format changed. Also called when the editor first resolves its format (not at mount when no format resolves). |
 | `readOnly` | `boolean` | `false` | Blocks user edits. |
 | `theme` | `'auto' \| 'light' \| 'dark'` | `'auto'` | Colour scheme. `'auto'` follows `prefers-color-scheme`. |
 | `variables` | `VariablesOption` | `{ store: 'x-variables' }` | Where variable declarations live. The store kind is init-only. With `{ store: 'external', value }`, a new `value` array is pushed. |
 | `onVariablesChange` | `(decls: readonly VariableDecl[]) => void` | none | An edit changed the declarations. |
 | `onProblemsChange` | `(problems: readonly Problem[]) => void` | none | The problems changed. |
-| `onHistoryChange` | `(state: { canUndo: boolean; canRedo: boolean }) => void` | none | `canUndo` or `canRedo` changed. Drive your own undo buttons with it. |
+| `onHistoryChange` | `(state: HistoryState) => void` (`{ readonly canUndo: boolean; readonly canRedo: boolean }`) | none | `canUndo` or `canRedo` changed. Drive your own undo buttons with it. |
 | `codeEditor` | `CodeEditorAdapter` | CodeMirror, loaded on demand | The code pane. Init-only. |
 | `formats` | `readonly FormatDefinition[]` | none | Extra formats. Init-only. |
 | `recipes` | `readonly Recipe[]` | none | Extra starter recipes. Init-only. |
@@ -124,9 +127,10 @@ editor owns its content.
 | `messages` | `EditorMessages` | none | UI and schema message overrides, and the locale. Init-only. |
 | `ref` | `Ref<ManifestEditorController \| null>` | none | The live controller (see Rules). |
 
-The package also re-exports these core types: `ManifestEditorController`, `EditorMode`, `EditorTheme`, `ChangeOrigin`,
-`Problem`, `VariableDecl`, `VariablesOption`, `FormatDefinition` and `Recipe`. Options and controller methods are
-described in the core README.
+The package also re-exports these core types: `ManifestEditorController`, `ManifestEditorOptions`, `EditorMode`,
+`EditorTheme`, `EditorMessages`, `ChangeOrigin`, `HistoryState`, `Problem`, `VariableDecl`, `VariablesOption`,
+`FormatDefinition`, `Recipe`, `GuideOverride`, `WidgetRegistry`, `WidgetDefinition`, `CodeEditorAdapter` and
+`SyncCodeEditorAdapter`. Options and controller methods are described in the core README.
 
 ## Demo
 

@@ -8,6 +8,7 @@ import type {
   EditorMode,
   EditorTheme,
   FormatDefinition,
+  HistoryState,
   ManifestEditorController,
   ManifestEditorOptions,
   ManifestEditorUpdate,
@@ -49,7 +50,10 @@ export interface ManifestEditorProps extends Omit<ComponentPropsWithoutRef<'div'
   onModeChange?: (mode: EditorMode) => void;
   /** The format option: `'auto'` (the default) or a format id. The editor never changes it; see `onFormatChange`. */
   format?: ManifestEditorOptions['format'];
-  /** Called with the resolved format id (`undefined` for none) when it changes, including once at mount. */
+  /**
+   * Called with the resolved format id (`undefined` for none) when it changes, including when the editor first
+   * resolves its format (not called at mount when no format resolves). A recreated editor reports its format again.
+   */
   onFormatChange?: (activeFormat: string | undefined) => void;
   /** Blocks user edits. Default `false`. */
   readOnly?: boolean;
@@ -65,7 +69,7 @@ export interface ManifestEditorProps extends Omit<ComponentPropsWithoutRef<'div'
   /** Called with the problems when they change. */
   onProblemsChange?: (problems: readonly Problem[]) => void;
   /** Called when `canUndo` or `canRedo` changes. */
-  onHistoryChange?: (state: { readonly canUndo: boolean; readonly canRedo: boolean }) => void;
+  onHistoryChange?: (state: HistoryState) => void;
   /** The code editor. Default: the CodeMirror adapter, loaded on demand. Init-only. */
   codeEditor?: CodeEditorAdapter;
   /** Extra formats. Init-only. */
@@ -98,11 +102,30 @@ interface Carried {
   readonly format: string;
   readonly readOnly: boolean;
   readonly theme: EditorTheme;
-  /** Whether the outgoing editor had a step to undo or redo: the new one has none, and the host must hear it. */
-  readonly hadHistory: boolean;
+  /** What the outgoing editor had that the new one starts without: the host must hear that it is gone. */
+  readonly stale: Stale;
+}
+
+/** The state a new editor starts without and does not report: no undo history, no problems, no active format. */
+interface Stale {
+  /** The outgoing editor had a step to undo or redo. */
+  readonly history: boolean;
+  /** The outgoing editor had problems. */
+  readonly problems: boolean;
+  /** The outgoing editor had resolved a format. */
+  readonly format: boolean;
 }
 
 type Patch = { -readonly [K in keyof ManifestEditorUpdate]: ManifestEditorUpdate[K] };
+
+/** Calls a host callback; a throw is logged, as the core does, and does not stop the wrapper. */
+function tell(name: string, call: () => void): void {
+  try {
+    call();
+  } catch (err) {
+    console.error(`stack-weaver: an ${name} callback threw`, err);
+  }
+}
 
 function settable(p: ManifestEditorProps): Settable {
   return { value: p.value, mode: p.mode, format: p.format ?? 'auto', readOnly: p.readOnly ?? false, theme: p.theme ?? 'auto' };
@@ -150,6 +173,8 @@ export function ManifestEditor(props: ManifestEditorProps): JSX.Element {
   const pushing = useRef(false);
   /** The outgoing editor's state, from its destroy to the next create. */
   const carry = useRef<Carried | undefined>(undefined);
+  /** What a recreated editor starts without, from its create to the report after the ref points at it. */
+  const stale = useRef<Stale | undefined>(undefined);
 
   // Declared first, so the effects below see this render's props.
   useLayoutEffect(() => {
@@ -192,15 +217,7 @@ export function ManifestEditor(props: ManifestEditorProps): JSX.Element {
     });
     ed.ready.catch(() => {}); // the editor already shows (and logs) a failed load
     editor.current = ed;
-    // The core reports history changes only from the empty history a new editor starts with, so it never says that
-    // the outgoing editor's undo steps are gone. Say it here, as the core would (a frozen state; a throw is logged).
-    if (from?.hadHistory) {
-      try {
-        latest.current.onHistoryChange?.(Object.freeze({ canUndo: false, canRedo: false }));
-      } catch (err) {
-        console.error('stack-weaver: an onHistoryChange callback threw', err);
-      }
-    }
+    stale.current = from?.stale;
     return () => {
       // The theme has no getter: the one last pushed is what the editor shows.
       carry.current = {
@@ -209,7 +226,11 @@ export function ManifestEditor(props: ManifestEditorProps): JSX.Element {
         format: ed.getFormat(),
         readOnly: ed.getReadOnly(),
         theme: prev.current.theme,
-        hadHistory: ed.canUndo() || ed.canRedo(),
+        stale: {
+          history: ed.canUndo() || ed.canRedo(),
+          problems: ed.getProblems().length > 0,
+          format: ed.getActiveFormat() !== undefined,
+        },
       };
       ed.destroy();
       editor.current = null;
@@ -219,13 +240,25 @@ export function ManifestEditor(props: ManifestEditorProps): JSX.Element {
   // Declared after the create effect, so it hands out the editor that effect just made.
   useImperativeHandle<ManifestEditorController | null, ManifestEditorController | null>(ref, () => editor.current, initDeps);
 
+  // The core reports changes only from the empty state a new editor starts with, so it never says that the outgoing
+  // editor's undo steps, problems or format are gone. Say it here, as the core would (frozen payloads; a throw is
+  // logged). Declared after useImperativeHandle, so a callback that reads the ref gets the new editor.
+  useLayoutEffect(() => {
+    const gone = stale.current;
+    stale.current = undefined;
+    if (!gone) return;
+    const host = latest.current;
+    if (gone.history) tell('onHistoryChange', () => host.onHistoryChange?.(Object.freeze({ canUndo: false, canRedo: false })));
+    if (gone.problems) tell('onProblemsChange', () => host.onProblemsChange?.(Object.freeze([])));
+    if (gone.format) tell('onFormatChange', () => host.onFormatChange?.(undefined));
+  }, initDeps);
+
   // After every commit: push the settable props that changed, in one update(), without echoing onChange.
   useLayoutEffect(() => {
     const ed = editor.current;
     if (!ed) return;
     const before = prev.current;
     const now = settable(props);
-    prev.current = now;
     const patch: Patch = {};
     if (now.value !== undefined && now.value !== before.value && now.value !== ed.getValue()) patch.value = now.value;
     if (now.mode !== undefined && now.mode !== before.mode && now.mode !== ed.getMode()) patch.mode = now.mode;
@@ -233,17 +266,18 @@ export function ManifestEditor(props: ManifestEditorProps): JSX.Element {
     if (now.readOnly !== before.readOnly) patch.readOnly = now.readOnly;
     if (now.theme !== before.theme) patch.theme = now.theme;
     // `update({ variables })` re-applies an equal list: compare by reference.
-    if (variables?.store === 'external' && variables.value !== appliedVariables.current) {
-      appliedVariables.current = variables.value;
-      patch.variables = variables.value;
+    if (variables?.store === 'external' && variables.value !== appliedVariables.current) patch.variables = variables.value;
+    if (Object.keys(patch).length > 0) {
+      pushing.current = true;
+      try {
+        ed.update(patch);
+      } finally {
+        pushing.current = false;
+      }
     }
-    if (Object.keys(patch).length === 0) return;
-    pushing.current = true;
-    try {
-      ed.update(patch);
-    } finally {
-      pushing.current = false;
-    }
+    // Recorded only once the editor took them: a patch whose update() threw is not taken for applied.
+    prev.current = now;
+    if (patch.variables) appliedVariables.current = patch.variables;
   });
 
   return <div {...rest} ref={host} />;

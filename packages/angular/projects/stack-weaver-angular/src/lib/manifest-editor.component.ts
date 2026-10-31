@@ -22,6 +22,7 @@ import type {
   EditorMode,
   EditorTheme,
   FormatDefinition,
+  HistoryState,
   ManifestEditorController,
   ManifestEditorOptions,
   ManifestEditorUpdate,
@@ -50,6 +51,19 @@ interface Settable {
   readonly format: string;
   readonly readOnly: boolean;
   readonly theme: EditorTheme;
+}
+
+/** What a recreated editor starts from: the outgoing editor's state. */
+interface Carried extends Settable {
+  /** What the outgoing editor had that the new one starts without: the host must hear that it is gone. */
+  readonly stale: {
+    /** The outgoing editor had a step to undo or redo. */
+    readonly history: boolean;
+    /** The outgoing editor had problems. */
+    readonly problems: boolean;
+    /** The outgoing editor had resolved a format. */
+    readonly format: boolean;
+  };
 }
 
 type Patch = { -readonly [K in keyof ManifestEditorUpdate]: ManifestEditorUpdate[K] };
@@ -86,7 +100,7 @@ export class SwManifestEditor {
   /** The mode, two-way (`[(mode)]`). Pushed as `value` is. */
   readonly mode = model<EditorMode>('split');
   /** The format option: `'auto'` or a format id. The editor never changes it; see `activeFormatChange`. */
-  readonly format = input<string>('auto');
+  readonly format = input<NonNullable<ManifestEditorOptions['format']>>('auto');
   /** Blocks user edits; also accepts a static attribute (`readOnly`). */
   readonly readOnly = input<boolean, unknown>(false, { transform: booleanAttribute });
   /** Colour scheme; `'auto'` follows `prefers-color-scheme`. */
@@ -119,16 +133,21 @@ export class SwManifestEditor {
   readonly problemsChange = output<readonly Problem[]>();
   /** The declarations, when an edit changes them; not for a pushed `variables.value`. */
   readonly variablesChange = output<readonly VariableDecl[]>();
-  /** The resolved format id (`undefined` for none) when it changes, including once when it first resolves. */
+  /**
+   * The resolved format id (`undefined` for none) when it changes, including when the editor first resolves its
+   * format (not emitted at creation when no format resolves). A recreated editor reports its format again.
+   */
   readonly activeFormatChange = output<string | undefined>();
-  /** `canUndo` or `canRedo` changed. */
-  readonly historyChange = output<{ canUndo: boolean; canRedo: boolean }>();
+  /** `canUndo` or `canRedo` changed. The payload is frozen. */
+  readonly historyChange = output<HistoryState>();
 
   private readonly zone = inject(NgZone);
   private readonly host: HTMLElement = inject(ElementRef).nativeElement;
   private editor?: ManifestEditorController;
-  /** The init-only inputs the live editor was created with. */
+  /** The init-only inputs the live editor was created with (or the last one, while a recreation has failed). */
   private createdWith?: InitOnly;
+  /** The outgoing editor's state, kept when creating its replacement threw: the next recreation starts from it. */
+  private carried?: Carried;
   /** The settable inputs last seen by the push effect (or at creation). */
   private prev?: Settable;
   /** The text and mode the wrapper last saw: from the editor's callbacks, or as the input it pushed or skipped. */
@@ -136,7 +155,7 @@ export class SwManifestEditor {
   private lastMode: EditorMode = 'split';
   /** The `external` declarations last handed to the editor. */
   private appliedVariables?: readonly VariableDecl[];
-  /** Set while the wrapper's own `update()` runs: its `onChange` is an echo of an input. */
+  /** Set while the wrapper's own `update()` runs: its `onChange` and `onModeChange` are echoes of inputs. */
   private pushing = false;
 
   private readonly initOnly = computed<InitOnly>(
@@ -164,11 +183,11 @@ export class SwManifestEditor {
       if (ed) this.zone.runOutsideAngular(() => ed.destroy());
     });
 
-    // A changed init-only input recreates the editor (the first run is before it exists).
+    // A changed init-only input recreates the editor (the first run is before it exists, and creates nothing).
     effect(() => {
       const init = this.initOnly();
       untracked(() => {
-        if (this.editor && init !== this.createdWith) this.recreate();
+        if (this.createdWith && init !== this.createdWith) this.recreate();
       });
     });
 
@@ -193,7 +212,7 @@ export class SwManifestEditor {
   }
 
   private create(from?: Settable): void {
-    const init = (this.createdWith = untracked(this.initOnly));
+    const init = untracked(this.initOnly);
     const variables = untracked(this.variables);
     this.appliedVariables = variables?.store === 'external' ? variables.value : undefined;
     const start: Settable = from ?? (this.prev = this.settable());
@@ -220,6 +239,7 @@ export class SwManifestEditor {
           });
         },
         onModeChange: (m) => {
+          if (this.pushing) return;
           this.lastMode = m;
           this.zone.run(() => this.mode.set(m));
         },
@@ -231,36 +251,57 @@ export class SwManifestEditor {
     );
     ed.ready.catch(() => {}); // the editor already shows (and logs) a failed load
     this.editor = ed;
+    this.createdWith = init;
   }
 
+  /**
+   * Replaces the editor. If creating the new one throws, the error propagates and there is no editor (the old one is
+   * destroyed); the next input change tries again from the old editor's state (see `push`), then pushes the settable
+   * inputs that changed while there was no editor.
+   */
   private recreate(): void {
-    const old = this.editor!;
-    // The theme has no getter: the one last pushed is what the editor shows.
-    const carried: Settable = {
-      value: old.getValue(),
-      mode: old.getMode(),
-      format: old.getFormat(),
-      readOnly: old.getReadOnly(),
-      theme: this.prev!.theme,
-    };
-    const hadHistory = old.canUndo() || old.canRedo();
-    this.zone.runOutsideAngular(() => old.destroy());
-    this.create(carried);
-    // The core reports history changes only from the empty history a new editor starts with, so it never says
-    // that the outgoing editor's undo steps are gone. Say it here, with the core's frozen payload.
-    if (hadHistory) this.historyChange.emit(Object.freeze({ canUndo: false, canRedo: false }));
+    const old = this.editor;
+    const retry = !old;
+    if (old) {
+      // The theme has no getter: the one last pushed is what the editor shows.
+      this.carried = {
+        value: old.getValue(),
+        mode: old.getMode(),
+        format: old.getFormat(),
+        readOnly: old.getReadOnly(),
+        theme: this.prev!.theme,
+        stale: {
+          history: old.canUndo() || old.canRedo(),
+          problems: old.getProblems().length > 0,
+          format: old.getActiveFormat() !== undefined,
+        },
+      };
+      this.editor = undefined;
+      this.zone.runOutsideAngular(() => old.destroy());
+    }
+    const from = this.carried!;
+    this.create(from);
+    this.carried = undefined;
+    // The core reports changes only from the empty state a new editor starts with, so it never says that the
+    // outgoing editor's undo steps, problems or format are gone. Say it here, with the core's frozen payloads.
+    // A listener that throws is reported to Angular's ErrorHandler by the output itself and does not stop the others.
+    if (from.stale.history) this.historyChange.emit(Object.freeze({ canUndo: false, canRedo: false }));
+    if (from.stale.problems) this.problemsChange.emit(Object.freeze([]));
+    if (from.stale.format) this.activeFormatChange.emit(undefined);
+    if (retry) this.push(this.settable(), untracked(this.variables));
   }
 
   private push(now: Settable, variables: VariablesOption | undefined): void {
     const ed = this.editor;
-    if (!ed) return;
+    if (!ed) {
+      // A recreation failed: an input change may be the fix (such as a corrected variables list), so try again.
+      if (this.carried) this.recreate();
+      return;
+    }
     const before = this.prev!;
-    this.prev = now;
     const patch: Patch = {};
     if (now.value !== this.lastValue && now.value !== ed.getValue()) patch.value = now.value;
-    this.lastValue = now.value;
     if (now.mode !== this.lastMode && now.mode !== ed.getMode()) patch.mode = now.mode;
-    this.lastMode = now.mode;
     if (now.format !== before.format) patch.format = now.format;
     if (now.readOnly !== before.readOnly) patch.readOnly = now.readOnly;
     if (now.theme !== before.theme) patch.theme = now.theme;
@@ -271,16 +312,21 @@ export class SwManifestEditor {
       this.createdWith?.store === 'external' &&
       variables.value !== this.appliedVariables
     ) {
-      this.appliedVariables = variables.value;
       patch.variables = variables.value;
     }
-    if (Object.keys(patch).length === 0) return;
-    this.pushing = true;
-    try {
-      this.zone.runOutsideAngular(() => ed.update(patch));
-    } finally {
-      this.pushing = false;
+    if (Object.keys(patch).length > 0) {
+      this.pushing = true;
+      try {
+        this.zone.runOutsideAngular(() => ed.update(patch));
+      } finally {
+        this.pushing = false;
+      }
     }
+    // Recorded only once the editor took them: a patch whose update() threw is pushed again by the next run.
+    this.prev = now;
+    this.lastValue = now.value;
+    this.lastMode = now.mode;
+    if (patch.variables) this.appliedVariables = patch.variables;
   }
 
   private settable(): Settable {

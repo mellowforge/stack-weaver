@@ -1,16 +1,37 @@
-import { StrictMode, createRef, useRef, useState } from 'react';
-import type { RefObject } from 'react';
+import { Component, StrictMode, createRef, useRef, useState } from 'react';
+import type { ReactNode, RefObject } from 'react';
 import { act, cleanup, fireEvent, render, waitFor } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { MockInstance } from 'vitest';
-import type { CodeEditorAdapter, VariableDecl } from '@stack-weaver/core';
+import type { CodeEditorAdapter, Problem, VariableDecl, VariablesOption } from '@stack-weaver/core';
 import { EXAMPLES, textareaAdapter } from '@stack-weaver/demo-kit';
 import type { TextareaAdapter } from '@stack-weaver/demo-kit';
 import { ManifestEditor } from '../src/index.js';
-import type { ManifestEditorController } from '../src/index.js';
+import type { ManifestEditorController, ManifestEditorProps } from '../src/index.js';
 
 const COMPOSE = EXAMPLES.find((e) => e.id === 'compose')!.value;
 const KUBERNETES = EXAMPLES.find((e) => e.id === 'kubernetes')!.value;
+/** A Kubernetes document with a schema problem: `containers` must be a list. */
+const INVALID_POD = 'apiVersion: v1\nkind: Pod\nmetadata:\n  name: web\nspec:\n  containers: 3\n';
+
+/** Node's `process` (vitest runs in Node), typed for the one event the tests listen to. */
+const node = (globalThis as unknown as {
+  process: {
+    on(event: 'unhandledRejection', listener: (reason: unknown) => void): void;
+    off(event: 'unhandledRejection', listener: (reason: unknown) => void): void;
+  };
+}).process;
+
+/** Shows the error a child threw while rendering or committing, in place of the child. */
+class Boundary extends Component<{ children: ReactNode }, { error?: unknown }> {
+  override state: { error?: unknown } = {};
+  static getDerivedStateFromError(error: unknown): { error: unknown } {
+    return { error };
+  }
+  override render(): ReactNode {
+    return this.state.error === undefined ? this.props.children : <p data-testid="failed">{String(this.state.error)}</p>;
+  }
+}
 
 let errors: MockInstance<typeof console.error>;
 let adapter: TextareaAdapter;
@@ -232,6 +253,33 @@ describe.each([
     expect(container.querySelector('textarea')!.value).toBe('a: 2');
   });
 
+  const initOnly = (prop: 'formats' | 'recipes' | 'widgets'): Partial<ManifestEditorProps> =>
+    prop === 'formats' ? { formats: [] } : prop === 'recipes' ? { recipes: [] } : { widgets: {} };
+
+  it.each(['formats', 'recipes', 'widgets'] as const)('a new %s reference recreates the editor and keeps the text', async (prop) => {
+    const ref = createRef<ManifestEditorController>();
+    const view = (extra: Partial<ManifestEditorProps>) => <ManifestEditor ref={ref} codeEditor={adapter} value="a: 1" {...extra} />;
+    const { rerender } = render(view(initOnly(prop)), opts);
+    await settle(ref);
+    const old = ref.current!;
+    type('a: 2');
+    rerender(view(initOnly(prop)));
+    expect(ref.current).not.toBe(old);
+    expect(ref.current!.getValue()).toBe('a: 2');
+    await settle(ref);
+  });
+
+  it.each(['formats', 'recipes', 'widgets'] as const)('the same %s reference does not recreate the editor', async (prop) => {
+    const ref = createRef<ManifestEditorController>();
+    const stable = initOnly(prop);
+    const view = (label: string) => <ManifestEditor ref={ref} codeEditor={adapter} value="a: 1" aria-label={label} {...stable} />;
+    const { rerender } = render(view('one'), opts);
+    await settle(ref);
+    const old = ref.current;
+    rerender(view('two'));
+    expect(ref.current).toBe(old);
+  });
+
   it('a new variables.value with the external store is pushed without recreation; a changed store kind recreates', async () => {
     const ref = createRef<ManifestEditorController>();
     const a: VariableDecl = { name: 'A', type: 'string' };
@@ -252,10 +300,15 @@ describe.each([
     rerender(<ManifestEditor ref={ref} codeEditor={adapter} value="a: 1" variables={{ store: 'external', value: [a, b] }} />);
     expect(ref.current).toBe(first);
     expect(first.getVariables().map((d) => d.name)).toEqual(['A', 'B']);
+    // State that only the editor holds: the props say none of it.
+    type('a: 2');
+    act(() => first.setMode('code'));
     rerender(<ManifestEditor ref={ref} codeEditor={adapter} value="a: 1" variables={{ store: 'x-variables' }} />);
     const second = ref.current!;
     expect(second).not.toBe(first);
     expect(second.getVariables()).toEqual([]);
+    expect(second.getValue()).toBe('a: 2');
+    expect(second.getMode()).toBe('code');
     rerender(<ManifestEditor ref={ref} codeEditor={adapter} value="a: 1" variables={{ store: 'x-variables' }} />);
     expect(ref.current).toBe(second);
     // No `variables` is the x-variables store (the core default): switching between the two is not a new kind.
@@ -304,6 +357,8 @@ describe.each([
   it('recreation reports an empty history through onHistoryChange', async () => {
     let editor: RefObject<ManifestEditorController | null> | undefined;
     const reported: { canUndo: boolean; canRedo: boolean }[] = [];
+    /** The controller the ref held when each callback ran. */
+    const seen: (ManifestEditorController | null)[] = [];
     // The guide is the parent's: each new object recreates the editor, which drops the undo history.
     function Host({ guide }: { guide: Record<string, never> }) {
       const ref = useRef<ManifestEditorController>(null);
@@ -321,6 +376,7 @@ describe.each([
             guide={guide}
             onHistoryChange={(state) => {
               reported.push(state);
+              seen.push(ref.current);
               setHistory(state);
             }}
           />
@@ -333,9 +389,12 @@ describe.each([
     type('a: 2');
     expect(undo.disabled).toBe(false);
     reported.length = 0;
+    seen.length = 0;
     const old = editor!.current;
     rerender(<Host guide={{}} />);
     expect(editor!.current).not.toBe(old);
+    // The callback already sees the new controller through the ref.
+    expect(seen).toEqual([editor!.current]);
     expect(editor!.current!.getValue()).toBe('a: 2');
     expect(editor!.current!.canUndo()).toBe(false);
     expect(reported).toEqual([{ canUndo: false, canRedo: false }]);
@@ -346,6 +405,102 @@ describe.each([
     rerender(<Host guide={{}} />);
     expect(reported).toEqual([]);
     await settle(editor!);
+  });
+
+  it('recreation reports emptied problems and no active format', async () => {
+    const ref = createRef<ManifestEditorController>();
+    const problems: (readonly Problem[])[] = [];
+    const formats: (string | undefined)[] = [];
+    /** The controller the ref held when each callback ran. */
+    const seen: (ManifestEditorController | null)[] = [];
+    // An inline guide: every render recreates the editor.
+    const view = (value: string) => (
+      <ManifestEditor
+        ref={ref}
+        codeEditor={adapter}
+        value={value}
+        guide={{}}
+        onProblemsChange={(list) => {
+          problems.push(list);
+          seen.push(ref.current);
+        }}
+        onFormatChange={(f) => {
+          formats.push(f);
+          seen.push(ref.current);
+        }}
+      />
+    );
+    const { rerender } = render(view(INVALID_POD), opts);
+    await settle(ref);
+    expect(formats).toEqual(['kubernetes']);
+    expect(problems.at(-1)!.length).toBeGreaterThan(0);
+    problems.length = 0;
+    formats.length = 0;
+    seen.length = 0;
+    // The new editor gets empty text: it resolves no format and finds no problems, so it reports neither.
+    rerender(view(''));
+    const next = ref.current!;
+    await settle(ref);
+    expect(ref.current).toBe(next);
+    expect(problems).toEqual([[]]);
+    expect(Object.isFrozen(problems[0])).toBe(true);
+    expect(formats).toEqual([undefined]);
+    expect(seen).toEqual([next, next]);
+    // Recreating again with nothing to empty reports nothing.
+    problems.length = 0;
+    formats.length = 0;
+    rerender(view(''));
+    await settle(ref);
+    expect(problems).toEqual([]);
+    expect(formats).toEqual([]);
+  });
+
+  it('a throwing history listener at a recreation does not stop the new editor', async () => {
+    const ref = createRef<ManifestEditorController>();
+    const view = () => (
+      <ManifestEditor
+        ref={ref}
+        codeEditor={adapter}
+        value="a: 1"
+        guide={{}}
+        onHistoryChange={() => {
+          throw new Error('listener');
+        }}
+      />
+    );
+    const { rerender } = render(view(), opts);
+    await settle(ref);
+    errors.mockImplementation(() => {}); // the error below is expected: keep the output clean
+    type('a: 2'); // the core logs this throw
+    errors.mockClear();
+    const old = ref.current;
+    rerender(view());
+    expect(errors).toHaveBeenCalledTimes(1);
+    expect(errors).toHaveBeenCalledWith('stack-weaver: an onHistoryChange callback threw', expect.any(Error));
+    errors.mockClear();
+    expect(ref.current).not.toBe(old);
+    expect(ref.current!.getValue()).toBe('a: 2');
+    await settle(ref);
+  });
+
+  it('a recreation that throws leaves no controller', async () => {
+    const ref = createRef<ManifestEditorController>();
+    const dup: VariableDecl = { name: 'A', type: 'string' };
+    const view = (variables?: VariablesOption) => (
+      <Boundary>
+        <ManifestEditor ref={ref} codeEditor={adapter} value="a: 1" variables={variables} />
+      </Boundary>
+    );
+    const { rerender, container, getByTestId } = render(view(), opts);
+    await settle(ref);
+    errors.mockImplementation(() => {}); // the error below is expected: keep the output clean
+    // A new store kind recreates the editor; invalid initial declarations make the core throw a TypeError.
+    rerender(view({ store: 'external', value: [dup, dup] }));
+    expect(getByTestId('failed').textContent).toContain('duplicate variable');
+    expect(ref.current).toBeNull();
+    expect(container.querySelector('.sw-editor')).toBeNull();
+    expect(errors).toHaveBeenCalled(); // React reports the error its boundary caught
+    errors.mockClear();
   });
 
   it('unmount before ready: no callback after unmount, no unhandled rejection', async () => {
@@ -360,13 +515,20 @@ describe.each([
       onHistoryChange: vi.fn(),
       onVariablesChange: vi.fn(),
     };
-    const { unmount } = render(<ManifestEditor ref={ref} codeEditor={never} value={KUBERNETES} {...callbacks} />, opts);
-    const editor = ref.current!;
-    unmount();
-    expect(ref.current).toBeNull();
-    await editor.ready; // a destroyed editor's `ready` resolves
-    await new Promise((r) => setTimeout(r, 300)); // past the validation debounce and the format load
-    for (const [name, fn] of Object.entries(callbacks)) expect(fn, name).not.toHaveBeenCalled();
+    const rejections = vi.fn();
+    node.on('unhandledRejection', rejections);
+    try {
+      const { unmount } = render(<ManifestEditor ref={ref} codeEditor={never} value={KUBERNETES} {...callbacks} />, opts);
+      const editor = ref.current!;
+      unmount();
+      expect(ref.current).toBeNull();
+      await editor.ready; // a destroyed editor's `ready` resolves
+      await new Promise((r) => setTimeout(r, 300)); // past the validation debounce and the format load
+      for (const [name, fn] of Object.entries(callbacks)) expect(fn, name).not.toHaveBeenCalled();
+      expect(rejections).not.toHaveBeenCalled();
+    } finally {
+      node.off('unhandledRejection', rejections);
+    }
   });
 
   it('className and style on the host div survive re-renders', async () => {

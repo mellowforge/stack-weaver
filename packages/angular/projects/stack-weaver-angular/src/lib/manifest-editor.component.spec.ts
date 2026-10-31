@@ -6,11 +6,14 @@ import type {
   CodeEditorAdapter,
   EditorMode,
   EditorTheme,
+  FormatDefinition,
   ManifestEditorController,
   ManifestEditorOptions,
   Problem,
+  Recipe,
   VariableDecl,
   VariablesOption,
+  WidgetRegistry,
 } from '@stack-weaver/core';
 import { EXAMPLES, textareaAdapter } from '@stack-weaver/demo-kit';
 import type { TextareaAdapter } from '@stack-weaver/demo-kit';
@@ -18,13 +21,33 @@ import { SwManifestEditor } from './manifest-editor.component';
 
 const COMPOSE = EXAMPLES.find((e) => e.id === 'compose')!.value;
 const KUBERNETES = EXAMPLES.find((e) => e.id === 'kubernetes')!.value;
+/** A Kubernetes document with a schema problem: `containers` must be a list. */
+const INVALID_POD = 'apiVersion: v1\nkind: Pod\nmetadata:\n  name: web\nspec:\n  containers: 3\n';
+
+/** Node's `process` (vitest runs in Node), typed for the one event the tests listen to. */
+const node = (globalThis as unknown as {
+  process: {
+    on(event: 'unhandledRejection', listener: (reason: unknown) => void): void;
+    off(event: 'unhandledRejection', listener: (reason: unknown) => void): void;
+  };
+}).process;
 
 let errors: MockInstance<typeof console.error>;
 let adapter: TextareaAdapter;
 /** The code editor the next host is created with. */
 let codeEditor: CodeEditorAdapter;
 
-type History = { canUndo: boolean; canRedo: boolean };
+type History = { readonly canUndo: boolean; readonly canRedo: boolean };
+
+/** The init-only inputs other than `codeEditor`, `guide` and `messages`. */
+type InitOnly = {
+  readonly formats?: readonly FormatDefinition[];
+  readonly recipes?: readonly Recipe[];
+  readonly widgets?: WidgetRegistry;
+};
+
+const initOnly = (prop: 'formats' | 'recipes' | 'widgets'): InitOnly =>
+  prop === 'formats' ? { formats: [] } : prop === 'recipes' ? { recipes: [] } : { widgets: {} };
 
 @Component({
   imports: [SwManifestEditor],
@@ -41,12 +64,15 @@ type History = { canUndo: boolean; canRedo: boolean };
       [theme]="theme()"
       [variables]="variables()"
       [guide]="guide()"
+      [formats]="init().formats"
+      [recipes]="init().recipes"
+      [widgets]="init().widgets"
       (valueChange)="values.push($event)"
       (textChange)="changes.push($event)"
       (modeChange)="modes.push($event)"
-      (activeFormatChange)="active.set($event); formats.push($event)"
-      (historyChange)="history.set($event); histories.push($event)"
-      (problemsChange)="problems.push($event)"
+      (activeFormatChange)="active.set($event); formats.push($event); seen.push(editor().controller())"
+      (historyChange)="onHistory($event)"
+      (problemsChange)="problems.push($event); seen.push(editor().controller())"
       (variablesChange)="decls.push($event)"
     />
   `,
@@ -61,6 +87,7 @@ class Host {
   readonly theme = signal<EditorTheme>('auto');
   readonly variables = signal<VariablesOption | undefined>(undefined);
   readonly guide = signal<ManifestEditorOptions['guide']>(undefined);
+  readonly init = signal<InitOnly>({});
   readonly active = signal<string | undefined>(undefined);
   readonly history = signal<History>({ canUndo: false, canRedo: false });
   readonly values: string[] = [];
@@ -70,6 +97,17 @@ class Host {
   readonly histories: History[] = [];
   readonly problems: (readonly Problem[])[] = [];
   readonly decls: (readonly VariableDecl[])[] = [];
+  /** The controller `controller()` returned when each problems, format or history output ran. */
+  readonly seen: (ManifestEditorController | undefined)[] = [];
+  /** Makes the history listener throw. */
+  historyThrows = false;
+
+  onHistory(state: History): void {
+    if (this.historyThrows) throw new Error('listener');
+    this.history.set(state);
+    this.histories.push(state);
+    this.seen.push(this.editor().controller());
+  }
 }
 
 /** Binds `value` one way and never listens to `valueChange`: the parent ignores the user's typing. */
@@ -208,9 +246,13 @@ describe('sw-manifest-editor', () => {
     await f.whenStable();
     const ed = await settle(f);
     expect(ed.getMode()).toBe('visual');
+    const set = vi.spyOn(h.editor().mode, 'set');
     h.mode.set('code');
     await f.whenStable();
     expect(ed.getMode()).toBe('code');
+    // A pushed mode is not reported back.
+    expect(set).not.toHaveBeenCalled();
+    set.mockRestore();
     h.modes.length = 0;
     q<HTMLButtonElement>(f, '.sw-mode-radio[data-sw-mode="split"]')!.click();
     await f.whenStable();
@@ -296,6 +338,32 @@ describe('sw-manifest-editor', () => {
     expect(h.editor().controller()).toBe(next);
   });
 
+  it.each(['formats', 'recipes', 'widgets'] as const)('a new %s reference recreates the editor and keeps the text', async (prop) => {
+    const f = TestBed.createComponent(Host);
+    const h = f.componentInstance;
+    h.init.set(initOnly(prop));
+    await f.whenStable();
+    const old = await settle(f);
+    await type(f, 'a: 2');
+    h.init.set(initOnly(prop));
+    await f.whenStable();
+    expect(h.editor().controller()).not.toBe(old);
+    expect(h.editor().controller()!.getValue()).toBe('a: 2');
+    await settle(f);
+  });
+
+  it.each(['formats', 'recipes', 'widgets'] as const)('the same %s reference does not recreate the editor', async (prop) => {
+    const stable = initOnly(prop);
+    const f = TestBed.createComponent(Host);
+    const h = f.componentInstance;
+    h.init.set(stable);
+    await f.whenStable();
+    const old = await settle(f);
+    h.init.set({ ...stable });
+    await f.whenStable();
+    expect(h.editor().controller()).toBe(old);
+  });
+
   it('a new variables.value with the external store is pushed without recreation; a changed store kind recreates', async () => {
     const a: VariableDecl = { name: 'A', type: 'string' };
     const b: VariableDecl = { name: 'B', type: 'string' };
@@ -316,16 +384,45 @@ describe('sw-manifest-editor', () => {
     await f.whenStable();
     expect(h.editor().controller()).toBe(first);
     expect(first.getVariables().map((d) => d.name)).toEqual(['A', 'B']);
+    // State that only the editor holds (value and mode are two-way, so the host follows).
+    await type(f, 'a: 2');
+    first.setMode('code');
+    await f.whenStable();
     h.variables.set({ store: 'x-variables' });
     await f.whenStable();
     const second = h.editor().controller()!;
     expect(second).not.toBe(first);
     expect(second.getVariables()).toEqual([]);
+    expect(second.getValue()).toBe('a: 2');
+    expect(second.getMode()).toBe('code');
     // Undefined means the core default, the x-variables store.
     h.variables.set(undefined);
     await f.whenStable();
     expect(h.editor().controller()).toBe(second);
     await settle(f);
+  });
+
+  it('a variables.value push that throws is retried by the next push', async () => {
+    const a: VariableDecl = { name: 'A', type: 'string' };
+    const f = TestBed.createComponent(Host);
+    const h = f.componentInstance;
+    h.variables.set({ store: 'external', value: [a] });
+    await f.whenStable();
+    const ed = await settle(f);
+    // One push: update() applies the variables before readOnly, and a duplicate name throws there.
+    errors.mockImplementation(() => {}); // the error below is expected: keep the output clean
+    h.readOnly.set(true);
+    h.variables.set({ store: 'external', value: [a, a] });
+    await expect(f.whenStable()).rejects.toThrow('duplicate variable');
+    expect(errors).toHaveBeenCalledTimes(1); // Angular's ErrorHandler logs it
+    errors.mockClear();
+    expect(ed.getReadOnly()).toBe(false);
+    // A corrected list: the next push carries it and the readOnly the failed one did not apply.
+    h.variables.set({ store: 'external', value: [a] });
+    await f.whenStable();
+    expect(h.editor().controller()).toBe(ed);
+    expect(ed.getVariables().map((d) => d.name)).toEqual(['A']);
+    expect(ed.getReadOnly()).toBe(true);
   });
 
   it('historyChange drives undo buttons', async () => {
@@ -358,11 +455,14 @@ describe('sw-manifest-editor', () => {
     await type(f, 'a: 2');
     expect(undo.disabled).toBe(false);
     h.histories.length = 0;
+    h.seen.length = 0;
     const old = h.editor().controller();
     h.guide.set({});
     await f.whenStable();
     const next = h.editor().controller()!;
     expect(next).not.toBe(old);
+    // The listener already sees the new controller.
+    expect(h.seen).toEqual([next]);
     expect(next.getValue()).toBe('a: 2');
     expect(next.canUndo()).toBe(false);
     expect(h.histories).toEqual([{ canUndo: false, canRedo: false }]);
@@ -376,21 +476,110 @@ describe('sw-manifest-editor', () => {
     await settle(f);
   });
 
+  it('recreation reports emptied problems and no active format', async () => {
+    const f = TestBed.createComponent(Host);
+    const h = f.componentInstance;
+    h.value.set(INVALID_POD);
+    await f.whenStable();
+    await settle(f);
+    await vi.waitFor(() => expect(h.formats).toEqual(['kubernetes']));
+    expect(h.problems.at(-1)!.length).toBeGreaterThan(0);
+    h.problems.length = 0;
+    h.formats.length = 0;
+    h.seen.length = 0;
+    // The new editor gets empty text: it resolves no format and finds no problems, so it reports neither.
+    h.guide.set({});
+    h.value.set('');
+    await f.whenStable();
+    const next = h.editor().controller()!;
+    await settle(f);
+    expect(h.editor().controller()).toBe(next);
+    expect(h.problems).toEqual([[]]);
+    expect(Object.isFrozen(h.problems[0])).toBe(true);
+    expect(h.formats).toEqual([undefined]);
+    // Every listener (also historyChange, for the pushed text) already sees the new controller.
+    expect(h.seen.length).toBeGreaterThanOrEqual(2);
+    expect(h.seen.every((c) => c === next)).toBe(true);
+    // Recreating again with nothing to empty reports nothing.
+    h.problems.length = 0;
+    h.formats.length = 0;
+    h.guide.set({});
+    await f.whenStable();
+    await settle(f);
+    expect(h.problems).toEqual([]);
+    expect(h.formats).toEqual([]);
+  });
+
+  it('a throwing history listener at a recreation does not stop the new editor', async () => {
+    const f = await create(Host);
+    const h = f.componentInstance;
+    await settle(f);
+    await type(f, 'a: 2');
+    errors.mockImplementation(() => {}); // the error below is expected: keep the output clean
+    h.historyThrows = true;
+    const old = h.editor().controller();
+    h.guide.set({});
+    await expect(f.whenStable()).rejects.toThrow('listener');
+    expect(errors).toHaveBeenCalledTimes(1); // Angular's ErrorHandler logs it
+    errors.mockClear();
+    expect(h.editor().controller()).not.toBe(old);
+    expect(h.editor().controller()!.getValue()).toBe('a: 2');
+    await settle(f);
+  });
+
+  it('a recreation that throws leaves no controller', async () => {
+    const dup: VariableDecl = { name: 'A', type: 'string' };
+    const f = await create(Host);
+    const h = f.componentInstance;
+    await settle(f);
+    await type(f, 'a: 2');
+    errors.mockImplementation(() => {}); // the error below is expected: keep the output clean
+    // A new store kind recreates the editor; invalid initial declarations make the core throw a TypeError.
+    h.variables.set({ store: 'external', value: [dup, dup] });
+    await expect(f.whenStable()).rejects.toThrow('duplicate variable');
+    expect(errors).toHaveBeenCalledTimes(1); // Angular's ErrorHandler logs it
+    errors.mockClear();
+    expect(h.editor().controller()).toBeUndefined();
+    expect(q(f, '.sw-editor')).toBeNull();
+    // A corrected list (the same store kind) tries again, from the text the old editor had; an input changed with
+    // it is pushed to the new editor.
+    h.readOnly.set(true);
+    h.variables.set({ store: 'external', value: [dup] });
+    await f.whenStable();
+    const next = await settle(f);
+    expect(next.getValue()).toBe('a: 2');
+    expect(next.getVariables().map((d) => d.name)).toEqual(['A']);
+    expect(next.getReadOnly()).toBe(true);
+    expect(all(f, '.sw-editor')).toHaveLength(1);
+    // Another init-only change recreates it as usual.
+    h.guide.set({});
+    await f.whenStable();
+    expect(h.editor().controller()).not.toBe(next);
+    await settle(f);
+  });
+
   it('destroy before ready: no output after destroy, no unhandled rejection', async () => {
     // A code editor that never finishes mounting, so `ready` is still pending at the destroy.
     codeEditor = { mount: () => new Promise(() => {}) };
-    const f = TestBed.createComponent(Host);
-    const h = f.componentInstance;
-    h.value.set(KUBERNETES);
-    f.detectChanges(); // creates the editor; destroyed below before its code editor starts mounting
-    const cmp = h.editor();
-    const ed = cmp.controller()!;
-    f.destroy();
-    expect(cmp.controller()).toBeUndefined();
-    await ed.ready; // a destroyed editor's `ready` resolves
-    await new Promise((r) => setTimeout(r, 300)); // past the validation debounce and the format load
-    const outputs = [h.values, h.modes, h.formats, h.histories, h.problems, h.decls];
-    expect(outputs.map((list) => list.length)).toEqual([0, 0, 0, 0, 0, 0]);
+    const rejections = vi.fn();
+    node.on('unhandledRejection', rejections);
+    try {
+      const f = TestBed.createComponent(Host);
+      const h = f.componentInstance;
+      h.value.set(KUBERNETES);
+      f.detectChanges(); // creates the editor; destroyed below before its code editor starts mounting
+      const cmp = h.editor();
+      const ed = cmp.controller()!;
+      f.destroy();
+      expect(cmp.controller()).toBeUndefined();
+      await ed.ready; // a destroyed editor's `ready` resolves
+      await new Promise((r) => setTimeout(r, 300)); // past the validation debounce and the format load
+      const outputs = [h.values, h.modes, h.formats, h.histories, h.problems, h.decls];
+      expect(outputs.map((list) => list.length)).toEqual([0, 0, 0, 0, 0, 0]);
+      expect(rejections).not.toHaveBeenCalled();
+    } finally {
+      node.off('unhandledRejection', rejections);
+    }
   });
 
   it('the core runs outside the Angular zone', async () => {

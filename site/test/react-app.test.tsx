@@ -77,6 +77,23 @@ describe('React demo', () => {
     expect(container.querySelectorAll('.sw-editor')).toHaveLength(1);
   });
 
+  // Both are recreations (a new variables store kind): the new editor starts with no format and no problems.
+  it('choosing Empty after Compose with external variables clears the format', async () => {
+    await mount();
+    choose('compose-external');
+    await waitFor(() => expect(status()).toContain('compose'));
+    choose('empty');
+    await waitFor(() => expect(status()).toContain('no format yet'));
+  });
+
+  it('choosing Compose with external variables after Broken clears the problems', async () => {
+    await mount();
+    choose('broken');
+    await waitFor(() => expect(status()).toMatch(/\d+ problems?/));
+    choose('compose-external');
+    await waitFor(() => expect(status()).toContain('No problems'));
+  });
+
   it('read-only blocks typing', async () => {
     await mount();
     fireEvent.click(screen.getByLabelText('Read-only'));
