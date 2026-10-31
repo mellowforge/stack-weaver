@@ -50,7 +50,7 @@ describe('x-variables store', () => {
     expect(editor.getValue()).toContain('x-variables:');
     expect(editor.getVariables().map((d) => d.name)).toEqual(['PORT']);
     expect(onVariablesChange).toHaveBeenCalledTimes(1);
-    expect(editor.undo()).toBe(true);;
+    expect(editor.undo()).toBe(true);
     expect(editor.getValue()).toBe(UNDECLARED);
     expect(editor.getVariables()).toEqual([]);
     expect(onVariablesChange).toHaveBeenCalledTimes(2);
@@ -77,11 +77,11 @@ describe('x-variables store', () => {
     expect(vs.set({ name: 'HOST', type: 'string' }, 'PORT').ok).toBe(false);
     expect(vs.set({ name: 'bad name', type: 'string' }).ok).toBe(false);
     expect(vs.remove('NOPE').ok).toBe(false);
-    expect(editor.undo()).toBe(true);;
+    expect(editor.undo()).toBe(true);
     expect(editor.getVariables().map((d) => d.name)).toEqual(['PORT']);
     expect(vs.remove('PORT').ok).toBe(true);
     expect(editor.getVariables()).toEqual([]);
-    expect(editor.undo()).toBe(true);;
+    expect(editor.undo()).toBe(true);
     expect(editor.getValue()).toBe(WITH_BLOCK);
   });
 
@@ -106,7 +106,7 @@ describe('flow-style x-variables entries', () => {
     expect(editor.getValue()).toBe(FLOW.replace('{ type: port, default: 8080, description: Public port }', '{ type: boolean, description: Public port }'));
     expect(editor.getVariables()).toEqual([{ name: 'WEB_PORT', type: 'boolean', description: 'Public port' }]);
     expect(onVariablesChange).toHaveBeenCalledTimes(1);
-    expect(editor.undo()).toBe(true);;
+    expect(editor.undo()).toBe(true);
     expect(editor.getValue()).toBe(FLOW);
   });
 
@@ -118,7 +118,7 @@ describe('flow-style x-variables entries', () => {
     expect(transact).toHaveBeenCalledTimes(1);
     expect(transact.mock.calls[0]![0].length).toBeGreaterThan(1);
     expect(onVariablesChange).toHaveBeenCalledTimes(1);
-    expect(editor.undo()).toBe(true);;
+    expect(editor.undo()).toBe(true);
     expect(editor.getValue()).toBe(FLOW);
   });
 
@@ -130,7 +130,7 @@ describe('flow-style x-variables entries', () => {
     // `set type` alone would succeed; `delete default` in a multi-line flow map is refused.
     expect(ctx.variables()!.set({ name: 'WEB_PORT', type: 'boolean', description: 'Public port' }).ok).toBe(false);
     expect(editor.getValue()).toBe(text);
-    expect(editor.undo()).toBe(false);;
+    expect(editor.undo()).toBe(false);
     expect(onVariablesChange).not.toHaveBeenCalled();
   });
 });
@@ -228,7 +228,7 @@ spec:
     editor.setReadOnly(false);
     expect(editor.applyFix(problem).ok).toBe(true);
     expect(editor.getValue()).toContain('resources:');
-    expect(editor.undo()).toBe(true);;
+    expect(editor.undo()).toBe(true);
     expect(editor.getValue()).toBe(DEPLOY);
     expect(editor.applyFix({ ...problem, fix: undefined } as Problem).ok).toBe(false);
   });
@@ -261,13 +261,13 @@ describe('declarations handed out are frozen', () => {
     const heard: (readonly VariableDecl[])[] = [];
     ctx.onVariables((d) => heard.push(d));
     expect(editor.getVariables()).toEqual([ENUM]);
-    expect(deeplyFrozen(editor.getVariables())).toBe(true);;
-    expect(deeplyFrozen(ctx.variables()!.get())).toBe(true);;
+    expect(deeplyFrozen(editor.getVariables())).toBe(true);
+    expect(deeplyFrozen(ctx.variables()!.get())).toBe(true);
     expect(ctx.variables()!.set({ name: 'B', type: 'boolean' }).ok).toBe(true);
     expect(heard).toHaveLength(1);
     expect(onVariablesChange).toHaveBeenCalledTimes(1);
-    expect(deeplyFrozen(heard[0]!)).toBe(true);;
-    expect(deeplyFrozen(onVariablesChange.mock.calls[0]![0] as readonly VariableDecl[])).toBe(true);;
+    expect(deeplyFrozen(heard[0]!)).toBe(true);
+    expect(deeplyFrozen(onVariablesChange.mock.calls[0]![0] as readonly VariableDecl[])).toBe(true);
     expect(editor.getVariables()).toEqual([ENUM, { name: 'B', type: 'boolean' }]);
   });
 
@@ -278,7 +278,7 @@ describe('declarations handed out are frozen', () => {
     editor.setVariables(value);
     value.pop();
     expect(editor.getVariables().map((d) => d.name)).toEqual(['A', 'B']);
-    expect(deeplyFrozen(editor.getVariables())).toBe(true);;
+    expect(deeplyFrozen(editor.getVariables())).toBe(true);
   });
 });
 
@@ -291,7 +291,7 @@ describe('applyFix(edit) steps', () => {
     const { editor } = await mount({ format: 'kubernetes', value: YAML });
     expect(editor.applyFix(fix([add('b'), add('c')])).ok).toBe(true);
     expect(editor.getValue()).toBe('a: 1\nb: v\nc: v\n');
-    expect(editor.undo()).toBe(true);;
+    expect(editor.undo()).toBe(true);
     expect(editor.getValue()).toBe(YAML);
   });
 
@@ -300,7 +300,7 @@ describe('applyFix(edit) steps', () => {
     const bad = { op: 'set', at: { doc: 0, path: ['nope', 'deeper'] }, value: 1 };
     expect(editor.applyFix(fix([add('b'), bad])).ok).toBe(false);
     expect(editor.getValue()).toBe(YAML);
-    expect(editor.undo()).toBe(false);;
+    expect(editor.undo()).toBe(false);
   });
 });
 

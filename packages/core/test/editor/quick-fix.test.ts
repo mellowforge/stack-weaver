@@ -75,18 +75,18 @@ describe('quick fixes', () => {
 
   it('read-only: fix buttons are disabled, and follow setReadOnly', async () => {
     const { editor } = await mount({ readOnly: true, mode: 'split' });
-    expect(fixButton().disabled).toBe(true);;
-    expect(el.querySelector<HTMLButtonElement>('.sw-row-fix')!.disabled).toBe(true);;
+    expect(fixButton().disabled).toBe(true);
+    expect(el.querySelector<HTMLButtonElement>('.sw-row-fix')!.disabled).toBe(true);
     editor.setReadOnly(false);
-    expect(fixButton().disabled).toBe(false);;
+    expect(fixButton().disabled).toBe(false);
     editor.setReadOnly(true);
-    expect(fixButton().disabled).toBe(true);;
+    expect(fixButton().disabled).toBe(true);
     fixButton().click();
     expect(editor.getValue()).toBe(UNDECLARED);
   });
   const visibleFocus = (): Element => {
     const a = document.activeElement!;
-    expect(a.isConnected).toBe(true);;
+    expect(a.isConnected).toBe(true);
     expect(a.closest('[hidden]')).toBeNull();
     return a;
   };
@@ -96,7 +96,7 @@ describe('quick fixes', () => {
     fixButton().focus();
     fixButton().click();
     await vi.advanceTimersByTimeAsync(1000);
-    expect(el.querySelector<HTMLElement>('.sw-problems')!.hidden).toBe(true);;
+    expect(el.querySelector<HTMLElement>('.sw-problems')!.hidden).toBe(true);
     expect(visibleFocus()).toBe(el.querySelector('.sw-mode-radio[data-sw-mode="split"]'));
   });
 
@@ -107,8 +107,8 @@ describe('quick fixes', () => {
     rowFix.focus();
     rowFix.click();
     await vi.advanceTimersByTimeAsync(1000);
-    expect(rowFix.isConnected).toBe(false);;
-    expect(row.contains(visibleFocus())).toBe(true);;
+    expect(rowFix.isConnected).toBe(false);
+    expect(row.contains(visibleFocus())).toBe(true);
   });
 
   it('row: the fix is rebuilt when the problem moves, so it never applies a stale problem', async () => {
@@ -183,7 +183,7 @@ const panelStatus = (): HTMLElement => el.querySelector<HTMLElement>('.sw-proble
 describe('refused fixes', () => {
   const live = (): Element => {
     const a = document.activeElement!;
-    expect(a.isConnected).toBe(true);;
+    expect(a.isConnected).toBe(true);
     expect(a.closest('[hidden]')).toBeNull();
     return a;
   };
@@ -237,7 +237,7 @@ describe('refused fixes', () => {
     rowFix.focus();
     rowFix.click();
     expect(editor.getValue()).toBe(FLOW_POD);
-    expect(error.hidden).toBe(false);;
+    expect(error.hidden).toBe(false);
     expect(error.getAttribute('role')).toBe('alert');
     expect(error.textContent).toBe(defaultUiMessages.editRefused);
     expect(live()).toBe(rowFix);
@@ -254,11 +254,11 @@ describe('refused fixes', () => {
   it('code pane: no fix actions while read-only; they follow setReadOnly', async () => {
     const { editor, fake } = await mount({ readOnly: true });
     expect(fake.diagnostics.length).toBeGreaterThan(0);
-    expect(fake.diagnostics.some((d) => d.actions)).toBe(false);;
+    expect(fake.diagnostics.some((d) => d.actions)).toBe(false);
     editor.setReadOnly(false);
-    expect(fake.diagnostics.some((d) => d.actions)).toBe(true);;
+    expect(fake.diagnostics.some((d) => d.actions)).toBe(true);
     editor.setReadOnly(true);
-    expect(fake.diagnostics.some((d) => d.actions)).toBe(false);;
+    expect(fake.diagnostics.some((d) => d.actions)).toBe(false);
   });
 });
 
@@ -282,7 +282,7 @@ describe('every entry point under every store', () => {
       return;
     }
     expect(editor.getValue()).toBe(DECLARED);
-    expect(editor.undo()).toBe(true);;
+    expect(editor.undo()).toBe(true);
     expect(editor.getValue()).toBe(UNDECLARED);
   }
 

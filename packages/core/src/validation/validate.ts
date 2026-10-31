@@ -91,7 +91,7 @@ export async function validateText(
     if (isEmptyDocument(p, doc)) continue;
     if (format.rootModel === 'mapping' && seen) {
       const [from, to] = rootRange(p, doc);
-      out.push(problem(p, doc, 'error', 'schema', 'format.extraDocument', messages, {}, [], [from, to]));
+      out.push(problem(p, doc, 'error', 'schema', 'format.extraDocument', messages, {}, [], [from, to], 'format.extraDocument'));
       continue;
     }
     seen = true;
@@ -103,7 +103,7 @@ export async function validateText(
     } catch (err) {
       // Last resort (validateDocument handles the known failures itself): never reject.
       const params = { kind: format.label, cause: causeOf(err) };
-      out.push(problem(p, doc, 'error', 'schema', 'schema.unavailable', defaultMessages, params, [], rootRange(p, doc)));
+      out.push(problem(p, doc, 'error', 'schema', 'schema.unavailable', defaultMessages, params, [], rootRange(p, doc), 'schema.unavailable'));
     }
   }
   for (const rule of format.rules ?? []) {
@@ -132,7 +132,7 @@ function runRule(
       }
     };
   }
-  const code = `rule.${rule.id}`;
+  const code: ProblemCode = `rule.${rule.id}`;
   try {
     const findings = rule.check({
       parsed: p,
@@ -152,7 +152,7 @@ function runRule(
       let range: Range;
       if (f.range) range = [f.range.from, f.range.to];
       else range = pathRange(p, f.doc, f.path, f.at);
-      const found = problem(p, f.doc, f.severity, 'rule', code, table, { ...f.params }, f.path, range);
+      const found = problem(p, f.doc, f.severity, 'rule', code, table, { ...f.params }, f.path, range, code);
       if (!f.fix) return found;
       const label = messageFor({ instancePath: '', keyword: f.fix.key, params: { ...f.fix.params } }, table);
       return { ...found, fix: { id: f.fix.key, label, action: f.fix.action } };
@@ -160,7 +160,7 @@ function runRule(
   } catch (err) {
     // The problem carries only the message; the log keeps the stack.
     console.error(`stack-weaver: rule "${rule.id}" failed`, err);
-    return [problem(p, 0, 'error', 'rule', 'rule.failed', messages, { rule: rule.id, cause: causeOf(err) }, [], rootRange(p, 0))];
+    return [problem(p, 0, 'error', 'rule', 'rule.failed', messages, { rule: rule.id, cause: causeOf(err) }, [], rootRange(p, 0), 'rule.failed')];
   }
 }
 
@@ -177,7 +177,7 @@ async function validateDocument(
   } catch (err) {
     const merge = findMergeKey(yamlDocs(p)[doc]!.contents, []);
     const range = (merge && rangeOf(merge.key)) ?? rootRange(p, doc);
-    return { problems: [problem(p, doc, 'error', 'yaml', 'yaml.data', messages, { cause: causeOf(err) }, merge?.path ?? [], range)] };
+    return { problems: [problem(p, doc, 'error', 'yaml', 'yaml.data', messages, { cause: causeOf(err) }, merge?.path ?? [], range, 'yaml.data')] };
   }
 
   const kinds = format.rootModel === 'documents' ? format.kinds() : [];
@@ -199,7 +199,7 @@ async function validateDocument(
     } else errors = bundle ? bundle.validate(data) : [];
   } catch (err) {
     const params = { kind: kind ?? format.label, cause: causeOf(err) };
-    return { problems: [problem(p, doc, 'error', 'schema', 'schema.unavailable', messages, params, [], rootRange(p, doc))] };
+    return { problems: [problem(p, doc, 'error', 'schema', 'schema.unavailable', messages, params, [], rootRange(p, doc), 'schema.unavailable')] };
   }
 
   if (!bundle) {
@@ -207,11 +207,11 @@ async function validateDocument(
     if (known.length > 0) {
       const node = getNode(p, { doc, path: ['apiVersion'] });
       const params = { apiVersion: (node as Scalar).value, kind, expected: known.map((k) => k.apiVersion) };
-      return { problems: [problem(p, doc, 'error', 'schema', 'kind.apiVersion', messages, params, ['apiVersion'], rangeOf(node) ?? rootRange(p, doc))], data };
+      return { problems: [problem(p, doc, 'error', 'schema', 'kind.apiVersion', messages, params, ['apiVersion'], rangeOf(node) ?? rootRange(p, doc), 'kind.apiVersion')], data };
     }
     const params = { kind: kindNode && isScalar(kindNode) && kindNode.value !== null ? String(kindNode.value) : '(missing)' };
     const path = isNode(kindNode) ? ['kind'] : [];
-    return { problems: [problem(p, doc, 'info', 'schema', 'kind.unknown', messages, params, path, rangeOf(kindNode) ?? rootRange(p, doc))], data };
+    return { problems: [problem(p, doc, 'info', 'schema', 'kind.unknown', messages, params, path, rangeOf(kindNode) ?? rootRange(p, doc), 'kind.unknown')], data };
   }
   return { problems: schemaErrorsToProblems(p, doc, errors, messages, declaredIn(bundle, data)), data, bundle };
 }
@@ -349,7 +349,7 @@ function yamlProblem(p: ParsedText, y: YamlProblem, severity: Severity, code: Pr
   };
 }
 
-/** A problem whose message comes from the table entry `key` with `params`; `code` defaults to `key`, which is then a {@link ProblemCode}. */
+/** A problem whose message comes from the table entry `key` with `params`; `code` is the problem's code. */
 function problem(
   p: ParsedText,
   doc: number,
@@ -360,7 +360,7 @@ function problem(
   params: Record<string, unknown>,
   path: YamlPath,
   [from, to]: Range,
-  code = key as ProblemCode,
+  code: ProblemCode,
 ): Problem {
   const message = messageFor({ instancePath: '', keyword: key, params }, messages);
   const { line, col } = toLineCol(p, from);

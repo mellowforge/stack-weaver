@@ -353,6 +353,33 @@ describe('cards', () => {
   });
 });
 
+describe('refusal messages', () => {
+  it.each([
+    ['name-taken', 'A variable named PORT already exists.'],
+    ['invalid', defaultUiMessages.editRefused], // a declaration the UI built is valid, so the generic message
+    ['unavailable', defaultUiMessages.editRefused],
+    ['edit-refused', defaultUiMessages.editRefused],
+  ] as const)('a store refusal %s shows its message on the control, which keeps the focus', async (reason, message) => {
+    const { ctx } = await mount();
+    const set = vi.spyOn(ctx.variables()!, 'set').mockReturnValue({ ok: false, reason });
+    const input = ctl<HTMLInputElement>('PORT', 'default');
+    input.focus();
+    type(input, '9090');
+    expect(set).toHaveBeenCalled();
+    expect(card('PORT').querySelector('.sw-variable-error')!.textContent).toBe(message);
+    expect(input.getAttribute('aria-invalid')).toBe('true');
+    expect(focused()).toBe(input);
+    expect(input.value).toBe('8080'); // back to the stored declaration
+  });
+
+  it('a refused remove says editRefused on the remove button', async () => {
+    const { ctx } = await mount();
+    vi.spyOn(ctx.variables()!, 'remove').mockReturnValue({ ok: false, reason: 'not-found' });
+    ctl<HTMLButtonElement>('PORT', 'remove').click();
+    expect(card('PORT').querySelector('.sw-variable-error')!.textContent).toBe(defaultUiMessages.editRefused);
+  });
+});
+
 describe('external store and states', () => {
   it('external store: edits fire onVariablesChange and never touch the text', async () => {
     const onVariablesChange = vi.fn();
