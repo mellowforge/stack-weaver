@@ -24,6 +24,7 @@ export function mountVariableBinding(
   const doc = document;
   const ui = ctx.messages.ui;
   const root = h(doc, 'div', { class: 'sw-widget sw-variable-binding' });
+  const error = h(doc, 'span', { class: 'sw-field-error' });
   let value = o.value;
   let readOnly = o.readOnly;
   let select: HTMLSelectElement | undefined;
@@ -34,7 +35,10 @@ export function mountVariableBinding(
   const choose = (name: string): void => {
     const reference = ctx.format()?.variables?.reference(name);
     if (name === '' || reference === undefined || readOnly || name === current()) return;
-    ctx.store.edit({ op: 'set', at: o.ref, value: reference });
+    const r = ctx.store.edit({ op: 'set', at: o.ref, value: reference });
+    error.textContent = r.ok ? '' : ui.editRefused;
+    // A refused choice leaves the document as it was: the select goes back to it.
+    if (!r.ok) render();
   };
 
   function render(): void {
@@ -48,7 +52,7 @@ export function mountVariableBinding(
     if (names.length === 0 && listed === undefined) {
       if (select || sig === '') {
         select = undefined;
-        root.replaceChildren(h(doc, 'p', { class: 'sw-variable-none' }, [ui.variableNone]));
+        root.replaceChildren(h(doc, 'p', { class: 'sw-variable-none' }, [ui.variableNone]), error);
       }
       sig = next;
       return;
@@ -56,7 +60,7 @@ export function mountVariableBinding(
     if (!select) {
       select = h(doc, 'select', { id: o.id, class: 'sw-input', 'aria-label': ui.variableSelect.replace('{label}', o.label) });
       select.addEventListener('change', () => choose(select!.value));
-      root.replaceChildren(select);
+      root.replaceChildren(select, error);
       sig = '';
     }
     if (sig !== next) {

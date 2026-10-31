@@ -6,12 +6,13 @@ import { h } from '../../editor/dom.js';
 import { resolveAt } from '../../engine/resolve.js';
 import type { ResolvedSchema } from '../../engine/resolve.js';
 import { guideFieldOf } from '../../formats/guide.js';
-import type { SchemaBundle } from '../../formats/types.js';
+import type { JsonSchema, SchemaBundle } from '../../formats/types.js';
 import type { Problem } from '../../validation/problems.js';
 import type { FieldRowHandle, FieldRowInit, SectionSlots } from '../section.js';
 import { destroyAddSlot, renderAddSlot, updateAddSlot } from '../add-slot.js';
 import { isRecord, safeData } from '../util.js';
 import { createWidgetContext } from './context.js';
+import { fitsField } from '../../variables/fit.js';
 import { pickWidget } from './registry.js';
 import { mountVariableBinding } from './variable-binding.js';
 import type { WidgetInstance, WidgetRegistry } from './types.js';
@@ -63,8 +64,8 @@ function createEnvs(ctx: EditorContext): (parsed: ParsedText, doc: number) => En
 
 type Mode = 'text' | 'unknown' | 'card' | 'widget' | 'variable';
 
-/** Widgets for one typed value (a boolean or a number): they never show a string that is not a placeholder. */
-const TYPED_WIDGETS = new Set(['boolean', 'number', 'integer']);
+/** Widgets that cannot display arbitrary text (a checkbox, a select): they never show a string they cannot hold, unless it is a placeholder. */
+const TYPED_WIDGETS = new Set(['boolean', 'enum']);
 
 /**
  * The widgets of the visual pane: fills {@link SectionSlots.field} with one schema-driven row per
@@ -122,6 +123,7 @@ function createFieldRow(ctx: EditorContext, registry: WidgetRegistry, envFor: (p
   let problemsSig = '';
   let lastValue: YamlValue = null;
   let lastProblems: readonly Problem[] = [];
+  let lastSchema: JsonSchema | undefined;
   /** The user's choice that the value does not show yet: `var` after pressing the toggle, `typed` after un-pressing a placeholder that stays. */
   let override: 'var' | 'typed' | undefined;
   let fixButtons: HTMLButtonElement[] = [];
@@ -235,7 +237,9 @@ function createFieldRow(ctx: EditorContext, registry: WidgetRegistry, envFor: (p
       override = 'var';
     } else {
       const name = typeof lastValue === 'string' ? ctx.format()?.variables?.referenceOf(lastValue) : undefined;
-      const fallback = name === undefined ? undefined : ctx.variables()?.get().find((d) => d.name === name)?.default;
+      const decl = name === undefined ? undefined : ctx.variables()?.get().find((d) => d.name === name);
+      // Only a default that fits the field replaces the placeholder.
+      const fallback = decl && (lastSchema === undefined || fitsField(decl, lastSchema)) ? decl.default : undefined;
       if (fallback !== undefined) {
         // The default replaces the placeholder; the typed widget shows once the store reports the edit.
         const r = ctx.store.edit({ op: 'set', at: ref, value: fallback });
@@ -268,6 +272,7 @@ function createFieldRow(ctx: EditorContext, registry: WidgetRegistry, envFor: (p
     const ready = env?.bundle !== undefined;
     const parent = ready ? env.resolve(ref.path.slice(0, -1)) : undefined;
     const child = ready ? env.resolve(ref.path) : undefined;
+    lastSchema = child?.schema;
     const gf = typeof key === 'string' ? guideFieldOf(ctx.guide(), parent, key) : undefined;
 
     // What to show.
@@ -281,8 +286,11 @@ function createFieldRow(ctx: EditorContext, registry: WidgetRegistry, envFor: (p
       const list = picked ? LIST_WIDGETS[picked.name] : undefined;
       const fits = picked !== undefined && (list !== undefined ? view.type === list : view.type === 'scalar' || !SCALAR_WIDGETS.has(picked.name));
       mode = fits ? 'widget' : view.type === 'scalar' ? 'text' : 'card';
-      // A typed widget never shows a string that is not a placeholder: the value is read-only text.
-      if (mode === 'widget' && picked && TYPED_WIDGETS.has(picked.name) && view.type === 'scalar' && typeof view.value === 'string') mode = 'text';
+      // A checkbox or select never shows a string it cannot hold (a placeholder is handled below): the value is read-only text.
+      if (mode === 'widget' && picked && TYPED_WIDGETS.has(picked.name) && view.type === 'scalar' && typeof view.value === 'string' && ctx.format()?.variables?.referenceOf(view.value) === undefined) {
+        const allowed = picked.name === 'enum' ? child.schema['enum'] : undefined;
+        if (picked.name === 'boolean' || (Array.isArray(allowed) && !allowed.includes(view.value))) mode = 'text';
+      }
     }
 
     // A scalar field of a format with variables can be bound to a variable.
@@ -292,6 +300,8 @@ function createFieldRow(ctx: EditorContext, registry: WidgetRegistry, envFor: (p
     if (!bindable || (override === 'typed' && !isRef) || (override === 'var' && isRef)) override = undefined;
     const varMode = bindable && (override === 'var' || (isRef && override !== 'typed'));
     if (varMode) mode = 'variable';
+    // After un-pressing a placeholder that stays, the type widget shows as if the value were absent.
+    const shown: YamlValue = override === 'typed' ? null : value;
     const nextKey = mode === 'widget' && picked ? `widget:${picked.name}:${picked.param ?? ''}` : mode;
 
     // Label: the guide's, else an item's name, else the section's.
@@ -302,11 +312,11 @@ function createFieldRow(ctx: EditorContext, registry: WidgetRegistry, envFor: (p
     // The same widget is not rebuilt after it failed: it would only fail again on every update.
     if (nextKey !== modeKey) {
       modeKey = nextKey;
-      build(mode, picked, child, description, value, view, gf?.options);
+      build(mode, picked, child, description, shown, view, gf?.options);
     }
     if (widget) {
       try {
-        widget.update(value, readOnly);
+        widget.update(shown, readOnly);
       } catch (err) {
         widgetFailed(err);
       }

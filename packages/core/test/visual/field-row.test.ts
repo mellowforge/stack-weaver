@@ -89,13 +89,15 @@ describe('field rows', () => {
   });
 
   it('inline problems under the row match by path', async () => {
-    const { editor } = await mount({ value: TEXT.replace('replicas: 2', 'replicas: 1.5'), mode: 'visual' });
+    const { editor } = await mount({ value: TEXT.replace('replicas: 2', 'replicas: x'), mode: 'visual' });
     await vi.waitFor(() => expect(editor.getProblems().some((p) => p.path.join('/') === 'spec/replicas')).toBe(true));
     click('spec');
     const list = row('replicas').querySelector('.sw-row-problems')!;
     expect(list.textContent).not.toBe('');
     expect(row('selector').querySelector('.sw-row-problems')?.textContent ?? '').toBe('');
-    expect(row('replicas').querySelector('input')!.getAttribute('aria-describedby')).toContain(list.id);
+    const input = row('replicas').querySelector('input')!;
+    expect(input.value).toBe('x');
+    expect(input.getAttribute('aria-describedby')).toContain(list.id);
   });
 
   it('remove button deletes the field with accessible name "Remove <label>"', async () => {

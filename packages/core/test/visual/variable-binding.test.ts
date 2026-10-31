@@ -148,6 +148,54 @@ describe('use-variable toggle', () => {
     expect(row('privileged').querySelector('input, select, [role=switch]')).toBeNull();
   });
 
+  it('an enum field holding a non-option string shows read-only text; an option keeps the select', async () => {
+    await mount(svc('    cgroup: nope\n'));
+    expect(row('cgroup').querySelector('.sw-row-value')!.textContent).toBe('nope');
+    expect(row('cgroup').querySelector('select')).toBeNull();
+    el.replaceChildren();
+    await mount(svc('    cgroup: host\n'));
+    expect(row('cgroup').querySelector('.sw-row-value')).toBeNull();
+    expect(row('cgroup').querySelector('select')).not.toBeNull();
+  });
+
+  it('unpressing a no-default placeholder on a boolean field shows the boolean widget, empty; picking commits', async () => {
+    const { editor } = await mount(svc('    privileged: ${DEBUG}\n'));
+    const before = editor.getValue();
+    toggle('privileged').focus();
+    toggle('privileged').click();
+    expect(editor.getValue()).toBe(before);
+    expect(row('privileged').querySelector('.sw-row-value')).toBeNull();
+    const box = row('privileged').querySelector<HTMLInputElement>('input[type=checkbox]')!;
+    expect(box.checked).toBe(false);
+    expect(focused()).toBe(toggle('privileged'));
+    box.checked = true;
+    box.dispatchEvent(new Event('change', { bubbles: true }));
+    expect(editor.getValue()).toContain('    privileged: true\n');
+    expect(toggle('privileged').getAttribute('aria-pressed')).toBe('false');
+  });
+
+  it('unpressing a misfit reference does not commit that variable default', async () => {
+    const block = 'x-variables:\n  GREETING:\n    type: string\n    default: hi\n';
+    const { editor } = await mount(svc('    scale: ${GREETING}\n', block));
+    const before = editor.getValue();
+    expect(toggle('scale').getAttribute('aria-pressed')).toBe('true');
+    toggle('scale').click();
+    expect(editor.getValue()).toBe(before);
+    expect(toggle('scale').getAttribute('aria-pressed')).toBe('false');
+    expect(row('scale').querySelector('.sw-variable-binding')).toBeNull();
+  });
+
+  it('a refused choice resets the select and shows the refusal', async () => {
+    const { fake } = await mount(svc('    scale: 2\n'));
+    toggle('scale').click();
+    fake.type('x: [');
+    const s = select('scale');
+    choose(s, 'SCALE');
+    expect(select('scale').value).toBe('');
+    expect(row('scale').querySelector('.sw-variable-binding .sw-field-error')!.textContent).not.toBe('');
+    expect(fake.getText()).toBe('x: [');
+  });
+
   it('a boolean field holding true still shows the boolean widget', async () => {
     await mount(svc('    privileged: true\n'));
     expect(row('privileged').querySelector('.sw-row-value')).toBeNull();
