@@ -5,8 +5,9 @@ import { EditorSelection } from '@codemirror/state';
 import { EditorView } from '@codemirror/view';
 import { expect, it } from 'vitest';
 import { codemirrorAdapter } from '../../src/editors/codemirror/index.js';
-import { hoverTooltipFor } from '../../src/editors/codemirror/hover.js';
+import { hoverSource, hoverTooltipFor } from '../../src/editors/codemirror/hover.js';
 import type { CodeDiagnostic } from '../../src/editors/adapter.js';
+import type { ProblemCode, ProblemSource } from '../../src/validation/problems.js';
 import { runAdapterContract, type Mounted } from './adapter-contract.js';
 
 const viewOf = (m: Mounted): EditorView => {
@@ -40,8 +41,17 @@ runAdapterContract('codemirror adapter', () => ({
     const out: CodeDiagnostic[] = [];
     forEachDiagnostic(view.state, (d, from, to) => {
       if (d.severity === 'hint') return;
-      const actions = d.actions?.map((x) => ({ label: x.name, apply: () => x.apply(view, from, to) }));
-      out.push({ from: fromCm(view, from), to: fromCm(view, to), severity: d.severity, message: d.message, ...(actions ? { actions } : {}) });
+      const extra = d as typeof d & { code: ProblemCode };
+      const actions = d.actions?.map((x) => ({ id: (x as typeof x & { id: string }).id, label: x.name, apply: () => x.apply(view, from, to) }));
+      out.push({
+        from: fromCm(view, from),
+        to: fromCm(view, to),
+        severity: d.severity,
+        message: d.message,
+        code: extra.code,
+        source: d.source as ProblemSource,
+        ...(actions ? { actions } : {}),
+      });
     });
     return out;
   },
@@ -103,4 +113,19 @@ it('setTheme toggles the dark theme facet', () => {
   inst.setTheme('light');
   expect(viewOf({ el, inst }).state.facet(EditorView.darkTheme)).toBe(false);
   inst.destroy();
+});
+
+it('an async hover result is shown by CodeMirror', async () => {
+  const view = new EditorView({ doc: 'replicas: 2\n' });
+  const source = hoverSource(async () => ({ from: 0, to: 8, title: 'replicas', description: 'How many', required: false }));
+  const tip = await source(view, 2);
+  expect([tip!.pos, tip!.end]).toEqual([0, 8]);
+  view.destroy();
+});
+
+it('a rejected hover shows no tooltip and rejects nothing', async () => {
+  const view = new EditorView({ doc: 'replicas: 2\n' });
+  expect(await hoverSource(() => Promise.reject(new Error('nope')))(view, 2)).toBeNull();
+  expect(await hoverSource(() => undefined)(view, 2)).toBeNull();
+  view.destroy();
 });

@@ -69,6 +69,8 @@ describe('quick fixes', () => {
     const problem = editor.getProblems().find((p) => p.fix)!;
     const withFix = fake.diagnostics.find((d) => d.message === problem.message)!;
     expect(withFix.actions?.map((a) => a.label)).toEqual([problem.fix!.label]);
+    expect(withFix.actions?.map((a) => a.id)).toEqual([problem.fix!.id]);
+    expect([withFix.code, withFix.source]).toEqual([problem.code, problem.source]);
     withFix.actions![0]!.apply();
     expect(editor.getVariables().map((d) => d.name)).toEqual(['PORT']);
   });

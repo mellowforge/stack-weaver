@@ -75,7 +75,7 @@ function toCompletion(c: CodeCompletion): Completion {
  * separator; the selection is mapped through the change. Pasted or dropped text takes the
  * document's line ending.
  */
-export function codemirrorAdapter(opts: CodemirrorAdapterOptions = {}): CodeEditorAdapter {
+export function codemirrorAdapter(opts: CodemirrorAdapterOptions = {}): Omit<CodeEditorAdapter, 'mount'> & { mount(el: HTMLElement, init: CodeEditorInit): CodeEditorInstance } {
   return {
     mount(el: HTMLElement, init: CodeEditorInit): CodeEditorInstance {
       const readOnlyCompartment = new Compartment();
@@ -195,8 +195,16 @@ export function codemirrorAdapter(opts: CodemirrorAdapterOptions = {}): CodeEdit
           const s = view.state;
           const mapped: Diagnostic[] = d.map((x) => {
             const from = stateToCm(s, x.from);
-            const diagnostic: Diagnostic = { from, to: Math.max(stateToCm(s, x.to), from), severity: x.severity, message: x.message };
-            if (x.actions?.length) diagnostic.actions = x.actions.map((a) => ({ name: a.label, apply: () => a.apply() }));
+            // `code` and the action `id` ride along on the CodeMirror objects so they can be read back.
+            const diagnostic: Diagnostic & { code: string } = {
+              from,
+              to: Math.max(stateToCm(s, x.to), from),
+              severity: x.severity,
+              message: x.message,
+              source: x.source,
+              code: x.code,
+            };
+            if (x.actions?.length) diagnostic.actions = x.actions.map((a) => ({ id: a.id, name: a.label, apply: () => a.apply() }));
             return diagnostic;
           });
           view.dispatch(setDiagnostics(s, mapped));

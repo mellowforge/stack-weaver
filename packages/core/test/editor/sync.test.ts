@@ -216,7 +216,7 @@ describe('CRLF documents with the real CodeMirror adapter', () => {
   it('hover answers on a CRLF document, at the CodeMirror position of the key', async () => {
     const { view, init } = await mount(CRLF);
     const pos = DEPLOY.indexOf('replicas') + 2;
-    const tip = hoverSource(init.hover!)(view, pos);
+    const tip = await hoverSource(init.hover!)(view, pos);
     expect(tip).not.toBeNull();
     expect([tip!.pos, tip!.end]).toEqual([DEPLOY.indexOf('replicas'), DEPLOY.indexOf('replicas') + 'replicas'.length]);
   });

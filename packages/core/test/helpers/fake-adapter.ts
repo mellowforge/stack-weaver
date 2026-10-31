@@ -25,10 +25,51 @@ export interface FakeInstance extends CodeEditorInstance {
   requestCompletions(): Promise<string[]>;
 }
 
-/** Creates the fake adapter; `last` is the most recently mounted instance. */
-export function createFakeAdapter(): CodeEditorAdapter & { last?: FakeInstance } {
-  const adapter: CodeEditorAdapter & { last?: FakeInstance } = {
-    mount(el: HTMLElement, init: CodeEditorInit): FakeInstance {
+/** How the fake adapter mounts. The default is synchronous. */
+export interface FakeAdapterOptions {
+  /**
+   * `true`: `mount` returns a promise that resolves on a later microtask (`adapter.last` is set when it resolves).
+   * `'manual'`: it resolves when the test calls `release()`.
+   */
+  readonly async?: boolean | 'manual';
+  /** `mount` rejects with this (or throws it synchronously when `async` is not set). */
+  readonly reject?: unknown;
+}
+
+type FakeBase = { last?: FakeInstance; mounts: number; release(): void };
+/** The fake adapter mounting synchronously (the default). */
+export type SyncFakeAdapter = FakeBase & Omit<CodeEditorAdapter, 'mount'> & { mount(el: HTMLElement, init: CodeEditorInit): FakeInstance };
+/** The fake adapter mounting asynchronously or rejecting. */
+export type AsyncFakeAdapter = FakeBase & Omit<CodeEditorAdapter, 'mount'> & { mount(el: HTMLElement, init: CodeEditorInit): Promise<FakeInstance> };
+
+/**
+ * Creates the fake adapter; `last` is the most recently mounted instance (with an `async` mount,
+ * it is set when the mount resolves), `mounts` counts `mount` calls.
+ */
+export function createFakeAdapter(opts?: { async?: false }): SyncFakeAdapter;
+export function createFakeAdapter(opts: FakeAdapterOptions): AsyncFakeAdapter;
+export function createFakeAdapter(opts: FakeAdapterOptions = {}): SyncFakeAdapter & AsyncFakeAdapter {
+  const pending: (() => void)[] = [];
+  const adapter = {
+    mounts: 0,
+    last: undefined as FakeInstance | undefined,
+    /** Resolves the mounts waiting under `async: 'manual'`. */
+    release() {
+      for (const resolve of pending.splice(0)) resolve();
+    },
+    mount(el: HTMLElement, init: CodeEditorInit): FakeInstance | Promise<FakeInstance> {
+      adapter.mounts++;
+      if (opts.async === undefined || opts.async === false) {
+        if ('reject' in opts) throw opts.reject;
+        return build(el, init);
+      }
+      if ('reject' in opts) return Promise.reject(opts.reject);
+      if (opts.async === 'manual') return new Promise((resolve) => pending.push(() => resolve(build(el, init))));
+      return Promise.resolve().then(() => build(el, init));
+    },
+  };
+  function build(el: HTMLElement, init: CodeEditorInit): FakeInstance {
+    {
       const area = el.ownerDocument.createElement('textarea');
       area.setAttribute('aria-label', init.ariaLabel);
       area.value = init.text;
@@ -149,7 +190,7 @@ export function createFakeAdapter(): CodeEditorAdapter & { last?: FakeInstance }
       };
       adapter.last = inst;
       return inst;
-    },
-  };
-  return adapter;
+    }
+  }
+  return adapter as unknown as SyncFakeAdapter & AsyncFakeAdapter;
 }

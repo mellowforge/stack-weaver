@@ -21,8 +21,9 @@ const VARIABLE_PREFIX = /\$\{([A-Za-z_][A-Za-z0-9_]*)?$/;
  */
 export interface CodePane extends Pane {
   /**
-   * Resolves once the adapter is mounted (or the pane was destroyed first). Rejects when the
-   * adapter fails to load or mount, after logging it and showing `codeEditorFailed` in the pane.
+   * Resolves once the adapter is mounted (an asynchronous mount included; or the pane was destroyed
+   * first). Rejects when the adapter fails to load or mount (a throw and a rejected promise alike),
+   * after logging it and showing `codeEditorFailed` in the pane.
    */
   readonly ready: Promise<void>;
   /** The mounted instance, if any. */
@@ -57,6 +58,8 @@ export function createCodePane(
   const ui = ctx.messages.ui;
   let inst: CodeEditorInstance | undefined;
   let destroyed = false;
+  /** The last reveal asked for before the editor was mounted; applied on arrival. */
+  let pendingReveal: TextRange | undefined;
   let diagnostics: readonly CodeDiagnostic[] = [];
 
   const crumb = h(o.el.ownerDocument, 'nav', { class: 'sw-breadcrumb', 'aria-label': ui.breadcrumbLabel });
@@ -148,10 +151,13 @@ export function createCodePane(
         to: p.to,
         severity: p.severity,
         message: p.message,
+        code: p.code,
+        source: p.source,
         ...(fix && editable
           ? {
               actions: [
                 {
+                  id: fix.id,
                   label: fix.label,
                   apply: () => {
                     if (!ctx.applyFix(p).ok) o.onFixRefused();
@@ -165,22 +171,40 @@ export function createCodePane(
     inst?.setDiagnostics(diagnostics);
   };
 
-  const ready = o.adapter.then((adapter) => {
+  const ready = o.adapter.then(async (adapter) => {
     if (destroyed) return;
-    inst = adapter.mount(o.el, {
-      text: ctx.store.text,
-      readOnly: ctx.readOnly(),
-      theme: o.theme(),
-      ariaLabel: ui.codeLabel,
-      onChange: (t) => ctx.store.setText(t, 'code'),
-      onUndo: o.onUndo,
-      onRedo: o.onRedo,
-      onSelectionChange: (r) => showCrumb(r.from),
-      complete: (text, offset) => complete(text, offset),
-      hover,
-    });
+    const mounted = await Promise.resolve(
+      adapter.mount(o.el, {
+        text: ctx.store.text,
+        readOnly: ctx.readOnly(),
+        theme: o.theme(),
+        ariaLabel: ui.codeLabel,
+        onChange: (t) => ctx.store.setText(t, 'code'),
+        onUndo: o.onUndo,
+        onRedo: o.onRedo,
+        onSelectionChange: (r) => showCrumb(r.from),
+        complete: (text, offset) => complete(text, offset),
+        hover,
+      }),
+    );
+    if (destroyed) {
+      // Destroyed while the mount was pending: release the instance and never call into it otherwise.
+      try {
+        mounted.destroy();
+      } catch {
+        // Nobody is left to tell.
+      }
+      return;
+    }
+    inst = mounted;
+    // Whatever happened while the mount was pending (edits, read-only, theme, problems, reveal) is applied now.
+    if (inst.getText() !== ctx.store.text) inst.applyChange({ from: 0, to: inst.getText().length, insert: ctx.store.text });
+    inst.setReadOnly(ctx.readOnly());
+    inst.setTheme(o.theme());
     o.el.append(crumb);
     inst.setDiagnostics(diagnostics);
+    if (pendingReveal) inst.reveal(pendingReveal, { select: true });
+    pendingReveal = undefined;
     showCrumb(inst.getSelection().from);
   }).catch((err: unknown) => {
     if (destroyed) return; // nobody is left to tell
@@ -215,12 +239,14 @@ export function createCodePane(
     },
     reveal(ref: NodeRef) {
       const r = rangeForRef(ctx.store.parsed, ref);
-      if (!r || !inst) return false;
-      inst.reveal(r, { select: true });
+      if (!r || destroyed) return false;
+      if (inst) inst.reveal(r, { select: true });
+      else pendingReveal = r;
       return true;
     },
     revealRange(range) {
-      inst?.reveal(range, { select: true });
+      if (inst) inst.reveal(range, { select: true });
+      else if (!destroyed) pendingReveal = range;
     },
     setProblems(problems) {
       shown = problems;

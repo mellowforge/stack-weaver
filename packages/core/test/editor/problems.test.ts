@@ -349,10 +349,10 @@ describe('code assist', () => {
     const text = `${K8S}metadata:\n  name: x\n`;
     const { fake } = await mount({ format: 'kubernetes', value: text });
     const start = text.indexOf('metadata');
-    const info = fake.init.hover!(text, start + 2);
+    const info = await fake.init.hover!(text, start + 2);
     expect(info).toBeDefined();
     expect([info!.from, info!.to]).toEqual([start, start + 'metadata'.length]);
-    expect(fake.init.hover!(text, text.indexOf('v1'))).toBeUndefined();
+    expect(await fake.init.hover!(text, text.indexOf('v1'))).toBeUndefined();
   });
 
   it('breadcrumb follows the selection', async () => {

@@ -10,7 +10,7 @@ export interface Mounted {
 
 /** Adapter-specific ways to act like a user and to look inside the editor. */
 export interface ContractHarness {
-  readonly adapter: CodeEditorAdapter;
+  readonly adapter: Omit<CodeEditorAdapter, 'mount'> & { mount(el: HTMLElement, init: CodeEditorInit): CodeEditorInstance };
   /** Simulates the user typing `s` at the end of the text (calls `onChange`). */
   type(m: Mounted, s: string): void;
   /** Places the caret without going through `applyChange`. */
@@ -114,11 +114,11 @@ export function runAdapterContract(name: string, makeHarness: () => ContractHarn
 
     it('setDiagnostics replaces diagnostics', () => {
       const m = mount(base('a: 1\nb: 2\n'));
-      m.inst.setDiagnostics([{ from: 0, to: 1, severity: 'error', message: 'one' }]);
-      expect(h.diagnostics(m)).toEqual([{ from: 0, to: 1, severity: 'error', message: 'one' }]);
+      m.inst.setDiagnostics([{ from: 0, to: 1, severity: 'error', message: 'one', code: 'schema.type', source: 'schema' }]);
+      expect(h.diagnostics(m)).toEqual([{ from: 0, to: 1, severity: 'error', message: 'one', code: 'schema.type', source: 'schema' }]);
       m.inst.setDiagnostics([
-        { from: 5, to: 6, severity: 'warning', message: 'two' },
-        { from: 7, to: 8, severity: 'info', message: 'three' },
+        { from: 5, to: 6, severity: 'warning', message: 'two', code: 'schema.type', source: 'schema' },
+        { from: 7, to: 8, severity: 'info', message: 'three', code: 'schema.type', source: 'schema' },
       ]);
       expect(h.diagnostics(m).map((d) => [d.severity, d.message])).toEqual([
         ['warning', 'two'],
@@ -131,11 +131,20 @@ export function runAdapterContract(name: string, makeHarness: () => ContractHarn
     it('setDiagnostics carries actions, and applying one calls its apply', () => {
       const m = mount(base('a: 1\nb: 2\n'));
       const apply = vi.fn();
-      m.inst.setDiagnostics([{ from: 0, to: 1, severity: 'error', message: 'one', actions: [{ label: 'Fix it', apply }] }]);
+      m.inst.setDiagnostics([{ from: 0, to: 1, severity: 'error', message: 'one', code: 'schema.type', source: 'schema', actions: [{ id: 'fix-1', label: 'Fix it', apply }] }]);
       const [d] = h.diagnostics(m);
       expect(d?.actions?.map((x) => x.label)).toEqual(['Fix it']);
       d?.actions?.[0]?.apply();
       expect(apply).toHaveBeenCalledTimes(1);
+    });
+
+    it('diagnostics carry code and source; actions carry the fix id', () => {
+      const m = mount(base('a: 1\nb: 2\n'));
+      const actions = [{ id: 'declare-PORT', label: 'Fix', apply: () => {} }];
+      m.inst.setDiagnostics([{ from: 0, to: 1, severity: 'warning', message: 'w', code: 'rule.x', source: 'rule', actions }]);
+      const [d] = h.diagnostics(m);
+      expect([d?.code, d?.source]).toEqual(['rule.x', 'rule']);
+      expect(d?.actions?.map((a) => a.id)).toEqual(['declare-PORT']);
     });
 
     it('reveal with select sets the selection', () => {
@@ -216,8 +225,8 @@ export function runAdapterContract(name: string, makeHarness: () => ContractHarn
     it('setDiagnostics clamps out-of-range diagnostics to the document', () => {
       const m = mount(base('abc'));
       m.inst.setDiagnostics([
-        { from: 1, to: 999, severity: 'error', message: 'past end' },
-        { from: -5, to: 2, severity: 'info', message: 'before start' },
+        { from: 1, to: 999, severity: 'error', message: 'past end', code: 'schema.type', source: 'schema' },
+        { from: -5, to: 2, severity: 'info', message: 'before start', code: 'schema.type', source: 'schema' },
       ]);
       expect(h.diagnostics(m).map((d) => [d.from, d.to, d.message]).sort()).toEqual([
         [0, 2, 'before start'],
@@ -342,8 +351,8 @@ export function runAdapterContract(name: string, makeHarness: () => ContractHarn
       it('diagnostics use CRLF offsets and are clamped to the text', () => {
         const m = mount(base(CRLF));
         m.inst.setDiagnostics([
-          { from: 9, to: 10, severity: 'error', message: 'two' },
-          { from: 6, to: 999, severity: 'warning', message: 'past end' },
+          { from: 9, to: 10, severity: 'error', message: 'two', code: 'schema.type', source: 'schema' },
+          { from: 6, to: 999, severity: 'warning', message: 'past end', code: 'schema.type', source: 'schema' },
         ]);
         expect(h.diagnostics(m).map((d) => [d.from, d.to, d.message]).sort()).toEqual([
           [6, 12, 'past end'],

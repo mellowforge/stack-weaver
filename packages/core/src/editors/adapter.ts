@@ -2,7 +2,7 @@ import type { CodeCompletion } from '../assist/complete.js';
 import type { HoverInfo } from '../assist/hover.js';
 import type { TextChange, TextRange } from '../document/types.js';
 import type { ResolvedTheme } from '../editor/theme.js';
-import type { Severity } from '../validation/problems.js';
+import type { ProblemCode, ProblemSource, Severity } from '../validation/problems.js';
 
 /** A problem marker shown in the code editor. */
 export interface CodeDiagnostic {
@@ -14,12 +14,18 @@ export interface CodeDiagnostic {
   readonly severity: Severity;
   /** Text shown for the marker. Plain text, never markup. */
   readonly message: string;
+  /** Machine-readable code of the problem (stable; see {@link ProblemCode}). */
+  readonly code: ProblemCode;
+  /** Which check found the problem. */
+  readonly source: ProblemSource;
   /** Quick fixes offered next to the marker; each `apply` changes the document through the host. */
   readonly actions?: readonly CodeDiagnosticAction[];
 }
 
 /** One quick fix of a {@link CodeDiagnostic}. */
 export interface CodeDiagnosticAction {
+  /** Stable id of the fix (`QuickFix.id`). */
+  readonly id: string;
   /** Plain-text label of the action. */
   readonly label: string;
   /** Runs the fix. */
@@ -54,8 +60,8 @@ export interface CodeEditorInit {
   onSelectionChange?(range: TextRange): void;
   /** Supplies completions for `offset` in `text`; `explicit` is true when the user asked for them. */
   complete?(text: string, offset: number, explicit: boolean): CodeCompletionResult | null | Promise<CodeCompletionResult | null>;
-  /** Supplies hover content for `offset` in `text`. */
-  hover?(text: string, offset: number): HoverInfo | undefined;
+  /** Supplies hover content for `offset` in `text`; may answer asynchronously. A rejection shows no tooltip. */
+  hover?(text: string, offset: number): HoverInfo | undefined | Promise<HoverInfo | undefined>;
 }
 
 /**
@@ -93,6 +99,10 @@ export interface CodeEditorInstance {
 
 /** Creates code editors. Implementations wrap a concrete editor library. */
 export interface CodeEditorAdapter {
-  /** Mounts an editor inside `el`. If it throws, the editor shows `codeEditorFailed` in the code pane instead. */
-  mount(el: HTMLElement, init: CodeEditorInit): CodeEditorInstance;
+  /**
+   * Mounts an editor inside `el`; may answer asynchronously. If it throws or the promise rejects,
+   * the editor shows `codeEditorFailed` in the code pane instead and `ready` rejects. If the editor is
+   * destroyed while a mount is pending, the host calls `destroy()` on the instance as soon as it arrives.
+   */
+  mount(el: HTMLElement, init: CodeEditorInit): CodeEditorInstance | Promise<CodeEditorInstance>;
 }
