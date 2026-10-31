@@ -73,17 +73,108 @@ CodeMirror. Give the host element a height: the editor fills it, with a 320px mi
 | `guide` | Guide overrides keyed by format id (`{ kubernetes: { fields: { ... } } }`), merged over the format's built-in guide: labels, descriptions, tiers and widgets. |
 | `recipes` | Starter recipes added to the built-in ones. A recipe with a built-in's `id` replaces it. |
 | `widgets` | A `WidgetRegistry` merged over the built-in widgets. |
+| `variables` | Where compose variables are declared: `{ store: 'x-variables' }` (the default) or `{ store: 'external', value }`. See [Compose variables](#compose-variables). |
 | `messages` | `{ ui?, schema? }`: translations, see below. |
 | `onChange(value, { origin })` | Called after every change. `origin` is `'visual'`, `'code'`, `'api'` (`setValue`) or `'history'` (undo and redo). |
 | `onProblemsChange(problems)` | Called when the validation result changes. |
 | `onModeChange(mode)` | Called when the mode changes: by the user, by `setMode`, or when an "Edit in code" or "Jump to error" link opens Split from Visual. |
+| `onVariablesChange(decls)` | Called when the effective variable declarations change. See [Compose variables](#compose-variables). |
 
 `value`, `mode`, `readOnly` and `theme` are initial values with setters (`setValue`, `setMode`, `setReadOnly`,
 `setTheme`). The other options are read once, when the editor is created. `setValue` and `setMode` do nothing (and
 call no callback) when the value is already current. A callback that throws is logged and does not stop the editor.
 
 The controller also has `getMode()`, `getProblems()`, `getReadOnly()`, `undo()`, `redo()` and `reveal(ref)`, which
-selects a node (`{ doc, path }`) in both panes.
+selects a node (`{ doc, path }`) in both panes, and `getVariables()`, `setVariables(decls)` and `applyFix(problem)`
+for variables and quick fixes (below).
+
+### Compose variables
+
+Compose files interpolate `${VAR}` in any value. For the compose format the editor lets you declare variables,
+use them from a field's "Use variable" toggle (it lists only variables whose type fits the field) and validates
+the result. A declaration is `{ name, type, enumValues?, default?, description? }`, where `type` is `'string'`,
+`'number'`, `'boolean'`, `'port'` or `'enum'`. Kubernetes has no variables: the toggle, the Variables section and
+the variable rules are absent there.
+
+- The editor writes a bare `${VAR}` and never an inline default, and never resolves values into the text. A
+  hand-written `${VAR:-x}` is kept as it is.
+- Before schema checks each placeholder is replaced by its declared default (or its inline default). A placeholder
+  with no default is checked by its declared type only: the schema errors at that exact path are dropped, and the
+  rule `variable-type` reports a declared type that does not fit the field.
+- Compose union types such as `["boolean","string"]` exist for interpolation. The widget for such a field is the
+  boolean or enum control, and a string that is not a placeholder falls back to read-only text there ("Edit in
+  code"). Text-input widgets (number, integer, quantity) keep showing the string with its error.
+
+Where the declarations live is the `variables` option, chosen when the editor is created:
+
+```ts
+// The default: a top-level `x-variables:` block in the compose file (compose ignores `x-` keys).
+createManifestEditor(el, { format: 'compose', variables: { store: 'x-variables' } });
+
+// External: the host owns the list.
+const editor = createManifestEditor(el, {
+  format: 'compose',
+  variables: { store: 'external', value: [{ name: 'WEB_PORT', type: 'port', default: 8080 }] },
+  onVariablesChange: (decls) => save(decls),
+});
+editor.getVariables(); // the effective declarations
+editor.setVariables([{ name: 'TAG', type: 'string', default: '1.27' }]); // external only
+```
+
+The `x-variables` block maps each name to an entry; `enum` holds a list of strings and maps to `enumValues`:
+
+```yaml
+x-variables:
+  WEB_PORT: { type: port, default: 8080, description: Public port }
+  STAGE: { type: enum, enum: [dev, prod], default: dev }
+```
+
+`onVariablesChange` fires whenever the effective declarations change: an edit in the Variables section, a quick
+fix, or a text edit of the block. It does not fire for `setVariables`. With the `x-variables` store `setVariables`
+is a no-op that logs a `console.warn`, because the declarations live in the document. Invalid declarations (a bad
+or duplicate name, an unknown type, an `enum` without values, a default of the wrong type) passed to the
+`variables.value` option or to `setVariables` throw a `TypeError`. Renaming a variable changes its declaration
+only: references to the old name become undeclared and show a warning with a "Declare variable" fix.
+
+`applyFix(problem)` applies a problem's quick fix (`problem.fix`) as one undo step and returns whether it was
+applied. The panel, the visual rows and the code pane already offer a Fix button for every problem that has one;
+`applyFix` is for hosts that build their own problem list. The Variables section also appears first in the outline.
+
+### Semantic rules
+
+After schema validation `validateText` runs the format's `rules` (`FormatDefinition.rules`). Their problems have
+`source: 'rule'` and the code `rule.<id>`. A rule that throws becomes one `rule.failed` error and the other rules
+still run.
+
+| Code | Severity | Format | Reports |
+| --- | --- | --- | --- |
+| `rule.service-selector` | warning | Kubernetes | A Service `selector` that matches no workload's pod labels. |
+| `rule.selector-mismatch` | error | Kubernetes | A workload's `selector.matchLabels` that its pod template labels do not satisfy. |
+| `rule.missing-resources` | warning | Kubernetes | A container with no `resources`. Quick fix: add them. |
+| `rule.target-port` | warning | Kubernetes | A Service `targetPort` name that no container port has. |
+| `rule.undeclared-variable` | warning | compose | A `${VAR}` that is not declared. Quick fix: declare it. |
+| `rule.variable-default` | warning | compose | An inline default that differs from the declared default. |
+| `rule.variable-declaration` | error | compose | A malformed declaration in the `x-variables` block. |
+| `rule.variable-type` | error | compose | A variable whose declared type does not fit the field it is used in. |
+
+Selector rules read `matchLabels` only. "Workloads" are Deployment, StatefulSet, DaemonSet, ReplicaSet, Job, CronJob
+and Pod.
+
+A rule is `{ id, messages, check(input) }`. `check` receives the parsed text, the data and schema bundle of each
+document, the variable declarations in effect, and `message(key, params?)`, which formats an entry of the merged
+message table. It returns `RuleFinding`s (severity, document, path, optional `params` and an optional `fix`). A
+`fix` is a `QuickFix`: a label key plus an action that either declares a variable or applies edit operations. Add
+rules to your own format through `FormatDefinition.rules`.
+
+Rule messages resolve through the same table as schema messages, so override them by key with `messages.schema`
+(an entry per code such as `'rule.missing-resources'`, plus the rule's fix label keys such as `'fix.add-resources'`) in `createManifestEditor` or in the `messages` option of
+`validateText`:
+
+```ts
+createManifestEditor(el, {
+  messages: { schema: { 'rule.missing-resources': (e) => `Set CPU and memory for "${String(e.params['name'])}".` } },
+});
+```
 
 ### Starter recipes
 

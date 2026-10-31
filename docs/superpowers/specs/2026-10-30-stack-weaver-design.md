@@ -292,15 +292,17 @@ const editor = createManifestEditor(el, {
   codeEditor?: CodeEditorAdapter,          // default: CodeMirror adapter, loaded on demand
   formats?: FormatDefinition[],  recipes?: Recipe[],
   guide?: Record<formatId, GuideOverride>, // per-format overrides, merged over the format's guide
-  variables?: { store: 'x-variables' } | { store: 'external'; value: VariableDecl[] },  // Plan 3
+  variables?: { store: 'x-variables' } | { store: 'external'; value: VariableDecl[] },
   widgets?: WidgetRegistry,
   messages?: { ui?: Partial<UiMessages>; schema?: Partial<SchemaMessages> },  // i18n
   onChange?(value: string, meta: { origin: ChangeOrigin }): void,  // 'visual' | 'code' | 'api' | 'history'
   onProblemsChange?(problems: Problem[]): void,
-  onModeChange?(mode): void,  onVariablesChange?(decls): void,  // onVariablesChange: Plan 3
+  onModeChange?(mode): void,  onVariablesChange?(decls: VariableDecl[]): void,
 });
 editor.getValue(); editor.setValue(text); editor.getMode(); editor.setMode(m); editor.getProblems();
-editor.getReadOnly(); editor.setReadOnly(b); editor.setTheme(t); editor.undo(); editor.redo(); editor.reveal(ref: NodeRef);
+editor.getReadOnly(); editor.setReadOnly(b);
+editor.getVariables(); editor.setVariables(decls); /* external store only */ editor.applyFix(problem); /* a problem's quick fix, one undo step */
+ editor.setTheme(t); editor.undo(); editor.redo(); editor.reveal(ref: NodeRef);
 editor.ready; /* Promise<void>, see below */ editor.destroy();
 ```
 
@@ -323,7 +325,6 @@ editor.ready; /* Promise<void>, see below */ editor.destroy();
   - `EditOp` gains `renameKey` (`{ op: 'renameKey', at, key }`, `at` addressing the pair's value): it replaces only
     the key's source range, so a renamed key keeps its place and comments.
   - Recipes are offered only for an **empty document**. Once there is text, the "Start from a template" cards go away.
-  - `variables` and `onVariablesChange` are not built yet: they stay listed here for Plan 3.
 - **CSS tokens** (custom properties on `.sw-editor`, all public API): `--sw-bg`, `--sw-fg`, `--sw-muted`,
   `--sw-border` (decorative dividers and the editor frame), `--sw-control-border` (the border of an input, select,
   textarea or button, at least 3:1 against `--sw-bg`), `--sw-accent`, `--sw-on-accent`, `--sw-error`,
@@ -355,6 +356,32 @@ editor.ready; /* Promise<void>, see below */ editor.destroy();
     gets normalized.
   - Success criterion 2 is enforced over the fixture corpus. Read-only fallbacks must stay under 5% of the
     editable nodes in the corpus.
+- **D1. A placeholder with no default** is checked by its declared type only. The value stays `${VAR}` in the data
+  and every schema error at that exact path is dropped. The rule `variable-type` then reports a declared type
+  that does not fit the field's schema types. No sentinel value is used: none survives `pattern` fields.
+- **D2. The `x-variables` block** maps each name to an entry `{ type, default?, enum?, description? }`. `enum` holds
+  a YAML list of strings and maps to `enumValues`:
+
+  ```yaml
+  x-variables:
+    WEB_PORT: { type: port, default: 8080, description: Public port }
+    STAGE: { type: enum, enum: [dev, prod], default: dev }
+  ```
+- **D5. Variable API semantics.**
+  - `onVariablesChange` fires whenever the effective declarations change: an edit in the Variables section, a
+    quick fix, or a text edit of the block under `x-variables`. It does not fire for `setVariables`.
+  - `setVariables` works only with the `external` store. Under `x-variables` it is a no-op with `console.warn`.
+  - Invalid host declarations (passed to the `variables.value` option or to `setVariables`) throw `TypeError`:
+    a bad or duplicate name, an unknown type, an `enum` with no values, or a default of the wrong type.
+- **D9. Union field types in compose** (`["boolean","string"]`, `["integer","string"]`, `["number","string"]`) exist
+  for interpolation. `pickWidget` treats such a list as the non-string type, and type fit (the toggle list and
+  `variable-type`) ignores its `string` member. As narrowed by rulings R12 and R14:
+  - Only widgets that cannot show arbitrary text (boolean and enum) fall back to read-only text, with "Edit in
+    code", when the field holds a string that is not a placeholder.
+  - Text-input typed widgets (number, integer, int-or-string, quantity) stay editable and show the string with its
+    error, so the user can fix it in Visual.
+  - A placeholder is never downgraded: a whole-value `${VAR}` keeps the type widget's row (with the toggle
+    pressed), and unpressing it with no fitting default shows the type widget as if the value were absent.
 - **Ingress stays in the "Web app" recipe:** Ingress is still core and GA. Gateway API is a CRD (out of
   scope), so it's left for a future optional format pack.
 

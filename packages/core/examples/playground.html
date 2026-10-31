@@ -9,6 +9,7 @@
       body[data-theme='dark'] { background: #010409; color: #e6edf3; }
       .bar { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; margin-bottom: 12px; }
       #editor { height: 560px; }
+      #variables-log { margin: 12px 0 0; height: 80px; overflow: auto; padding: 8px; font: 12px ui-monospace, monospace; background: rgba(128, 128, 128, 0.12); white-space: pre-wrap; }
       #log { margin-top: 12px; height: 140px; overflow: auto; padding: 8px; font: 12px ui-monospace, monospace; background: rgba(128, 128, 128, 0.12); white-space: pre-wrap; }
     </style>
   </head>
@@ -21,13 +22,18 @@
       <label>Format
         <select id="format"><option>auto</option><option>kubernetes</option><option>compose</option></select>
       </label>
+      <label>Variables store
+        <select id="variables-store"><option>x-variables</option><option>external</option></select>
+      </label>
       <button id="theme" type="button">Toggle theme</button>
       <button id="sample-k8s" type="button">setValue sample (Kubernetes)</button>
       <button id="sample-compose" type="button">setValue sample (compose)</button>
+      <button id="sample-compose-vars" type="button">setValue sample (compose, variables)</button>
       <button id="readonly" type="button">Toggle read-only</button>
       <button id="clear" type="button">Clear</button>
     </div>
     <div id="editor"></div>
+    <pre id="variables-log" role="log" aria-label="onVariablesChange log" tabindex="0">(no variables change yet)</pre>
     <div id="log" role="log" aria-label="Event log"></div>
     <script type="module" src="./playground.ts"></script>
     </main>

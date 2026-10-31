@@ -66,6 +66,7 @@ export type { SchemaMessages, MessageFn } from './validation/messages.js';
 // Code editor adapter interface (the CodeMirror implementation lives in "@stack-weaver/core/editors/codemirror")
 export type {
   CodeDiagnostic,
+  CodeDiagnosticAction,
   CodeCompletionResult,
   CodeEditorInit,
   CodeEditorInstance,

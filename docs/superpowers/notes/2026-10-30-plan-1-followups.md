@@ -29,8 +29,11 @@ start of Plan 4, before the wrappers freeze the API:
   a descriptor.
 - `UiMessages`: renames, plurals and a formatter.
 - Adapter: an async `mount`, a `complete(offset, explicit)` signature, `CodeDiagnostic.code` and `source`, and async
-  hover.
+  hover. Also `CodeDiagnostic.actions` (Plan 3): `CodeDiagnosticAction` is `{ label, apply() }` with no result and no
+  stable id.
 - `NodeView` and `CursorContext` as discriminated unions.
+- `Problem.fix` (Plan 3): `QuickFix` and `QuickFixAction` are a closed union (`declareVariable` | `edit`); give them a
+  stable id, and decide how `Problem` equality and `fix` interact when problems are compared across validations.
 - Rename the controller type (`ManifestEditorController`), add `update(patch)` and `setFormat`.
 - Decouple `ParsedText.docs` from `yaml`.
 - The `Recipe.format` invariant, a typed `GuideField.widget` grammar, and a `Problem.code` template type.
@@ -109,3 +112,64 @@ Each was found in a per-task review and judged not worth blocking the task. Grou
 - The real CodeMirror content's accessible name is not checked by the a11y test (it uses the fake adapter), and the live-region text change is not asserted.
 - The focus-visible source scan is regex-based (best effort), and the breadcrumb spacing test is text-only.
 - Control borders and decorative borders are now separate tokens (`--sw-control-border`, `--sw-border`). Only the picker panel still uses `--sw-border`; the dashed add slot uses `--sw-control-border` (R9). Revisit the picker if a design needs it stronger.
+
+## Plan 3 deferred minors
+Each was found in a per-task review and judged not worth blocking the task. Grouped by task.
+
+**Task 1 (rule and variable hooks)**
+- `RuleInput.data` and `bundles` are sparse (holes for empty or skipped documents, and may be shorter than `docs`): iterate by index.
+- A `substitute()` throw is reported as `schema.unavailable`, which is misleading.
+- No test for the missing `fix.key` fallback or a throwing rule message function.
+- The `SchemaMessages` TSDoc line in `messages.ts` needs a re-wrap.
+- Type-only import cycle between `formats/types.ts` and `validation/problems.ts`.
+
+**Task 2 (placeholder syntax and substitution)**
+- `substituteData` loses an own `__proto__` key (`out[k] =`): use `Object.defineProperty` or a null-prototype object.
+- `$$` stays `$$` in substituted text (compose unescapes it to `$`); this affects only `pattern` checks.
+- Worst-case quadratic rescans on an unterminated `${X:-` (pathological input).
+- The `OPS` array duplicates the `PlaceholderOp` union, and `defaultText`'s op is typed `string`.
+- Missing tests: `${A:-$${B}}`, `${A:-}`, a boolean default as a string, a `__proto__` key.
+
+**Task 3 (`x-variables` block)**
+- `skippedPointer` hides an unknown-key typo whose value is a type-only placeholder (`pull_polcy: "${P}"`); the same trade-off as D1, with no dedicated test.
+- `rawBlock` swallows a `toData` throw, and an empty document (no docs) cannot gain a block.
+- `raw.default as string` is a misleading cast (`block.ts`).
+- Test gaps: `description` set, `replaces` naming a missing entry, a non-mapping existing entry.
+- `edit.ts` `dataAt` reads inherited properties on records (an out-of-scope observation).
+
+**Task 4 (compose variable rules)**
+- No tests for multi-document or sparse input, alias skipping, or `variable-type` with several or `:-` placeholders.
+- `${A:-${B}}`: an undeclared `B` inside an inline default is never reported (`scanPlaceholders` returns the outer one only).
+- `rules.ts` has a `def as string` cast, a hard-coded document 0 that needs a comment, and three walks per check (they could share the sites).
+
+**Task 5 (Kubernetes rules)**
+- `requests: null` and `limits: {}` count as present.
+- `collect()` runs four times per validation.
+- An unnamed container message reads `Container "0"`.
+- `stringMap` turns `null` into `"null"`.
+- Test gaps: a sparse leading document, Pod, Job and CronJob as Service targets, the StatefulSet, DaemonSet and ReplicaSet selector check. The perf fixture has no Services.
+
+**Task 6 (variable stores and `applyFix`)**
+- `get()` and the emit hand out internal arrays and objects: a host mutation corrupts the store (copy or freeze).
+- An unknown `store` string from JS sets a bogus kind.
+- `setAll` notifies and revalidates even when nothing changed.
+- `applyFix(edit, ops: [])` returns true.
+- Duplicate import in `context.ts`; import order in `editor.ts`.
+- Format `'auto'` detection fires `onVariablesChange` (untested and undocumented).
+- The `setVariables` D5 cases are partly untested.
+
+**Task 7 (quick fixes in the UI)**
+- No status announcement after a fix (WCAG 4.1.3); check the problem-count live region.
+- Identical Fix button texts are told apart only by `aria-describedby`.
+- No UI test for the Kubernetes `missing-resources` fix, or for the panel staying visible while problems remain.
+
+**Task 8 (Variables section)**
+- No test that an empty compose document shows the recipe cards and Variables together. Decide whether adding a variable on an empty document should dismiss the recipes (it does today, because the text is no longer empty).
+- A port out of range shows the `invalidInteger` wording; `Number()` accepts `0x10` and `1e3`; a string default cannot be set to `''`.
+- `pendingEnum` survives an external type change.
+
+**Task 9 (use-variable toggle and union widgets)**
+- Every toggle has the same accessible name, "Use variable": add `aria-describedby` to the row label.
+- Variable completion is offered after a `$$` escape and inside block scalars.
+- No test for the select disabled when read-only, or for focus on an undeclared reference after a variables change.
+- The variable-binding error span is not cleared by a later successful update.
