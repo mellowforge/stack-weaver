@@ -44,6 +44,9 @@ spec:
     matchLabels:
       app: web
   template:
+    metadata:
+      labels:
+        app: web
     spec:
       containers:
         - name: web

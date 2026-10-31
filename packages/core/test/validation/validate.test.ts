@@ -25,6 +25,8 @@ ${spec}  selector:
       containers:
         - name: web
           image: nginx
+          resources:
+            limits: { memory: 64Mi }
 `;
 
 describe('validateText', () => {
@@ -206,7 +208,7 @@ describe('validateText never rejects: third-party code', () => {
 });
 
 describe('empty and comment-only documents (A5)', () => {
-  const pod = 'apiVersion: v1\nkind: Pod\nmetadata:\n  name: x\nspec:\n  containers:\n    - name: a\n      image: nginx\n';
+  const pod = 'apiVersion: v1\nkind: Pod\nmetadata:\n  name: x\nspec:\n  containers:\n    - name: a\n      image: nginx\n      resources:\n        limits:\n          memory: 64Mi\n';
   const compose = 'services:\n  web:\n    image: nginx\n';
 
   it.each([

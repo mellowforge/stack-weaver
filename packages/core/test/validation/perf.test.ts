@@ -4,7 +4,7 @@ import { parseText } from '../../src/document/parse.js';
 import { kubernetesFormat } from '../../src/formats/kubernetes/index.js';
 import { validateText } from '../../src/validation/validate.js';
 
-it('1000-line doc validates under 50ms warm (best of 3)', async () => {
+it('1000-line doc validates under 50ms warm (best of 3), rules included', async () => {
   const web = readFileSync(new URL('../fixtures/corpus/k8s-web-app.yaml', import.meta.url), 'utf8');
   const dep = web.split(/^---$/m)[0]!.trim();
   const text = Array.from({ length: 38 }, () => dep).join('\n---\n') + '\n';

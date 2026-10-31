@@ -6,6 +6,7 @@ import type { FormatDefinition, SchemaBundle } from '../types.js';
 import { kubernetesGuide } from './guide.js';
 import { kubernetesKinds, loadKubernetesKind } from './loader.js';
 import { kubernetesRecipes } from './recipes.js';
+import { kubernetesRules } from './rules.js';
 
 function str(doc: ParsedText['docs'][number] | undefined, key: string): string | undefined {
   const node = doc?.get(key, true);
@@ -38,4 +39,5 @@ export const kubernetesFormat: FormatDefinition = deepFreeze<FormatDefinition>({
   },
   guide: kubernetesGuide,
   recipes: kubernetesRecipes,
+  rules: kubernetesRules,
 });
