@@ -13,6 +13,7 @@ import { destroyAddSlot, renderAddSlot, updateAddSlot } from '../add-slot.js';
 import { isRecord, safeData } from '../util.js';
 import { createWidgetContext } from './context.js';
 import { pickWidget } from './registry.js';
+import { mountVariableBinding } from './variable-binding.js';
 import type { WidgetInstance, WidgetRegistry } from './types.js';
 
 let nextId = 0;
@@ -60,7 +61,10 @@ function createEnvs(ctx: EditorContext): (parsed: ParsedText, doc: number) => En
   };
 }
 
-type Mode = 'text' | 'unknown' | 'card' | 'widget';
+type Mode = 'text' | 'unknown' | 'card' | 'widget' | 'variable';
+
+/** Widgets for one typed value (a boolean or a number): they never show a string that is not a placeholder. */
+const TYPED_WIDGETS = new Set(['boolean', 'number', 'integer']);
 
 /**
  * The widgets of the visual pane: fills {@link SectionSlots.field} with one schema-driven row per
@@ -96,6 +100,9 @@ function createFieldRow(ctx: EditorContext, registry: WidgetRegistry, envFor: (p
   const labelEl = h(doc, 'label', { class: 'sw-row-label', id: `${id}-label` });
   const badge = h(doc, 'span', { class: 'sw-badge' }, [ui.required]);
   const removeBtn = h(doc, 'button', { type: 'button', class: 'sw-btn sw-row-remove' }, ['×']);
+  const toggleBtn = h(doc, 'button', { type: 'button', class: 'sw-btn sw-row-variable-toggle', 'aria-label': ui.useVariable, 'aria-pressed': 'false' }, [
+    h(doc, 'span', { 'aria-hidden': 'true' }, ['${}']),
+  ]);
   const head = h(doc, 'div', { class: 'sw-row-head' }, [labelEl, removeBtn]);
   const descEl = h(doc, 'p', { class: 'sw-row-description', id: `${id}-desc`, hidden: true });
   const body = h(doc, 'div', { class: 'sw-row-body' });
@@ -113,6 +120,10 @@ function createFieldRow(ctx: EditorContext, registry: WidgetRegistry, envFor: (p
   let lastView: NodeView = init.view;
   let readOnlyNow = false;
   let problemsSig = '';
+  let lastValue: YamlValue = null;
+  let lastProblems: readonly Problem[] = [];
+  /** The user's choice that the value does not show yet: `var` after pressing the toggle, `typed` after un-pressing a placeholder that stays. */
+  let override: 'var' | 'typed' | undefined;
   let fixButtons: HTMLButtonElement[] = [];
   let destroyed = false;
 
@@ -165,27 +176,33 @@ function createFieldRow(ctx: EditorContext, registry: WidgetRegistry, envFor: (p
   function build(mode: Mode, picked: { name: string; param?: string } | undefined, child: ResolvedSchema | undefined, description: string, value: YamlValue, view: NodeView, options: readonly string[] | undefined): void {
     dropBody();
     failed = false;
-    if (mode === 'widget' && picked && child) {
-      widgetName = picked.name;
+    if ((mode === 'widget' || mode === 'variable') && picked && child) {
+      widgetName = mode === 'variable' ? 'variable' : picked.name;
       const factory = registry[picked.name]!;
       try {
-        const wctx = createWidgetContext(
-          ctx.store,
-          {
-          id,
-          label,
-          description,
-          ref,
-          value,
-          schema: child.schema,
-          readOnly: readOnlyNow,
-          ...(picked.param !== undefined && { param: picked.param }),
-          ...(options !== undefined && { options }),
-          messages: ui,
-        }, () => readOnlyNow);
-        widget = factory(wctx);
+        widget =
+          mode === 'variable'
+            ? mountVariableBinding(ctx, { id, label, ref, schema: child.schema, value, readOnly: readOnlyNow })
+            : factory(
+                createWidgetContext(
+                  ctx.store,
+                  {
+                    id,
+                    label,
+                    description,
+                    ref,
+                    value,
+                    schema: child.schema,
+                    readOnly: readOnlyNow,
+                    ...(picked.param !== undefined && { param: picked.param }),
+                    ...(options !== undefined && { options }),
+                    messages: ui,
+                  },
+                  () => readOnlyNow,
+                ),
+              );
       } catch (err) {
-        console.error(`stack-weaver: the "${picked.name}" widget failed`, err);
+        console.error(`stack-weaver: the "${widgetName}" widget failed`, err);
         failed = true;
       }
       if (widget) {
@@ -212,8 +229,29 @@ function createFieldRow(ctx: EditorContext, registry: WidgetRegistry, envFor: (p
     if (mode === 'unknown') body.append(' ', editInCode());
   }
 
+  toggleBtn.addEventListener('click', () => {
+    if (readOnlyNow) return;
+    if (toggleBtn.getAttribute('aria-pressed') !== 'true') {
+      override = 'var';
+    } else {
+      const name = typeof lastValue === 'string' ? ctx.format()?.variables?.referenceOf(lastValue) : undefined;
+      const fallback = name === undefined ? undefined : ctx.variables()?.get().find((d) => d.name === name)?.default;
+      if (fallback !== undefined) {
+        // The default replaces the placeholder; the typed widget shows once the store reports the edit.
+        const r = ctx.store.edit({ op: 'set', at: ref, value: fallback });
+        errorEl.textContent = r.ok ? '' : ui.editRefused;
+        errorEl.hidden = r.ok;
+        if (!r.ok) return;
+        override = undefined;
+      } else {
+        override = name === undefined ? undefined : 'typed';
+      }
+    }
+    update(lastValue, readOnlyNow, lastProblems);
+  });
+
   function focusRow(): void {
-    if (widget) widget.focus();
+    if (widget && !(widgetName === 'variable' && !body.querySelector('select'))) widget.focus();
     else (cardBtn ?? rowEl.querySelector<HTMLElement>('button'))?.focus();
   }
 
@@ -224,6 +262,8 @@ function createFieldRow(ctx: EditorContext, registry: WidgetRegistry, envFor: (p
     const parsed = broken ? ctx.store.lastGood : ctx.store.parsed;
     const view = currentView(parsed);
     lastView = view;
+    lastValue = value;
+    lastProblems = problems;
     const env = parsed ? envFor(parsed, ref.doc) : undefined;
     const ready = env?.bundle !== undefined;
     const parent = ready ? env.resolve(ref.path.slice(0, -1)) : undefined;
@@ -241,7 +281,17 @@ function createFieldRow(ctx: EditorContext, registry: WidgetRegistry, envFor: (p
       const list = picked ? LIST_WIDGETS[picked.name] : undefined;
       const fits = picked !== undefined && (list !== undefined ? view.type === list : view.type === 'scalar' || !SCALAR_WIDGETS.has(picked.name));
       mode = fits ? 'widget' : view.type === 'scalar' ? 'text' : 'card';
+      // A typed widget never shows a string that is not a placeholder: the value is read-only text.
+      if (mode === 'widget' && picked && TYPED_WIDGETS.has(picked.name) && view.type === 'scalar' && typeof view.value === 'string') mode = 'text';
     }
+
+    // A scalar field of a format with variables can be bound to a variable.
+    const variables = ctx.variables() ? ctx.format()?.variables : undefined;
+    const bindable = variables !== undefined && picked !== undefined && SCALAR_WIDGETS.has(picked.name) && view.type === 'scalar' && (mode === 'widget' || mode === 'text');
+    const isRef = bindable && typeof value === 'string' && variables.referenceOf(value) !== undefined;
+    if (!bindable || (override === 'typed' && !isRef) || (override === 'var' && isRef)) override = undefined;
+    const varMode = bindable && (override === 'var' || (isRef && override !== 'typed'));
+    if (varMode) mode = 'variable';
     const nextKey = mode === 'widget' && picked ? `widget:${picked.name}:${picked.param ?? ''}` : mode;
 
     // Label: the guide's, else an item's name, else the section's.
@@ -265,6 +315,11 @@ function createFieldRow(ctx: EditorContext, registry: WidgetRegistry, envFor: (p
     if (failed && !failEl.hasChildNodes()) failEl.append(ui.widgetFailed, ' ', editInCode());
     else if (!failed && failEl.hasChildNodes()) failEl.replaceChildren();
     failEl.hidden = !failed;
+
+    if (bindable && !toggleBtn.isConnected) head.insertBefore(toggleBtn, removeBtn);
+    else if (!bindable && toggleBtn.isConnected) toggleBtn.remove();
+    toggleBtn.setAttribute('aria-pressed', String(varMode));
+    toggleBtn.disabled = readOnly;
 
     labelEl.textContent = label;
     removeBtn.setAttribute('aria-label', ui.removeField.replace('{label}', label));

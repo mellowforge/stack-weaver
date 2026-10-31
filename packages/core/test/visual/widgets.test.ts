@@ -27,6 +27,15 @@ const STRING_ARRAY: JsonSchema = { type: 'array', items: { type: 'string' } };
 
 const resolved = (schema: JsonSchema): ResolvedSchema => ({ schema, required: [] });
 
+describe('pickWidget union types', () => {
+  it('[T, "string"] picks the widget of T, ignoring null', () => {
+    expect(pickWidget(resolved({ type: ['boolean', 'string'] }), undefined, defaultWidgets)).toEqual({ name: 'boolean' });
+    expect(pickWidget(resolved({ type: ['integer', 'string'] }), undefined, defaultWidgets)).toEqual({ name: 'integer' });
+    expect(pickWidget(resolved({ type: ['number', 'string', 'null'] }), undefined, defaultWidgets)).toEqual({ name: 'number' });
+    expect(pickWidget(resolved({ type: ['object', 'string'] }), undefined, defaultWidgets)).toBeUndefined();
+  });
+});
+
 describe('pickWidget options', () => {
   it('options give a suggestion widget', () => {
     const opts = { options: ['Always', 'Never'] };

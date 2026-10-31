@@ -507,6 +507,27 @@
   font-weight: 600;
 }
 
+.sw-row-variable-toggle {
+  min-block-size: 24px;
+  padding: 2px 8px;
+  font-family: var(--sw-mono);
+}
+
+.sw-row-variable-toggle[aria-pressed='true'] {
+  color: var(--sw-on-accent);
+  background: var(--sw-accent);
+}
+
+.sw-variable-binding {
+  min-width: 0;
+}
+
+.sw-variable-none {
+  margin: 0;
+  color: var(--sw-muted);
+  font-size: 12px;
+}
+
 .sw-row-description,
 .sw-row-note {
   margin: 0;
@@ -646,6 +667,7 @@
 .sw-problem:focus-visible,
 .sw-problem-fix:focus-visible,
 .sw-row-fix:focus-visible,
+.sw-row-variable-toggle:focus-visible,
 .sw-picker:focus-visible,
 .sw-picker-card:focus-visible,
 .sw-recipe:focus-visible,

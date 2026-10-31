@@ -27,12 +27,16 @@ export const defaultWidgets: WidgetRegistry = {
 const isObj = (v: unknown): v is JsonSchema => typeof v === 'object' && v !== null && !Array.isArray(v);
 const has = (registry: WidgetRegistry, name: string): boolean => Object.prototype.hasOwnProperty.call(registry, name);
 
-/** The single type of `s`, ignoring `null`. */
+/** The single type of `s`, ignoring `null`; `[T, 'string']` with T a boolean or number type is T (the string is a placeholder such as `${NAME}`). */
 function baseType(s: JsonSchema): string | undefined {
   const t = s['type'];
   if (typeof t === 'string') return t;
   if (Array.isArray(t)) {
     const rest = t.filter((x): x is string => typeof x === 'string' && x !== 'null');
+    if (rest.length === 2 && rest.includes('string')) {
+      const other = rest.find((x) => x !== 'string');
+      return other === 'boolean' || other === 'integer' || other === 'number' ? other : undefined;
+    }
     return rest.length === 1 ? rest[0] : undefined;
   }
   return undefined;
@@ -71,7 +75,10 @@ function byShape(s: JsonSchema): string | undefined {
  * 2. `suggest` (a text input with a `<datalist>`, so free text is still accepted) for a string field
  *    whose guide entry has non-empty `options` and whose schema has no `enum`;
  * 3. the schema shape (quantity, int-or-string, enum, boolean, integer, number, string, key-value,
- *    string-list). A list of strings keeps `string-list`, which offers the `options` itself.
+ *    string-list). A list of strings keeps `string-list`, which offers the `options` itself. A type
+ *    list that pairs `boolean`, `integer` or `number` with `'string'` (and optionally `'null'`) is
+ *    shaped as that type: the string is the field's variable placeholder, and the row shows it as
+ *    a variable, not in the typed widget.
  *
  * An unknown guide name falls through and never throws.
  * @param r - The field's resolved schema.

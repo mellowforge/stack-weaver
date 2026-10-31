@@ -174,6 +174,16 @@ export interface UiMessages {
   variableTypeEnum: string;
   /** Shown when the allowed values of a one-of-a-list variable are left empty. */
   variableEnumValuesRequired: string;
+  /** Accessible name of the button that switches a field between its own value and a variable. */
+  useVariable: string;
+  /** Accessible name of the variable select of a field; `{label}` is replaced by the field's label. */
+  variableSelect: string;
+  /** Shown instead of the variable select when no variable fits the field. */
+  variableNone: string;
+  /** Option for a referenced variable that is not declared or does not fit the field; `{name}` is replaced by it. */
+  variableUndeclared: string;
+  /** Heading of the variable names offered as code completions. */
+  variableCompletion: string;
 }
 
 /** The English UI strings. */
@@ -265,4 +275,9 @@ export const defaultUiMessages: UiMessages = {
   variableTypePort: 'Port',
   variableTypeEnum: 'One of a list',
   variableEnumValuesRequired: 'List at least one value.',
+  useVariable: 'Use variable',
+  variableSelect: 'Variable for {label}',
+  variableNone: 'No variables of this type yet. Add one under Variables.',
+  variableUndeclared: '{name} (not declared)',
+  variableCompletion: 'Variables',
 };

@@ -12,6 +12,9 @@ import type { EditorContext, Pane } from './context.js';
 import { h } from './dom.js';
 import type { ResolvedTheme } from './theme.js';
 
+/** The text before the caret ends in `${` and the part of a variable name typed so far. */
+const VARIABLE_PREFIX = /\$\{([A-Za-z_][A-Za-z0-9_]*)?$/;
+
 /**
  * The code pane: a {@link Pane} that mounts a code editor adapter into the shell's code element.
  * @internal
@@ -62,7 +65,33 @@ export function createCodePane(
     crumb.textContent = parts.join(' › ');
   };
 
+  /** Variable names after `${` in a value, for a format with variables. */
+  const completeVariable = (text: string, offset: number): CodeCompletionResult | null => {
+    const decls = ctx.format()?.variables ? ctx.variables()?.get() : undefined;
+    if (!decls || decls.length === 0) return null;
+    const lineStart = Math.max(text.lastIndexOf('\n', offset - 1), text.lastIndexOf('\r', offset - 1)) + 1;
+    const before = text.slice(lineStart, offset);
+    const m = VARIABLE_PREFIX.exec(before);
+    if (!m) return null;
+    const lead = before.slice(0, m.index);
+    // Only in a value (after `key: ` or `- `), and not in a comment.
+    if (/(^|\s)#/.test(lead) || !(/^\s*-\s/.test(lead) || /\S:\s/.test(lead))) return null;
+    const typed = m[1] ?? '';
+    const closed = text[offset] === '}';
+    return {
+      from: offset - typed.length,
+      options: decls.map((d) => ({
+        label: d.name,
+        apply: closed ? d.name : `${d.name}}`,
+        detail: d.type,
+        section: { name: ui.variableCompletion, rank: 0 },
+      })),
+    };
+  };
+
   const complete = async (text: string, offset: number): Promise<CodeCompletionResult | null> => {
+    const variable = completeVariable(text, offset);
+    if (variable) return variable;
     const format = ctx.format();
     const cc = cursorContext(text, offset);
     if (!format || !cc) return null;

@@ -89,7 +89,7 @@ describe('field rows', () => {
   });
 
   it('inline problems under the row match by path', async () => {
-    const { editor } = await mount({ value: TEXT.replace('replicas: 2', 'replicas: x'), mode: 'visual' });
+    const { editor } = await mount({ value: TEXT.replace('replicas: 2', 'replicas: 1.5'), mode: 'visual' });
     await vi.waitFor(() => expect(editor.getProblems().some((p) => p.path.join('/') === 'spec/replicas')).toBe(true));
     click('spec');
     const list = row('replicas').querySelector('.sw-row-problems')!;
