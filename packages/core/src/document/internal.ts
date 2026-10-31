@@ -36,6 +36,11 @@ function internalsOf(p: ParsedText): YamlInternals {
   return y;
 }
 
+/** Whether `p` was made by `parseText` (never throws). */
+export function isParsed(p: unknown): p is ParsedText {
+  return typeof p === 'object' && p !== null && (p as { [YAML]?: YamlInternals })[YAML] !== undefined;
+}
+
 /**
  * Checks that `p` was made by `parseText`.
  * @throws A `TypeError` when it was not.

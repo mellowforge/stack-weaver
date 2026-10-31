@@ -840,8 +840,8 @@ describe('edit guards', () => {
     expect(refusal('{a: 1}\n', { op: 'add', at: at(), key: '<<', value: 1 })).toBe('unsupported');
   });
 
-  it('an engine exception is logged with console.debug and refused as unsupported', () => {
-    const spy = vi.spyOn(console, 'debug').mockImplementation(() => {});
+  it('an unexpected exception on a well-formed op is logged with console.error and refused as unsupported', () => {
+    const spy = vi.spyOn(console, 'error').mockImplementation(() => {});
     try {
       const poisoned = {
         op: 'add',
@@ -852,9 +852,45 @@ describe('edit guards', () => {
         },
       } as unknown as EditOp;
       expect(refusal('a: 1\n', poisoned)).toBe('unsupported');
-      expect(spy).toHaveBeenCalledWith('stack-weaver: applyEdit failed', expect.any(Error));
+      expect(spy).toHaveBeenCalledWith('stack-weaver: applyEdit threw unexpectedly', expect.any(Error));
     } finally {
       spy.mockRestore();
+    }
+  });
+
+  it('canEdit logs an unexpected exception with console.error and answers unsupported', () => {
+    const spy = vi.spyOn(console, 'error').mockImplementation(() => {});
+    try {
+      const path = Object.assign(['a'], {
+        slice(): never {
+          throw new Error('boom');
+        },
+      });
+      expect(canEdit(parseText('a: 1\n'), { doc: 0, path })).toBe('unsupported');
+      expect(spy).toHaveBeenCalledWith('stack-weaver: canEdit threw unexpectedly', expect.any(Error));
+    } finally {
+      spy.mockRestore();
+    }
+  });
+
+  it('a look-alike ParsedText, a non-object op or a malformed ref is refused quietly', () => {
+    const error = vi.spyOn(console, 'error').mockImplementation(() => {});
+    const debug = vi.spyOn(console, 'debug').mockImplementation(() => {});
+    try {
+      const p = parseText('a: 1\n');
+      const no = { ok: false, reason: 'unsupported' };
+      expect(applyEdit({ ...p }, { op: 'set', at: at('a'), value: 2 })).toEqual(no);
+      expect(canEdit({ ...p }, at('a'))).toBe('unsupported');
+      for (const op of [null, undefined, 'set', 5] as unknown as EditOp[]) expect(applyEdit(p, op)).toEqual(no);
+      for (const ref of [null, { doc: 0 }, { doc: 0, path: 'a' }] as never[]) {
+        expect(applyEdit(p, { op: 'set', at: ref, value: 2 })).toEqual(no);
+        expect(canEdit(p, ref)).toBe('unsupported');
+      }
+      expect(error).not.toHaveBeenCalled();
+      expect(debug).not.toHaveBeenCalled();
+    } finally {
+      error.mockRestore();
+      debug.mockRestore();
     }
   });
 

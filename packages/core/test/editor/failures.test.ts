@@ -187,16 +187,18 @@ describe('a failed lazy load is shown, logged and never unhandled (A6)', () => {
     editor.destroy();
   });
 
-  it('nothing is shown or logged when destroyed before the load fails', async () => {
+  it('nothing is shown when destroyed before the load fails; the failure is still logged', async () => {
     const log = vi.spyOn(console, 'error').mockImplementation(() => {});
     let reject!: (e: unknown) => void;
     vi.spyOn(loaders, 'loadDefaultAdapter').mockReturnValue(new Promise((_, r) => (reject = r)));
     const editor = createManifestEditor(el, { format: 'kubernetes', value: DEPLOY });
     editor.destroy();
-    reject(new Error('late'));
+    const late = new Error('late');
+    reject(late);
     await settle();
     expect(el.childNodes.length).toBe(0);
-    expect(log).not.toHaveBeenCalled();
+    expect(log.mock.calls).toEqual([['stack-weaver: the code editor failed to load', late]]);
+    await expect(editor.ready).resolves.toBeUndefined();
   });
 });
 

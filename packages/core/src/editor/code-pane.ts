@@ -215,7 +215,11 @@ export function createCodePane(
     pendingReveal = undefined;
     showCrumb(inst.getSelection().from);
   }).catch((err: unknown) => {
-    if (destroyed) return; // nobody is left to tell
+    if (destroyed) {
+      // No pane is left to show it in, and `ready` resolves (the host is gone), but a broken adapter is still worth a log.
+      console.error('stack-weaver: the code editor failed to load', err);
+      return;
+    }
     // The adapter did not load or did not mount: say so in the pane instead of leaving it blank.
     const failed = inst;
     inst = undefined;

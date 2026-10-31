@@ -403,3 +403,41 @@ describe('format at runtime (P8)', () => {
     expect(editor.getActiveFormat()).toBe('kubernetes');
   });
 });
+
+describe('a host format whose detect throws (A7)', () => {
+  const throwing = fakeFormat({
+    id: 'throws',
+    detect: () => {
+      throw new Error('detect blew up');
+    },
+  });
+
+  it('the first load logs it, has no format, and still settles the declarations and recipes', async () => {
+    const error = vi.spyOn(console, 'error').mockImplementation(() => {});
+    const onVariablesChange = vi.fn();
+    const { editor, fake } = await mount({ formats: [throwing], value: 'x-variables:\n  A:\n    type: string\n' + COMPOSE, onVariablesChange });
+    expect(error).toHaveBeenCalledWith('stack-weaver: the format detection threw', expect.any(Error));
+    expect(editor.getActiveFormat()).toBeUndefined();
+    expect(badge()).toBe(ui.formatNone);
+    // The editor still edits; the declarations were reseeded, so nothing is reported as a change.
+    fake.type(COMPOSE);
+    expect(editor.getValue()).toBe(COMPOSE);
+    expect(onVariablesChange).not.toHaveBeenCalled();
+    expect(el.querySelector('.sw-recipes')).not.toBeNull();
+  });
+
+  it('setFormat("auto") and update({ format }) do not throw; the rest of the patch still applies', async () => {
+    const error = vi.spyOn(console, 'error').mockImplementation(() => {});
+    const { editor } = await mount({ formats: [throwing], format: 'compose', value: COMPOSE });
+    expect(editor.getActiveFormat()).toBe('compose');
+    expect(() => editor.setFormat('auto')).not.toThrow();
+    expect(error).toHaveBeenCalledWith('stack-weaver: the format detection threw', expect.any(Error));
+    expect(editor.getFormat()).toBe('auto');
+    expect(editor.getActiveFormat()).toBeUndefined();
+    editor.setFormat('compose');
+    expect(() => editor.update({ format: 'auto', mode: 'code', readOnly: true })).not.toThrow();
+    expect(editor.getMode()).toBe('code');
+    expect(editor.getReadOnly()).toBe(true);
+    expect(editor.getActiveFormat()).toBeUndefined();
+  });
+});

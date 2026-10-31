@@ -1,7 +1,7 @@
 import { Scalar, isAlias, isMap, isNode, isScalar, isSeq, visit } from 'yaml';
 import type { CST, Node, YAMLMap, YAMLSeq } from 'yaml';
 import { parseText } from './parse.js';
-import { assertParsed, getNode, getPairKey, yamlDocs } from './internal.js';
+import { getNode, getPairKey, isParsed, yamlDocs } from './internal.js';
 import { renderBlockScalar, renderScalar, renderValue } from './render.js';
 import type { NodeRef, ParsedText, ScalarValue, TextChange, YamlPath, YamlValue } from './types.js';
 
@@ -256,21 +256,37 @@ function hasIndentIndicator(p: ParsedText, n: Node): boolean {
  *
  * @param p - The parsed text.
  * @param ref - The node to check.
+ * Never throws: a `p` not made by `parseText` or a malformed `ref` gives `unsupported`, and so
+ * does an internal failure (which is also logged with `console.error`).
+ *
  * @returns `undefined` when the node is editable, otherwise the reason edits are refused;
  *   `unsupported` when `p` was not made by `parseText`.
  */
 export function canEdit(p: ParsedText, ref: NodeRef): EditRefusal | undefined {
+  if (!isParsed(p) || !isRef(ref)) return 'unsupported';
   try {
-    assertParsed(p);
     const t = locate(p, ref);
     if (typeof t === 'string') return t;
     if (isScalar(t.node)) return hasIndentIndicator(p, t.node) ? 'block-scalar' : undefined;
     if (t.inFlow) return 'flow';
     if (isFlow(t.node)) return (t.node as Coll).items.length === 0 ? undefined : 'flow';
     return undefined;
-  } catch {
+  } catch (err) {
+    console.error('stack-weaver: canEdit threw unexpectedly', err);
     return 'unsupported';
   }
+}
+
+/** Whether `ref` has the shape of a {@link NodeRef}: an object with a `path` array. */
+function isRef(ref: unknown): ref is NodeRef {
+  return typeof ref === 'object' && ref !== null && Array.isArray((ref as { path?: unknown }).path);
+}
+
+/** Whether `op` has the shape of an {@link EditOp}: an object, and a {@link NodeRef} `at` for the ops that have one. */
+function isOpShape(op: unknown): op is EditOp {
+  if (typeof op !== 'object' || op === null) return false;
+  const name = (op as { op?: unknown }).op;
+  return name === 'addDocument' || name === 'deleteDocument' || isRef((op as { at?: unknown }).at);
 }
 
 // ---- items of block collections ----
@@ -891,18 +907,20 @@ function dispatch(p: ParsedText, op: EditOp): EditResult {
  * breaks use the text's own line ending.
  *
  * Never throws: a `p` not made by `parseText`, a value that is not a {@link YamlValue} (or, for
- * `set`, a {@link ScalarValue}), a malformed operation, or any internal failure gives `unsupported`.
+ * `set`, a {@link ScalarValue}), a malformed operation, or any internal failure gives `unsupported`;
+ * an internal failure is also logged with `console.error`.
  *
  * @param p - The parsed text.
  * @param op - The edit.
  * @returns The new text, the splice and the new text's parse, or the refusal reason.
  */
 export function applyEdit(p: ParsedText, op: EditOp): EditResult {
+  // A programmer error, refused quietly: not something that went wrong inside.
+  if (!isParsed(p) || !isOpShape(op)) return refuse('unsupported');
   try {
-    assertParsed(p);
     return dispatch(p, op);
   } catch (err) {
-    console.debug('stack-weaver: applyEdit failed', err);
+    console.error('stack-weaver: applyEdit threw unexpectedly', err);
     return refuse('unsupported');
   }
 }

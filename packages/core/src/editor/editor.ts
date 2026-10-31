@@ -35,8 +35,9 @@ export type EditorMessages = {
   /** Validation messages. */
   readonly schema?: Partial<SchemaMessages>;
   /**
-   * BCP 47 language tag whose plural rules pick the form of a `PluralMessage` (the problem count). Default
-   * `'en'`. Init-only: it is read once, when the editor is created.
+   * BCP 47 language tag whose plural rules pick the form of a `PluralMessage` (the problem count); widgets get it
+   * as `WidgetContext.locale`. Default `'en'`. A tag `Intl` rejects is warned about once (`console.warn`) and
+   * counts as `'en'`. Init-only: it is read once, when the editor is created.
    */
   readonly locale?: string;
 };
@@ -222,12 +223,13 @@ export function createManifestEditor(el: HTMLElement, options: ManifestEditorOpt
   return createEditorWithContext(el, options).editor;
 }
 
-/** The locale as given when `Intl` accepts it, else `'en'`. */
+/** The locale as given when `Intl` accepts it, else `'en'` (with a warning: the host asked for something else). */
 function validLocale(locale = 'en'): string {
   try {
     new Intl.PluralRules(locale);
     return locale;
   } catch {
+    console.warn(`stack-weaver: locale "${locale}" is not valid; using "en"`);
     return 'en';
   }
 }
@@ -492,8 +494,14 @@ export function createEditorWithContext(
     if (!formatsLoaded) return undefined;
     const opt = formatOption;
     const apply = (): void => {
-      if (opt === 'auto') redetect();
-      else applyFormat(resolveFormat(opt, store.parsed, formatList));
+      try {
+        if (opt === 'auto') redetect();
+        else applyFormat(resolveFormat(opt, store.parsed, formatList));
+      } catch (err) {
+        // A host format's `detect` threw: there is no format rather than a half-applied one.
+        console.error('stack-weaver: the format detection threw', err);
+        applyFormat(undefined);
+      }
       clearLoadFailure();
     };
     if (builtinsLoaded || !needsBuiltins(opt, hostFormats)) {
@@ -584,12 +592,13 @@ export function createEditorWithContext(
       formatsLoaded = true;
       // The option as it is now: a `setFormat` made while loading counts, and may need the built-in formats,
       // whose failure then rejects `ready` as it would for that option at creation.
-      const loading = resolveOption();
-      if (!loading) return finishFirstLoad();
-      return loading.then(finishFirstLoad, (err: unknown) => {
-        finishFirstLoad();
-        throw err;
-      });
+      let loading: Promise<void> | undefined;
+      try {
+        loading = resolveOption();
+      } finally {
+        if (!loading) finishFirstLoad(); // also when resolving threw: the declarations and recipes still settle
+      }
+      return loading?.finally(finishFirstLoad);
     },
     (err: unknown) => {
       if (destroyed) return;
@@ -597,8 +606,11 @@ export function createEditorWithContext(
       formatsLoaded = true;
       showLoadFailure();
       // A `setFormat` made while loading to a host format does not need the failed formats.
-      if (!needsBuiltins(formatOption, hostFormats)) resolveOption();
-      finishFirstLoad();
+      try {
+        if (!needsBuiltins(formatOption, hostFormats)) resolveOption();
+      } finally {
+        finishFirstLoad();
+      }
       throw err;
     },
   );

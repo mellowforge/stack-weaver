@@ -311,9 +311,17 @@ describe('problems UI', () => {
     expect(el.querySelector('.sw-problem-count')!.textContent).toBe('2 проблемы');
   });
 
-  it.each(['', 'en_US', 'x', '*'])('an invalid locale %j falls back to English', async (locale) => {
+  it.each(['', 'en_US', 'x', '*'])('an invalid locale %j falls back to English, with one warning', async (locale) => {
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => undefined);
     await mount({ format: 'two', formats: [twoErrors], value: 'a: 1\nb: 2\n', messages: { locale } });
     expect(el.querySelector('.sw-problem-count')!.textContent).toBe('2 problems');
+    expect(warn.mock.calls).toEqual([[`stack-weaver: locale "${locale}" is not valid; using "en"`]]);
+  });
+
+  it('a valid locale does not warn', async () => {
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => undefined);
+    await mount({ format: 'two', formats: [twoErrors], value: 'a: 1\n', messages: { locale: 'de-CH' } });
+    expect(warn).not.toHaveBeenCalled();
   });
 
   it('count says "No problems" when clean', async () => {
