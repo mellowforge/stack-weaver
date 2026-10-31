@@ -88,6 +88,19 @@ describe('field rows', () => {
     expect(row('replicas').querySelector('input')!.value).toBe('2');
   });
 
+  it('the inline problem prefix comes from the problemPrefix template', async () => {
+    const text = TEXT.replace('replicas: 2', 'replicas: x');
+    const dflt = await mount({ value: text, mode: 'visual' });
+    await vi.waitFor(() => expect(dflt.editor.getProblems().some((p) => p.path.join('/') === 'spec/replicas')).toBe(true));
+    click('spec');
+    expect(row('replicas').querySelector('.sw-row-problems .sw-sr-only')!.textContent).toBe('Error: ');
+    dflt.editor.destroy();
+    const { editor } = await mount({ value: text, mode: 'visual', messages: { ui: { problemPrefix: '[{severity}] ' } } });
+    await vi.waitFor(() => expect(editor.getProblems().some((p) => p.path.join('/') === 'spec/replicas')).toBe(true));
+    click('spec');
+    expect(row('replicas').querySelector('.sw-row-problems .sw-sr-only')!.textContent).toBe('[Error] ');
+  });
+
   it('inline problems under the row match by path', async () => {
     const { editor } = await mount({ value: TEXT.replace('replicas: 2', 'replicas: x'), mode: 'visual' });
     await vi.waitFor(() => expect(editor.getProblems().some((p) => p.path.join('/') === 'spec/replicas')).toBe(true));

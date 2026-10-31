@@ -214,6 +214,16 @@ export function createManifestEditor(el: HTMLElement, options: ManifestEditorOpt
   return createEditorWithContext(el, options).editor;
 }
 
+/** The locale as given when `Intl` accepts it, else `'en'`. */
+function validLocale(locale = 'en'): string {
+  try {
+    new Intl.PluralRules(locale);
+    return locale;
+  } catch {
+    return 'en';
+  }
+}
+
 /**
  * {@link createManifestEditor} plus the internal context, for tests and internal wiring.
  * @internal
@@ -225,7 +235,7 @@ export function createEditorWithContext(
   const win = el.ownerDocument.defaultView;
   const store = new DocumentStore(options.value ?? '');
   const ui: UiMessages = { ...defaultUiMessages, ...options.messages?.ui };
-  const locale = options.messages?.locale ?? 'en';
+  const locale = validLocale(options.messages?.locale);
   const hostFormats = options.formats ?? [];
   /** The `format` option: `'auto'` or a format id. Changed by `setFormat`. */
   let formatOption: string = options.format ?? 'auto';

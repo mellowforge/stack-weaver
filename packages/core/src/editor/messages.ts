@@ -28,6 +28,8 @@ export interface UiMessages {
   readonly problemsLabel: string;
   /** Text alternative of the error icon. */
   readonly severityError: string;
+  /** Screen-reader prefix of a problem on a field; `{severity}` is the severity text. */
+  readonly problemPrefix: string;
   /** Text alternative of the warning icon. */
   readonly severityWarning: string;
   /** Text alternative of the information icon. */
@@ -210,6 +212,7 @@ export const defaultUiMessages: UiMessages = {
   formatNone: 'No format',
   problemCount: { zero: 'No problems', one: '{count} problem', other: '{count} problems' },
   problemsLabel: 'Problems',
+  problemPrefix: '{severity}: ',
   severityError: 'Error',
   severityWarning: 'Warning',
   severityInfo: 'Information',

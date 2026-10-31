@@ -300,6 +300,11 @@ describe('problems UI', () => {
     expect(el.querySelector('.sw-problem-count')!.textContent).toBe('2 проблемы');
   });
 
+  it.each(['', 'en_US', 'x', '*'])('an invalid locale %j falls back to English', async (locale) => {
+    await mount({ format: 'two', formats: [twoErrors], value: 'a: 1\nb: 2\n', messages: { locale } });
+    expect(el.querySelector('.sw-problem-count')!.textContent).toBe('2 problems');
+  });
+
   it('count says "No problems" when clean', async () => {
     await mount({ format: 'kubernetes', value: 'apiVersion: v1\nkind: Namespace\nmetadata:\n  name: demo\n' });
     expect(el.querySelector('.sw-problem-count')!.textContent).toBe('No problems');
@@ -378,5 +383,12 @@ describe('code assist', () => {
     const parts = breadcrumbAt(ctx.store.parsed, at);
     expect(parts.length).toBeGreaterThan(1);
     expect(crumb.textContent).toBe(parts.join(' › '));
+  });
+
+  it('the code breadcrumb names a kindless document with documentLabel', async () => {
+    const text = 'a:\n  b: 1\n';
+    const { fake } = await mount({ format: 'kubernetes', value: text, messages: { ui: { documentLabel: '{n}. Dokument' } } });
+    fake.setCaret(text.indexOf('b'));
+    expect(el.querySelector('.sw-breadcrumb')!.textContent).toBe('1. Dokument › a › b');
   });
 });

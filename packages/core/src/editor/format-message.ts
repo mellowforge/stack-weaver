@@ -21,12 +21,26 @@ export function formatMessage(template: string, params: MessageParams = {}): str
 
 const rulesByLocale = new Map<string, Intl.PluralRules>();
 
+/** The plural rules of `locale`; English for a tag `Intl` rejects. */
+function pluralRules(locale: string): Intl.PluralRules {
+  let rules = rulesByLocale.get(locale);
+  if (!rules) {
+    try {
+      rules = new Intl.PluralRules(locale);
+    } catch {
+      rules = pluralRules('en');
+    }
+    rulesByLocale.set(locale, rules);
+  }
+  return rules;
+}
+
 /**
  * Picks the text of `message` for `count` and fills it. A count of 0 uses `zero` when it is given; otherwise the
  * plural category of `locale` decides, falling back to `other`. `{count}` is always available as a parameter.
  * @param message - The texts by plural category.
  * @param count - The number the message is about.
- * @param locale - A BCP 47 language tag. Default `'en'`.
+ * @param locale - A BCP 47 language tag; an invalid one counts as `'en'`. Default `'en'`.
  * @param params - Further placeholder values.
  * @returns The filled text.
  */
@@ -34,12 +48,7 @@ export function formatPlural(message: PluralMessage, count: number, locale = 'en
   let template: string | undefined;
   if (count === 0) template = message.zero;
   if (template === undefined) {
-    let rules = rulesByLocale.get(locale);
-    if (!rules) {
-      rules = new Intl.PluralRules(locale);
-      rulesByLocale.set(locale, rules);
-    }
-    template = message[rules.select(count)];
+    template = message[pluralRules(locale).select(count)];
   }
   return formatMessage(template ?? message.other, { ...params, count });
 }

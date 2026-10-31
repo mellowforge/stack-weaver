@@ -379,7 +379,7 @@ function createFieldRow(ctx: EditorContext, registry: WidgetRegistry, envFor: (p
           const msgId = `${id}-problem-${i}`;
           const li = h(doc, 'li', { class: `sw-row-problem sw-row-problem-${p.severity}` }, [
             h(doc, 'span', { id: msgId }, [
-              h(doc, 'span', { class: 'sw-sr-only' }, [`${p.severity === 'error' ? ui.severityError : p.severity === 'warning' ? ui.severityWarning : ui.severityInfo}: `]),
+              h(doc, 'span', { class: 'sw-sr-only' }, [formatMessage(ui.problemPrefix, { severity: p.severity === 'error' ? ui.severityError : p.severity === 'warning' ? ui.severityWarning : ui.severityInfo })]),
               p.message,
             ]),
           ]);
