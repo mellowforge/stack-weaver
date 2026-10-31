@@ -4,7 +4,7 @@ import { isEmptyDocument, toData } from '../document/data.js';
 import { getNode, getPairKey, toLineCol } from '../document/paths.js';
 import type { ParsedText, YamlPath, YamlProblem } from '../document/types.js';
 import { resolveAt } from '../engine/resolve.js';
-import type { FormatDefinition, SchemaBundle, SchemaError } from '../formats/types.js';
+import type { FormatDefinition, Rule, SchemaBundle, SchemaError, VariableDecl } from '../formats/types.js';
 import { defaultMessages, messageFor } from './messages.js';
 import type { SchemaMessages } from './messages.js';
 import { SEVERITY_RANK } from './problems.js';
@@ -36,18 +36,26 @@ type Declares = (path: YamlPath, key: string) => boolean;
  *   `yaml.data` error at the `<<` key, or at the document root; when the schema cannot be loaded,
  *   a `schema.unavailable` error.
  *
+ * - When the format has `variables`, each document's data passes through `substitute` before
+ *   validation, and schema errors at or under a returned `skip` path are dropped.
+ * - When the text parses, each of the format's `rules` then runs once over all documents. Its
+ *   findings become `rule.<id>` problems with `source: 'rule'`; a rule that throws becomes one
+ *   `rule.failed` error and the other rules still run.
+ *
  * Problems are ordered by start offset, then severity.
  *
  * @param p - The parsed text.
  * @param format - The format whose schemas to validate with.
- * @param opts - `messages`: entries that replace {@link defaultMessages} entries, for example
- *   translations.
+ * @param opts - `messages`: entries that replace {@link defaultMessages} entries (and the
+ *   default messages of rules), for example translations. `variables`: the variable
+ *   declarations in effect, replacing those the document declares (rules then see
+ *   `variableSource: 'host'`).
  * @returns The problems, sorted.
  */
 export async function validateText(
   p: ParsedText,
   format: FormatDefinition,
-  opts: { messages?: Partial<SchemaMessages> } = {},
+  opts: { messages?: Partial<SchemaMessages>; variables?: readonly VariableDecl[] } = {},
 ): Promise<Problem[]> {
   const messages: SchemaMessages = { ...defaultMessages };
   for (const [k, fn] of Object.entries(opts.messages ?? {})) {
@@ -70,6 +78,9 @@ export async function validateText(
     return sortProblems(out);
   }
 
+  const decls = opts.variables ?? (format.variables ? format.variables.read(p) : []);
+  const data: unknown[] = [];
+  const bundles: (SchemaBundle | undefined)[] = [];
   let seen = false;
   for (let doc = 0; doc < p.docs.length; doc++) {
     if (isEmptyDocument(p, doc)) continue;
@@ -80,14 +91,66 @@ export async function validateText(
     }
     seen = true;
     try {
-      out.push(...(await validateDocument(p, doc, format, messages)));
+      const res = await validateDocument(p, doc, format, messages, decls);
+      out.push(...res.problems);
+      data[doc] = res.data;
+      bundles[doc] = res.bundle;
     } catch (err) {
       // Last resort (validateDocument handles the known failures itself): never reject.
       const params = { kind: format.label, cause: causeOf(err) };
       out.push(problem(p, doc, 'error', 'schema', 'schema.unavailable', defaultMessages, params, [], rootRange(p, doc)));
     }
   }
+  for (const rule of format.rules ?? []) {
+    out.push(...runRule(p, rule, { data, bundles, decls, host: opts.variables !== undefined }, messages, opts.messages ?? {}));
+  }
   return sortProblems(out);
+}
+
+/** Runs one rule; a throw (from `check` or from a message) becomes a single `rule.failed` error. */
+function runRule(
+  p: ParsedText,
+  rule: Rule,
+  ctx: { data: unknown[]; bundles: (SchemaBundle | undefined)[]; decls: readonly VariableDecl[]; host: boolean },
+  messages: SchemaMessages,
+  overrides: Partial<SchemaMessages>,
+): Problem[] {
+  // The rule's own defaults, under the host's overrides; a throwing override falls back to the default.
+  const table: SchemaMessages = { ...rule.messages };
+  for (const [k, fn] of Object.entries(overrides)) {
+    if (!fn) continue;
+    table[k] = (e) => {
+      try {
+        return fn(e);
+      } catch {
+        return messageFor(e, rule.messages);
+      }
+    };
+  }
+  const code = `rule.${rule.id}`;
+  try {
+    const findings = rule.check({
+      parsed: p,
+      data: ctx.data,
+      bundles: ctx.bundles,
+      variables: ctx.decls,
+      variableSource: ctx.host ? 'host' : 'document',
+    });
+    return findings.map((f) => {
+      let range: Range;
+      if (f.range) range = [f.range.from, f.range.to];
+      else {
+        const node = f.at === 'key' ? getPairKey(p, { doc: f.doc, path: f.path }) : getNode(p, { doc: f.doc, path: f.path });
+        range = rangeOf(node) ?? nearestRange(p, f.doc, f.path);
+      }
+      const found = problem(p, f.doc, f.severity, 'rule', code, table, { ...f.params }, f.path, range);
+      if (!f.fix) return found;
+      const label = messageFor({ instancePath: '', keyword: f.fix.key, params: { ...f.fix.params } }, table);
+      return { ...found, fix: { label, action: f.fix.action } };
+    });
+  } catch (err) {
+    return [problem(p, 0, 'error', 'rule', 'rule.failed', messages, { rule: rule.id, cause: causeOf(err) }, [], rootRange(p, 0))];
+  }
 }
 
 async function validateDocument(
@@ -95,20 +158,21 @@ async function validateDocument(
   doc: number,
   format: FormatDefinition,
   messages: SchemaMessages,
-): Promise<Problem[]> {
+  decls: readonly VariableDecl[],
+): Promise<DocResult> {
   let data: unknown;
   try {
     data = toData(p, doc);
   } catch (err) {
     const merge = findMergeKey(p.docs[doc]!.contents, []);
     const range = (merge && rangeOf(merge.key)) ?? rootRange(p, doc);
-    return [problem(p, doc, 'error', 'yaml', 'yaml.data', messages, { cause: causeOf(err) }, merge?.path ?? [], range)];
+    return { problems: [problem(p, doc, 'error', 'yaml', 'yaml.data', messages, { cause: causeOf(err) }, merge?.path ?? [], range)] };
   }
 
   const kinds = format.rootModel === 'documents' ? format.kinds() : [];
   if (kinds.length > 0) {
     const shape = shapeProblems(p, doc, messages);
-    if (shape.length > 0) return shape;
+    if (shape.length > 0) return { problems: shape };
   }
 
   const kindNode = getNode(p, { doc, path: ['kind'] });
@@ -117,10 +181,14 @@ async function validateDocument(
   let errors: SchemaError[];
   try {
     bundle = await format.loadSchema(p, doc);
-    errors = bundle ? bundle.validate(data) : [];
+    if (bundle && format.variables) {
+      const sub = format.variables.substitute(data, decls);
+      const skip = sub.skip.map(toPointer);
+      errors = bundle.validate(sub.data).filter((e) => !skip.some((s) => isUnder(e.instancePath, s)));
+    } else errors = bundle ? bundle.validate(data) : [];
   } catch (err) {
     const params = { kind: kind ?? format.label, cause: causeOf(err) };
-    return [problem(p, doc, 'error', 'schema', 'schema.unavailable', messages, params, [], rootRange(p, doc))];
+    return { problems: [problem(p, doc, 'error', 'schema', 'schema.unavailable', messages, params, [], rootRange(p, doc))] };
   }
 
   if (!bundle) {
@@ -128,13 +196,25 @@ async function validateDocument(
     if (known.length > 0) {
       const node = getNode(p, { doc, path: ['apiVersion'] });
       const params = { apiVersion: (node as Scalar).value, kind, expected: known.map((k) => k.apiVersion) };
-      return [problem(p, doc, 'error', 'schema', 'kind.apiVersion', messages, params, ['apiVersion'], rangeOf(node) ?? rootRange(p, doc))];
+      return { problems: [problem(p, doc, 'error', 'schema', 'kind.apiVersion', messages, params, ['apiVersion'], rangeOf(node) ?? rootRange(p, doc))], data };
     }
     const params = { kind: kindNode && isScalar(kindNode) && kindNode.value !== null ? String(kindNode.value) : '(missing)' };
     const path = isNode(kindNode) ? ['kind'] : [];
-    return [problem(p, doc, 'info', 'schema', 'kind.unknown', messages, params, path, rangeOf(kindNode) ?? rootRange(p, doc))];
+    return { problems: [problem(p, doc, 'info', 'schema', 'kind.unknown', messages, params, path, rangeOf(kindNode) ?? rootRange(p, doc))], data };
   }
-  return schemaErrorsToProblems(p, doc, errors, messages, declaredIn(bundle, data));
+  return { problems: schemaErrorsToProblems(p, doc, errors, messages, declaredIn(bundle, data)), data, bundle };
+}
+
+/** What validating one document yields: its problems, plus the data and bundle rules get to see. */
+interface DocResult {
+  problems: Problem[];
+  data?: unknown;
+  bundle?: SchemaBundle;
+}
+
+/** Encodes a path as a JSON pointer (`~` is `~0`, `/` is `~1`). */
+function toPointer(path: YamlPath): string {
+  return path.map((seg) => `/${String(seg).replace(/~/g, '~0').replace(/\//g, '~1')}`).join('');
 }
 
 /** A `documents` format's required document shape: a mapping with string `apiVersion` and `kind`. */

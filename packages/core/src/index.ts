@@ -29,6 +29,14 @@ export type {
   Tier,
   FormatDefinition,
   Recipe,
+  VariableType,
+  VariableDecl,
+  QuickFixAction,
+  QuickFix,
+  RuleInput,
+  RuleFinding,
+  Rule,
+  FormatVariables,
 } from './formats/types.js';
 export { registerFormat, getFormat, detectFormat } from './formats/registry.js';
 export { mergeGuide, guideField, kindKey } from './formats/guide.js';

@@ -10,7 +10,7 @@ export type MessageFn = (error: SchemaError) => string;
 /**
  * The message table: ajv keywords (`type`, `required`, ...) plus the core's own problem codes
  * (`kind.unknown`, `kind.apiVersion`, `document.mapping`, `format.extraDocument`,
- * `schema.unavailable`, `yaml.data`). Pass a partial table to `validateText` to replace entries,
+ * `schema.unavailable`, `yaml.data`, `rule.failed`) and the entries of each rule's own `messages`. Pass a partial table to `validateText` to replace entries,
  * for example with translations.
  */
 export type SchemaMessages = Record<string, MessageFn>;
@@ -36,7 +36,8 @@ const article = (word: string): string => (/^[aeiou]/i.test(word) ? 'an' : 'a');
  * - `document.mapping`: none;
  * - `format.extraDocument`: none;
  * - `schema.unavailable`: `kind` (the kind, or the format's label), `cause`;
- * - `yaml.data`: `cause`.
+ * - `yaml.data`: `cause`;
+ * - `rule.failed`: `rule` (the rule's id), `cause`.
  */
 export const defaultMessages: SchemaMessages = {
   // `params.type` may hold several types once branch errors are merged: "Must be an integer or string".
@@ -72,6 +73,7 @@ export const defaultMessages: SchemaMessages = {
   'format.extraDocument': () => 'Compose files contain one document; this one is ignored',
   'schema.unavailable': (e) => `Could not load the schema for ${String(e.params['kind'])}: ${String(e.params['cause'])}`,
   'yaml.data': (e) => `Could not read the document's data: ${String(e.params['cause'])}`,
+  'rule.failed': (e) => `The “${String(e.params['rule'])}” check failed to run: ${String(e.params['cause'])}`,
 };
 
 /**

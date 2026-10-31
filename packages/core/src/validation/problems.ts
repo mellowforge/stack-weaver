@@ -1,4 +1,5 @@
 import type { YamlPath } from '../document/types.js';
+import type { QuickFix } from '../formats/types.js';
 
 /** How serious a problem is. Problems are ordered error, warning, info at the same position. */
 export type Severity = 'error' | 'warning' | 'info';
@@ -15,14 +16,14 @@ export interface Problem {
   readonly severity: Severity;
   /**
    * Where the problem comes from: the YAML parser (`yaml.*` codes), the schema and document-shape
-   * checks (`schema.*`, `kind.*` and `format.*` codes), or a custom rule. `'rule'` is reserved for
-   * the rule engine of a later plan; nothing reports it yet.
+   * checks (`schema.*`, `kind.*` and `format.*` codes), or a format's semantic rules (`rule.*`
+   * codes).
    */
   readonly source: ProblemSource;
   /**
    * Stable machine-readable code: `yaml.syntax`, `yaml.warning`, `yaml.data`, `schema.<ajv keyword>`
-   * (e.g. `schema.required`), `schema.unavailable`, `kind.unknown`, `kind.apiVersion` or
-   * `format.extraDocument`.
+   * (e.g. `schema.required`), `schema.unavailable`, `kind.unknown`, `kind.apiVersion`,
+   * `format.extraDocument`, `rule.<id>` (a rule's finding) or `rule.failed` (a rule threw).
    */
   readonly code: string;
   /** Human-readable message. */
@@ -39,6 +40,8 @@ export interface Problem {
   readonly line: number;
   /** 1-based column of `from`. */
   readonly col: number;
+  /** A one-click fix, when the problem has one. */
+  readonly fix?: QuickFix;
 }
 
 /** Sort rank of a severity; lower sorts first. */
