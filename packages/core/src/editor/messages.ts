@@ -201,7 +201,7 @@ export interface UiMessages {
 }
 
 /** The English UI strings. */
-export const defaultUiMessages: UiMessages = {
+export const defaultUiMessages: UiMessages = Object.freeze({
   editorLabel: 'Manifest editor',
   modeLabel: 'Editor mode',
   modeVisual: 'Visual',
@@ -300,4 +300,4 @@ export const defaultUiMessages: UiMessages = {
   variableNone: 'No variables of this type yet. Add one under Variables.',
   variableUndeclared: '{name} (not declared)',
   variableCompletion: 'Variables',
-};
+});

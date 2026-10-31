@@ -1,6 +1,7 @@
 // @vitest-environment happy-dom
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { describeNode } from '../../src/document/describe.js';
+import { createRecipeCards } from '../../src/editor/recipes.js';
 import { createEditorWithContext } from '../../src/editor/editor.js';
 import type { ManifestEditorOptions } from '../../src/editor/editor.js';
 import { composeFormat } from '../../src/formats/compose/index.js';
@@ -246,5 +247,30 @@ describe('recipe focus in the visual pane', () => {
       expect(a?.matches('input, textarea, select')).toBe(true);
       expect(el.querySelector('.sw-pane-visual')!.contains(a)).toBe(true);
     });
+  });
+});
+
+describe('choosing a recipe whose format is not loaded', () => {
+  it('choosing a recipe whose format is not loaded warns once and still inserts the text', async () => {
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
+    const { ctx } = await mount({ format: 'kubernetes' });
+    const gone: FormatDefinition = { ...composeFormat, id: 'gone', label: 'Gone', recipes: [] };
+    let loaded: readonly FormatDefinition[] = [gone];
+    const recipe: Recipe = { id: 'r1', format: 'gone', title: 'T', description: 'D', yaml: 'x: 1\n' };
+    const root = document.createElement('div');
+    document.body.append(root);
+    const fixFormat = vi.fn();
+    const cards = createRecipeCards(ctx, { root, auto: () => true, formats: () => loaded, hostRecipes: [recipe], knownFormats: new Set(['gone']), fixFormat, focusCode: () => {} });
+    cards.refresh();
+    loaded = []; // the format went away after the cards were drawn
+    const click = () => root.querySelector<HTMLButtonElement>('button[data-sw-recipe="r1"]')!.click();
+    click();
+    expect(ctx.store.text).toBe('x: 1\n');
+    expect(fixFormat).not.toHaveBeenCalled();
+    ctx.store.setText('', 'api');
+    click();
+    expect(warn).toHaveBeenCalledTimes(1);
+    expect(warn).toHaveBeenCalledWith(expect.stringContaining('"gone"'));
+    root.remove();
   });
 });

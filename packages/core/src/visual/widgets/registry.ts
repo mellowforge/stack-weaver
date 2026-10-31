@@ -10,7 +10,7 @@ import type { WidgetDefinition, WidgetFactory, WidgetRef, WidgetRegistry } from 
 const plain = (create: WidgetFactory): WidgetDefinition => ({ create });
 
 /** The built-in widgets, by name. A host's `widgets` option is merged over these. */
-export const defaultWidgets: WidgetRegistry = {
+export const defaultWidgets: WidgetRegistry = Object.freeze({
   string: plain(stringWidget),
   number: plain(numberWidget),
   integer: plain(integerWidget),
@@ -24,7 +24,7 @@ export const defaultWidgets: WidgetRegistry = {
   ref: plain(refWidget),
   'ref-key': plain(refKeyWidget),
   'secret-data': { create: secretDataWidget, managesKeys: true },
-};
+});
 
 const isObj = (v: unknown): v is JsonSchema => typeof v === 'object' && v !== null && !Array.isArray(v);
 const has = (registry: WidgetRegistry, name: string): boolean => Object.prototype.hasOwnProperty.call(registry, name);

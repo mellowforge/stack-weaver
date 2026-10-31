@@ -67,8 +67,9 @@ export function createCodePane(
     let parts: readonly string[] = [];
     try {
       parts = breadcrumbAt(ctx.store.parsed, at, ui.documentLabel, ctx.guide());
-    } catch {
+    } catch (err) {
       // The breadcrumb is a convenience; a document it cannot read shows nothing.
+      console.debug('stack-weaver: the breadcrumb could not be computed', err);
     }
     crumb.textContent = parts.join(' › ');
   };
@@ -111,7 +112,8 @@ export function createCodePane(
     let data: unknown;
     try {
       data = toData(parsed, cc.doc);
-    } catch {
+    } catch (err) {
+      console.debug('stack-weaver: the document could not be read for completions', err);
       data = undefined;
     }
     const options = completionsFor({
@@ -135,7 +137,8 @@ export function createCodePane(
       const bundle = ctx.bundleFor(doc);
       if (!bundle) void ctx.loadBundle(doc); // the next hover will have it
       return hoverAt(parsed, offset, bundle, ctx.guide());
-    } catch {
+    } catch (err) {
+      console.debug('stack-weaver: hover failed', err);
       return undefined;
     }
   };

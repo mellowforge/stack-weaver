@@ -77,22 +77,22 @@ What the React and Angular wrappers must respect (from the Plan 4 milestone revi
 - Bind `[(format)]` with `getFormat()` / `setFormat()` (R8): the option round-trips, so `'auto'` keeps detecting.
 - R10, deferred here as additive core API: controller change signals: `onFormatChange` (the active format),
   `canUndo` / `canRedo` with a change event, and `reset` / `clearHistory` on the controller (or `update({ resetHistory })`).
-- `defaultWidgets` and `defaultUiMessages` are not frozen: wrappers must not mutate them (or the core freezes them).
+- `defaultWidgets` and `defaultUiMessages` are not frozen: wrappers must not mutate them (or the core freezes them). Done (Plan 5 Task 2: both are frozen).
 - S5: map `ActionResult.edit` (`flow`, `alias`, `block-scalar`) to the "Edit in code" hint in wrapper UIs.
-- S6: a `transact` refusal does not say which op failed.
-- S7: `recipes.choose` silently skips fixing the format when that format is not loaded.
+- S6: a `transact` refusal does not say which op failed. The `ActionRefusal` TSDoc now says a multi-op refusal reports the first refused op's reason (Plan 5 Task 2).
+- S7: `recipes.choose` silently skips fixing the format when that format is not loaded. Done (Plan 5 Task 2: warns once per format, still inserts the text).
 
 ### Deferred from the Plan 4 final review (E)
-- S4: the code pane's assist callbacks (completion, hover) have bare `catch` blocks; log with `console.debug`.
-- S8: a widget whose `destroy()` throws after a `widgetFailed` note is logged a second time.
-- `defaultWidgets` (and `defaultUiMessages`) freeze.
+- S4: the code pane's assist callbacks (completion, hover) have bare `catch` blocks; log with `console.debug`. Done (Plan 5 Task 2).
+- S8: a widget whose `destroy()` throws after a `widgetFailed` note is logged a second time. Done (Plan 5 Task 2: a regression test pins one log per failure; the code already swallowed the destroy error).
+- `defaultWidgets` (and `defaultUiMessages`) freeze. Done (Plan 5 Task 2).
 - R10 controller signals (above).
 - R16: under `'auto'`, undo and redo re-detect on every history step, including typed ones, so undoing typing can
   switch the format when an intermediate text parses and detects differently. Record the origin per history entry
   and re-detect only for `'api'` steps if the wrappers need that.
-- A host `detect` that throws under `'auto'` with no format re-detects, and logs, on every keystroke. Rate-limit it.
-- Test hygiene: `quick-fix.test.ts` still has local copies of the shared `focused()` helper (`visibleFocus`, `live`).
-- The reserved rule id `'failed'` warning is deduped per page, not per format.
+- A host `detect` that throws under `'auto'` with no format re-detects, and logs, on every keystroke. Rate-limit it. Done (Plan 5 Task 2: logged when the message differs, cleared by a detect that does not throw).
+- Test hygiene: `quick-fix.test.ts` still has local copies of the shared `focused()` helper (`visibleFocus`, `live`). Done (Plan 5 Task 2).
+- The reserved rule id `'failed'` warning is deduped per page, not per format. Done (Plan 5 Task 2: keyed by format id).
 
 ## Parked, low priority
 - `--update-lock` and the first real schema bump: the lock-writing glue (`writeLockEntry`, the generators' flag branches) has only been tested with mocks. Expect to debug it on the first upstream bump.

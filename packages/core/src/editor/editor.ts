@@ -477,13 +477,32 @@ export function createEditorWithContext(
   }
   shell.setBadge(ui.formatNone);
 
+  /** The message of the last logged `detect` throw; cleared by a detection that does not throw. */
+  let lastDetectError: string | undefined;
+
   /**
    * Under `auto`: the format a new editor would detect for the text. Broken text keeps the current format, so
-   * typing (or setting) text through a syntax error does not flicker.
+   * typing (or setting) text through a syntax error does not flicker. Returns false when a host `detect` threw
+   * (logged once per distinct message until a detection succeeds).
    */
-  function redetect(): void {
+  function redetect(): boolean {
     const p = store.parsed;
-    if (p.ok || !format) applyFormat(resolveFormat('auto', p, formatList));
+    if (!p.ok && format) return true;
+    let detected: FormatDefinition | undefined;
+    try {
+      detected = resolveFormat('auto', p, formatList);
+    } catch (err) {
+      // A host format's `detect` threw. While it keeps throwing the same thing (every keystroke re-detects), log it once.
+      const message = err instanceof Error ? err.message : String(err);
+      if (message !== lastDetectError) {
+        lastDetectError = message;
+        console.error('stack-weaver: the format detection threw', err);
+      }
+      return false;
+    }
+    lastDetectError = undefined;
+    applyFormat(detected);
+    return true;
   }
 
   /**
@@ -534,8 +553,10 @@ export function createEditorWithContext(
     const opt = formatOption;
     const apply = (): void => {
       try {
-        if (opt === 'auto') redetect();
-        else applyFormat(resolveFormat(opt, store.parsed, formatList));
+        if (opt === 'auto') {
+          // A throwing `detect` was logged by `redetect`: there is no format rather than a half-applied one.
+          if (!redetect()) applyFormat(undefined);
+        } else applyFormat(resolveFormat(opt, store.parsed, formatList));
       } catch (err) {
         // A host format's `detect` threw: there is no format rather than a half-applied one.
         console.error('stack-weaver: the format detection threw', err);

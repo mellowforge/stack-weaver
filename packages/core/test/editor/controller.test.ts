@@ -441,3 +441,29 @@ describe('a host format whose detect throws (A7)', () => {
     expect(editor.getActiveFormat()).toBeUndefined();
   });
 });
+
+describe('a throwing host detect under auto (rate limit)', () => {
+  it('a throwing host detect under auto logs once until detection succeeds', async () => {
+    const error = vi.spyOn(console, 'error').mockImplementation(() => {});
+    let mode: 'throw' | 'ok' = 'throw';
+    const flaky = fakeFormat({
+      id: 'flaky',
+      detect: () => {
+        if (mode === 'throw') throw new Error('detect blew up');
+        return false;
+      },
+    });
+    const { fake } = await mount({ formats: [flaky], value: 'a: 1\n' });
+    const detectLogs = () => error.mock.calls.filter((c) => c[0] === 'stack-weaver: the format detection threw').length;
+    expect(detectLogs()).toBe(1);
+    for (let i = 2; i <= 6; i++) fake.type(`a: ${i}\n`);
+    expect(detectLogs()).toBe(1);
+    mode = 'ok';
+    fake.type('a: 7\n'); // a detect that does not throw clears the memory
+    expect(detectLogs()).toBe(1);
+    mode = 'throw';
+    fake.type('a: 8\n');
+    fake.type('a: 9\n');
+    expect(detectLogs()).toBe(2);
+  });
+});

@@ -12,3 +12,4 @@ Added:
 
 Changed:
 - Under `format: 'auto'`, undo and redo re-detect the format only for steps made through the API; undoing or redoing typed text keeps the format.
+- `defaultWidgets` and `defaultUiMessages` are now frozen.

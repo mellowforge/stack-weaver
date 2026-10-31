@@ -6,6 +6,7 @@ import type { ManifestEditorOptions } from '../../src/editor/editor.js';
 import { defaultUiMessages as ui } from '../../src/editor/messages.js';
 import { kubernetesFormat } from '../../src/formats/kubernetes/index.js';
 import type { FormatDefinition } from '../../src/formats/types.js';
+import { Document as YamlDocument } from 'yaml';
 import type { WidgetContext, WidgetFactory } from '../../src/visual/widgets/types.js';
 import { mountSection } from '../../src/visual/section.js';
 import type { SectionSlots } from '../../src/visual/section.js';
@@ -332,5 +333,62 @@ describe('schema and widget failures are not silent (A7)', () => {
     outlineClick('spec');
     expect(el.querySelector<HTMLElement>('.sw-section-note')!.hidden).toBe(true);
     expect(row('replicas').querySelector<HTMLElement>('.sw-row-failed')!.hidden).toBe(true);
+  });
+});
+
+describe('Plan 4 review residuals', () => {
+  it('completion and hover failures are logged with console.debug', async () => {
+    const debug = vi.spyOn(console, 'debug').mockImplementation(() => {});
+    const error = vi.spyOn(console, 'error').mockImplementation(() => {});
+    const { ctx, fake } = await mount({ value: DEPLOY });
+    debug.mockClear();
+    vi.spyOn(ctx, 'guide').mockImplementation(() => {
+      throw new Error('guide blew up');
+    });
+    expect(fake.init.hover?.(DEPLOY, DEPLOY.indexOf('replicas'))).toBeUndefined();
+    expect(debug).toHaveBeenCalledOnce();
+    expect(debug).toHaveBeenCalledWith(expect.stringContaining('stack-weaver:'), expect.any(Error));
+    expect(error).not.toHaveBeenCalled();
+  });
+
+  it('a failure while reading the document for completion is logged with console.debug', async () => {
+    const debug = vi.spyOn(console, 'debug').mockImplementation(() => {});
+    const error = vi.spyOn(console, 'error').mockImplementation(() => {});
+    const { fake } = await mount({ value: DEPLOY });
+    debug.mockClear();
+    vi.spyOn(YamlDocument.prototype, 'clone').mockImplementation(() => {
+      throw new Error('clone blew up');
+    });
+    await fake.init.complete?.(DEPLOY, DEPLOY.indexOf('2\n'), true);
+    expect(debug).toHaveBeenCalledOnce();
+    expect(debug).toHaveBeenCalledWith(expect.stringContaining('stack-weaver:'), expect.any(Error));
+    expect(error).not.toHaveBeenCalled();
+  });
+
+  it('a widget whose create and destroy both throw is logged once per failure, not twice for destroy', async () => {
+    const log = vi.spyOn(console, 'error').mockImplementation(() => {});
+    const both: WidgetFactory = (wctx: WidgetContext) => {
+      const input = document.createElement('input');
+      input.id = wctx.id;
+      input.className = 'host-widget';
+      return {
+        el: input,
+        update: (value) => {
+          if (value === 3) throw new Error('host widget update failed');
+          input.value = String(value);
+        },
+        focus: () => input.focus(),
+        destroy: () => {
+          throw new Error('host widget destroy failed');
+        },
+      };
+    };
+    const { ctx, editor } = await mount({ widgets: { integer: { create: both } } });
+    outlineClick('spec');
+    ctx.store.edit({ op: 'set', at: replicasAt, value: 3 });
+    const failures = () => log.mock.calls.filter((c) => String(c[0]).includes('widget failed'));
+    expect(failures()).toHaveLength(1);
+    editor.destroy();
+    expect(failures()).toHaveLength(1);
   });
 });

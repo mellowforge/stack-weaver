@@ -327,6 +327,18 @@ describe('rule message hygiene', () => {
     ]);
   });
 
+  it("the reserved 'failed' rule id warns once per format", async () => {
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => undefined);
+    const r: Rule = { id: 'failed', messages: { 'rule.failed': () => 'mine' }, check: () => [] };
+    const a = { ...fake({ rules: [r] }), id: 'per-format-a' };
+    const b = { ...fake({ rules: [r] }), id: 'per-format-b' };
+    await validateText(parseText('a: 1\n'), a);
+    await validateText(parseText('a: 1\n'), a);
+    await validateText(parseText('a: 1\n'), b);
+    expect(warn).toHaveBeenCalledTimes(2);
+    expect(warn.mock.calls[0]![0]).toContain('"failed" is reserved');
+  });
+
   it('a throwing host message override falls back to the default and warns once per key', async () => {
     const warn = vi.spyOn(console, 'warn').mockImplementation(() => undefined);
     const r: Rule = { id: 'override-throw', messages: { 'rule.override-throw': (e) => `bad ${String(e.params['x'])}` }, check: () => [{ severity: 'error', doc: 0, path: ['a'], params: { x: 1 } }] };

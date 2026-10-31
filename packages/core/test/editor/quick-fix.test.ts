@@ -87,20 +87,13 @@ describe('quick fixes', () => {
     fixButton().click();
     expect(editor.getValue()).toBe(UNDECLARED);
   });
-  const visibleFocus = (): Element => {
-    const a = document.activeElement!;
-    expect(a.isConnected).toBe(true);
-    expect(a.closest('[hidden]')).toBeNull();
-    return a;
-  };
-
   it('panel: fixing the only problem hides the panel and hands the focus to a visible target', async () => {
     await mount({ mode: 'split' });
     fixButton().focus();
     fixButton().click();
     await vi.advanceTimersByTimeAsync(1000);
     expect(el.querySelector<HTMLElement>('.sw-problems')!.hidden).toBe(true);
-    expect(visibleFocus()).toBe(el.querySelector('.sw-mode-radio[data-sw-mode="split"]'));
+    expect(focused()).toBe(el.querySelector('.sw-mode-radio[data-sw-mode="split"]'));
   });
 
   it('row: after the fix the focus stays inside the row, not on the removed button', async () => {
@@ -111,7 +104,7 @@ describe('quick fixes', () => {
     rowFix.click();
     await vi.advanceTimersByTimeAsync(1000);
     expect(rowFix.isConnected).toBe(false);
-    expect(row.contains(visibleFocus())).toBe(true);
+    expect(row.contains(focused())).toBe(true);
   });
 
   it('row: the fix is rebuilt when the problem moves, so it never applies a stale problem', async () => {
@@ -184,13 +177,6 @@ const FLOW_POD = 'apiVersion: v1\nkind: Pod\nmetadata:\n  name: p\nspec:\n  cont
 const panelStatus = (): HTMLElement => el.querySelector<HTMLElement>('.sw-problems-status')!;
 
 describe('refused fixes', () => {
-  const live = (): Element => {
-    const a = document.activeElement!;
-    expect(a.isConnected).toBe(true);
-    expect(a.closest('[hidden]')).toBeNull();
-    return a;
-  };
-
   it('panel: a refused fix says so in an alert outside the list and keeps the focus on the button', async () => {
     const { editor } = await mount({ format: 'kubernetes', value: FLOW_POD });
     const btn = fixButton();
@@ -200,7 +186,7 @@ describe('refused fixes', () => {
     expect(panelStatus().getAttribute('role')).toBe('alert');
     expect(panelStatus().textContent).toBe(defaultUiMessages.editRefused);
     expect(panelStatus().closest('.sw-problem-list')).toBeNull();
-    expect(live()).toBe(btn);
+    expect(focused()).toBe(btn);
     // collapsing the list keeps the message visible
     el.querySelector<HTMLButtonElement>('.sw-problems-toggle')!.click();
     expect(panelStatus().closest('[hidden]')).toBeNull();
@@ -243,7 +229,7 @@ describe('refused fixes', () => {
     expect(error.hidden).toBe(false);
     expect(error.getAttribute('role')).toBe('alert');
     expect(error.textContent).toBe(defaultUiMessages.editRefused);
-    expect(live()).toBe(rowFix);
+    expect(focused()).toBe(rowFix);
   });
 
   it('code pane: a refused fix says so in the problems panel', async () => {

@@ -12,7 +12,8 @@ import { validateVariableDecl } from '../variables/decl.js';
  * or the format could not write the change), `invalid` (the declaration fails validation),
  * `name-taken` (a rename onto an existing name), `not-found` (no such declaration),
  * `already-declared` (a declaration fix for a name that is already declared) and `edit-refused`
- * (the text edit was refused; the result's `edit` says why). May grow in later versions; treat an
+ * (the text edit was refused; the result's `edit` says why). A refusal of several ops at once reports the first
+ * refused op's reason, not its index. May grow in later versions; treat an
  * unknown value like `unavailable` (the action cannot run now).
  */
 export type ActionRefusal =

@@ -509,3 +509,18 @@ describe('accessibility', () => {
     }
   });
 });
+
+describe('shared default tables', () => {
+  it('defaultWidgets and defaultUiMessages are frozen', async () => {
+    const { defaultWidgets } = await import('../../src/visual/widgets/registry.js');
+    const { defaultUiMessages } = await import('../../src/editor/messages.js');
+    expect(Object.isFrozen(defaultWidgets)).toBe(true);
+    expect(Object.isFrozen(defaultUiMessages)).toBe(true);
+    expect(() => {
+      (defaultWidgets as Record<string, unknown>)['string'] = undefined;
+    }).toThrow(TypeError);
+    expect(() => {
+      (defaultUiMessages as unknown as Record<string, unknown>)['widgetFailed'] = 'x';
+    }).toThrow(TypeError);
+  });
+});

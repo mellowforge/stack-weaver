@@ -108,7 +108,7 @@ export async function validateText(
     }
   }
   for (const rule of format.rules ?? []) {
-    if (rule.id === 'failed') warnOnce('rule\u0000failed', 'stack-weaver: rule id "failed" is reserved (a rule that throws reports rule.failed); give the rule another id');
+    if (rule.id === 'failed') warnOnce(`rule\u0000failed\u0000${format.id}`, 'stack-weaver: rule id "failed" is reserved (a rule that throws reports rule.failed); give the rule another id');
     out.push(...runRule(p, rule, { data, bundles, decls, host: opts.variables !== undefined }, messages, opts.messages ?? {}));
   }
   return sortProblems(out);
