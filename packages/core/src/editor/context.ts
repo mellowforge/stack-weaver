@@ -57,7 +57,7 @@ export interface EditorContext {
   variables(): VariableStore | undefined;
   /** Subscribes to changes of the declarations (including the host's `setVariables`); returns an unsubscribe function. */
   onVariables(fn: (decls: readonly VariableDecl[]) => void): () => void;
-  /** Applies the quick fix of `problem`; false when it has none, the editor is read-only, or an edit is refused. */
+  /** Applies the quick fix of `problem`; false when it has none, the editor is read-only, its variable is already declared, or an edit is refused. */
   applyFix(problem: Problem): boolean;
 }
 

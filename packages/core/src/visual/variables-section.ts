@@ -85,7 +85,9 @@ export function mountVariablesSection(ctx: EditorContext, doc: Document): Variab
   const empty = h(doc, 'p', { class: 'sw-variables-empty' }, [ui.variablesEmpty]);
   const list = h(doc, 'div', { class: 'sw-variables-list' });
   const add = h(doc, 'button', { type: 'button', class: 'sw-btn sw-variables-add' }, [ui.addVariable]);
-  const el = h(doc, 'div', { class: 'sw-variables' }, [empty, list, add]);
+  // Says why "Add variable" did nothing (for example, the block is not a mapping).
+  const addError = h(doc, 'p', { class: 'sw-field-error sw-variables-error', role: 'alert' });
+  const el = h(doc, 'div', { class: 'sw-variables' }, [empty, list, add, addError]);
 
   const disabled = (): boolean => ctx.readOnly() || !ctx.store.parsed.ok;
   const names = (): string[] => ctx.variables()?.get().map((d) => d.name) ?? [];
@@ -319,7 +321,9 @@ export function mountVariablesSection(ctx: EditorContext, doc: Document): Variab
     let n = 1;
     while (taken.has(`VAR_${n}`)) n++;
     const name = `VAR_${n}`;
-    if (ctx.variables()?.set({ name, type: 'string' })) cards.get(name)?.name.focus();
+    const ok = ctx.variables()?.set({ name, type: 'string' }) === true;
+    addError.textContent = ok ? '' : ui.editRefused; // refused: the focus stays on the button
+    if (ok) cards.get(name)?.name.focus();
   });
 
   const off = ctx.onVariables(() => update());

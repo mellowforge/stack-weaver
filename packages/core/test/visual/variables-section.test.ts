@@ -2,6 +2,9 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { createEditorWithContext } from '../../src/editor/editor.js';
 import type { ManifestEditorOptions } from '../../src/editor/editor.js';
+import { defaultUiMessages } from '../../src/editor/messages.js';
+import { parseText } from '../../src/document/parse.js';
+import { readBlock } from '../../src/formats/compose/variables/block.js';
 import { createFakeAdapter } from '../helpers/fake-adapter.js';
 
 let el: HTMLElement;
@@ -66,6 +69,25 @@ describe('outline', () => {
     await mount({ format: 'kubernetes', value: 'apiVersion: v1\nkind: Service\nmetadata:\n  name: s\n' });
     expect(labels()).not.toContain('Variables');
     expect(el.querySelector('.sw-variables')).toBeNull();
+  });
+
+  it('revealing a root-path problem keeps the current card; a path under x-variables opens Variables', async () => {
+    const { editor } = await mount();
+    const title = () => el.querySelector('.sw-section-title')!.textContent;
+    const open = (label: string) =>
+      [...el.querySelectorAll<HTMLElement>('[role=treeitem] .sw-outline-label')].find((l) => l.textContent === label)!.click();
+    open('services');
+    expect(title()).toBe('services');
+    editor.reveal({ doc: 0, path: [] }); // yaml.warning, rule.failed, a root yaml.data error
+    expect(title()).toBe('services');
+    editor.reveal({ doc: 0, path: ['x-variables', 'PORT', 'type'] });
+    expect(title()).toBe('Variables');
+    editor.reveal({ doc: 0, path: ['services', 'web'] });
+    expect(title()).not.toBe('Variables');
+    // picking Variables in the outline still holds across a re-render
+    open('Variables');
+    editor.setReadOnly(true);
+    expect(title()).toBe('Variables');
   });
 });
 
@@ -284,6 +306,34 @@ describe('cards', () => {
   it('remove button is named after the variable', async () => {
     await mount();
     expect(ctl('PORT', 'remove').textContent).toBe('Remove variable PORT');
+  });
+
+  it.each([
+    ['an empty', ''],
+    ['a comment-only', '# hi\n'],
+  ])('Add variable on %s document starts the block (one undo step), keeping the text before it', async (_k, value) => {
+    const { editor } = await mount({ value });
+    addButton().click();
+    const text = editor.getValue();
+    expect(text.startsWith(value)).toBe(true);
+    expect(text).toContain('x-variables:\n  VAR_1:\n    type: string\n');
+    expect(readBlock(parseText(text)).decls).toEqual([{ name: 'VAR_1', type: 'string' }]);
+    expect(focused()).toBe(ctl('VAR_1', 'name'));
+    expect(editor.undo()).toBe(true);
+    expect(editor.getValue()).toBe(value);
+  });
+
+  it('a refused Add variable (the block is not a mapping) says so in an alert and keeps the focus on the button', async () => {
+    const value = `x-variables: 5\n${BODY}`;
+    const { editor } = await mount({ value });
+    const error = el.querySelector<HTMLElement>('.sw-variables-error')!;
+    expect(error.getAttribute('role')).toBe('alert');
+    expect(error.textContent).toBe('');
+    addButton().focus();
+    addButton().click();
+    expect(editor.getValue()).toBe(value);
+    expect(error.textContent).toBe(defaultUiMessages.editRefused);
+    expect(focused()).toBe(addButton());
   });
 });
 

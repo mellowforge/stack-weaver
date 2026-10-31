@@ -35,12 +35,11 @@ type Declares = (path: YamlPath, key: string) => boolean;
  *   expanded (see `toData`). When the data cannot be built (for example `<<: 5`), that is a
  *   `yaml.data` error at the `<<` key, or at the document root; when the schema cannot be loaded,
  *   a `schema.unavailable` error.
- *
  * - When the format has `variables`, each document's data passes through `substitute` before
  *   validation, and schema errors at or under a returned `skip` path are dropped.
  * - When the text parses, each of the format's `rules` then runs once over all documents. Its
  *   findings become `rule.<id>` problems with `source: 'rule'`; a rule that throws becomes one
- *   `rule.failed` error and the other rules still run.
+ *   `rule.failed` error (and a `console.error` with the thrown error) and the other rules still run.
  *
  * Problems are ordered by start offset, then severity.
  *
@@ -79,8 +78,9 @@ export async function validateText(
   }
 
   const decls = opts.variables ?? (format.variables ? format.variables.read(p) : []);
-  const data: unknown[] = [];
-  const bundles: (SchemaBundle | undefined)[] = [];
+  // Dense, one entry per document: a rule that iterates sees `undefined`, never a hole.
+  const data: unknown[] = Array.from({ length: p.docs.length }, () => undefined);
+  const bundles: (SchemaBundle | undefined)[] = Array.from({ length: p.docs.length }, () => undefined);
   let seen = false;
   for (let doc = 0; doc < p.docs.length; doc++) {
     if (isEmptyDocument(p, doc)) continue;
@@ -151,6 +151,8 @@ function runRule(
       return { ...found, fix: { label, action: f.fix.action } };
     });
   } catch (err) {
+    // The problem carries only the message; the log keeps the stack.
+    console.error(`stack-weaver: rule "${rule.id}" failed`, err);
     return [problem(p, 0, 'error', 'rule', 'rule.failed', messages, { rule: rule.id, cause: causeOf(err) }, [], rootRange(p, 0))];
   }
 }

@@ -2,6 +2,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { createEditorWithContext } from '../../src/editor/editor.js';
 import type { ManifestEditorOptions } from '../../src/editor/editor.js';
+import type { VariableDecl } from '../../src/formats/types.js';
 import type { Problem } from '../../src/validation/problems.js';
 import { createFakeAdapter } from '../helpers/fake-adapter.js';
 
@@ -229,6 +230,42 @@ describe('invalid initial declarations', () => {
     expect(() => createEditorWithContext(el, { theme: 'auto', variables: { store: 'external', value: [{ name: '1x', type: 'string' }] } })).toThrow(TypeError);
     expect(add).not.toHaveBeenCalled();
     expect(el.querySelector('#keep')).not.toBeNull(); // the host element was not touched
+  });
+});
+
+describe('declarations handed out are frozen', () => {
+  const ENUM = { name: 'MODE', type: 'enum', enumValues: ['a', 'b'], default: 'a' } as const;
+  const deeplyFrozen = (decls: readonly VariableDecl[]): boolean =>
+    Object.isFrozen(decls) && decls.every((d) => Object.isFrozen(d) && (d.enumValues === undefined || Object.isFrozen(d.enumValues)));
+
+  it.each(['x-variables', 'external'] as const)('%s store: getVariables, get() and every listener payload', async (store) => {
+    const onVariablesChange = vi.fn();
+    const value = store === 'external' ? undefined : 'x-variables:\n  MODE:\n    type: enum\n    enum: [a, b]\n    default: a\nservices: {}\n';
+    const { editor, ctx } = await mount({
+      ...(value !== undefined ? { value } : { value: 'services: {}\n', variables: { store: 'external', value: [ENUM] } }),
+      onVariablesChange,
+    });
+    const heard: (readonly VariableDecl[])[] = [];
+    ctx.onVariables((d) => heard.push(d));
+    expect(editor.getVariables()).toEqual([ENUM]);
+    expect(deeplyFrozen(editor.getVariables())).toBe(true);
+    expect(deeplyFrozen(ctx.variables()!.get())).toBe(true);
+    expect(ctx.variables()!.set({ name: 'B', type: 'boolean' })).toBe(true);
+    expect(heard).toHaveLength(1);
+    expect(onVariablesChange).toHaveBeenCalledTimes(1);
+    expect(deeplyFrozen(heard[0]!)).toBe(true);
+    expect(deeplyFrozen(onVariablesChange.mock.calls[0]![0] as readonly VariableDecl[])).toBe(true);
+    expect(editor.getVariables()).toEqual([ENUM, { name: 'B', type: 'boolean' }]);
+  });
+
+  it('the host list is copied: changing it afterwards changes nothing', async () => {
+    const value: VariableDecl[] = [{ name: 'A', type: 'string' }];
+    const { editor } = await mount({ variables: { store: 'external', value } });
+    value.push({ name: 'B', type: 'string' });
+    editor.setVariables(value);
+    value.pop();
+    expect(editor.getVariables().map((d) => d.name)).toEqual(['A', 'B']);
+    expect(deeplyFrozen(editor.getVariables())).toBe(true);
   });
 });
 

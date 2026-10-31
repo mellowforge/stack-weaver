@@ -50,6 +50,8 @@ export function createVisualPane(
   const requested = new Set<string>();
   const unknownKeys = new Set<string>();
   let selectedRef: NodeRef | undefined;
+  /** The Variables section is the selection. Tracked apart from `selectedRef`: it has no path of its own. */
+  let variablesSelected = false;
   let nodes: readonly OutlineNode[] = [];
   let flat = new Map<string, OutlineNode>();
   let section: { id: string; handle: Section } | undefined;
@@ -65,6 +67,7 @@ export function createVisualPane(
   const outline = createOutline(doc, {
     label: ui.outlineLabel,
     onSelect: (n) => {
+      variablesSelected = n.type === 'variables';
       choose(n.ref);
       if (n.type === 'variables') return; // no text of its own to reveal
       // Split mode: the code pane follows the outline (frame 2). Not while the text is broken: its ranges are stale.
@@ -138,9 +141,10 @@ export function createVisualPane(
       const hit = flat.get(nodeId({ doc: ref.doc, path: ref.path.slice(0, n) }));
       if (hit) return hit;
     }
-    // The variables block has no node of its own: its section stands for it (as does the root, for a `mapping` format).
+    // The hidden variables block has no node of its own: its section stands for it. The root does
+    // not (a root-path problem leaves the selection as it is).
     const key = hiddenKey();
-    return ref.doc === 0 && (ref.path.length === 0 || (key !== undefined && ref.path[0] === key)) ? flat.get(VARIABLES_ID) : undefined;
+    return ref.doc === 0 && key !== undefined && ref.path[0] === key ? flat.get(VARIABLES_ID) : undefined;
   };
 
   function showCard(node: OutlineNode, parsed: ParsedText | undefined, broken: boolean): void {
@@ -226,7 +230,11 @@ export function createVisualPane(
       }
     };
     index(nodes);
-    const sel = (selectedRef ? nearest(selectedRef) : undefined) ?? nodes.find((n) => n.type !== 'variables') ?? nodes[0];
+    const sel =
+      (variablesSelected ? flat.get(VARIABLES_ID) : undefined) ??
+      (selectedRef ? nearest(selectedRef) : undefined) ??
+      nodes.find((n) => n.type !== 'variables') ??
+      nodes[0];
     outline.update(nodes, sel?.id);
     renderSelection(sel, parsed, broken);
   }
@@ -281,6 +289,7 @@ export function createVisualPane(
       if (destroyed) return false;
       if (o.el.hidden) {
         selectedRef = ref;
+        variablesSelected = false; // the next render resolves `ref`, to Variables if it is under the block
         stale = true;
         return false;
       }
@@ -288,6 +297,7 @@ export function createVisualPane(
       const hit = nearest(ref);
       if (!hit) return false;
       selectedRef = hit.ref;
+      variablesSelected = hit.type === 'variables';
       flush();
       outline.expandTo(hit.id);
       return true;

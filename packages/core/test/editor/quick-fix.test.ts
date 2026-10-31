@@ -2,6 +2,8 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { createEditorWithContext } from '../../src/editor/editor.js';
 import type { ManifestEditorOptions } from '../../src/editor/editor.js';
+import { defaultUiMessages } from '../../src/editor/messages.js';
+import type { Problem } from '../../src/validation/problems.js';
 import { createFakeAdapter } from '../helpers/fake-adapter.js';
 
 let el: HTMLElement;
@@ -129,5 +131,107 @@ describe('quick fixes', () => {
     expect(editor.getValue()).toBe(UNDECLARED);
     expect(fixButton()).toBe(btn);
     expect(document.activeElement).toBe(btn);
+  });
+});
+
+const declOf = (p: Problem | undefined) => (p?.fix?.action.kind === 'declareVariable' ? p.fix.action.decl : undefined);
+
+describe('stale fixes', () => {
+  it('a change to the inline default alone republishes the problem, so the fix declares the new default', async () => {
+    const text = 'services:\n  web:\n    image: "nginx:${TAG:-1.0}"\n';
+    const onProblemsChange = vi.fn();
+    const { editor, fake } = await mount({ value: text, mode: 'split', onProblemsChange });
+    expect(declOf(editor.getProblems().find((p) => p.fix))?.default).toBe('1.0');
+    const calls = onProblemsChange.mock.calls.length;
+    fake.type(text.replace('1.0', '2.0'));
+    await vi.advanceTimersByTimeAsync(1000);
+    expect(onProblemsChange).toHaveBeenCalledTimes(calls + 1);
+    expect(declOf(editor.getProblems().find((p) => p.fix))?.default).toBe('2.0');
+    fixButton().click();
+    expect(editor.getVariables()).toEqual([{ name: 'TAG', type: 'string', default: '2.0' }]);
+  });
+
+  it.each(['x-variables', 'external'] as const)('a declare fix never overwrites a variable declared since (%s store)', async (store) => {
+    const { editor, ctx } = await mount(store === 'external' ? { variables: { store: 'external', value: [] } } : {});
+    const stale = editor.getProblems().find((p) => p.fix)!;
+    const mine = { name: 'PORT', type: 'number', default: 8080, description: 'mine' } as const;
+    expect(ctx.variables()!.set(mine)).toBe(true);
+    const text = editor.getValue();
+    expect(editor.applyFix(stale)).toBe(false);
+    expect(editor.getVariables()).toEqual([mine]);
+    expect(editor.getValue()).toBe(text);
+  });
+});
+
+/** A container in a one-line flow map: the resources fix cannot nest a map in it, so it is refused. */
+const FLOW_POD = 'apiVersion: v1\nkind: Pod\nmetadata:\n  name: p\nspec:\n  containers:\n    - { name: web, image: nginx }\n';
+const panelStatus = (): HTMLElement => el.querySelector<HTMLElement>('.sw-problems-status')!;
+
+describe('refused fixes', () => {
+  const live = (): Element => {
+    const a = document.activeElement!;
+    expect(a.isConnected).toBe(true);
+    expect(a.closest('[hidden]')).toBeNull();
+    return a;
+  };
+
+  it('panel: a refused fix says so in an alert outside the list and keeps the focus on the button', async () => {
+    const { editor } = await mount({ format: 'kubernetes', value: FLOW_POD });
+    const btn = fixButton();
+    btn.focus();
+    btn.click();
+    expect(editor.getValue()).toBe(FLOW_POD);
+    expect(panelStatus().getAttribute('role')).toBe('alert');
+    expect(panelStatus().textContent).toBe(defaultUiMessages.editRefused);
+    expect(panelStatus().closest('.sw-problem-list')).toBeNull();
+    expect(live()).toBe(btn);
+    // collapsing the list keeps the message visible
+    el.querySelector<HTMLButtonElement>('.sw-problems-toggle')!.click();
+    expect(panelStatus().closest('[hidden]')).toBeNull();
+  });
+
+  it('panel: a stale second fix is refused with the message, which clears once the problems change', async () => {
+    const twoUses = 'services:\n  web:\n    image: "${IMG}"\n    command: "${IMG}"\n';
+    const { editor } = await mount({ value: twoUses });
+    const [first, second] = [...el.querySelectorAll<HTMLButtonElement>('.sw-problem-fix')];
+    first!.click();
+    const text = editor.getValue();
+    // IMG is declared now: the second fix is refused, never applied twice
+    second!.click();
+    expect(editor.getValue()).toBe(text);
+    expect(panelStatus().textContent).toBe(defaultUiMessages.editRefused);
+    await vi.advanceTimersByTimeAsync(1000);
+    expect(panelStatus().textContent).toBe('');
+  });
+
+  it('row: a refused fix shows editRefused in the row error (an alert) and keeps the focus on the button', async () => {
+    const { editor } = await mount({ format: 'kubernetes', value: FLOW_POD, mode: 'visual' });
+    const rowFix = el.querySelector<HTMLButtonElement>('.sw-row .sw-row-fix')!;
+    const error = rowFix.closest('.sw-row')!.querySelector<HTMLElement>('.sw-row-error')!;
+    rowFix.focus();
+    rowFix.click();
+    expect(editor.getValue()).toBe(FLOW_POD);
+    expect(error.hidden).toBe(false);
+    expect(error.getAttribute('role')).toBe('alert');
+    expect(error.textContent).toBe(defaultUiMessages.editRefused);
+    expect(live()).toBe(rowFix);
+  });
+
+  it('code pane: a refused fix says so in the problems panel', async () => {
+    const { editor, fake } = await mount({ format: 'kubernetes', value: FLOW_POD });
+    const withFix = fake.diagnostics.find((d) => d.actions)!;
+    withFix.actions![0]!.apply();
+    expect(editor.getValue()).toBe(FLOW_POD);
+    expect(panelStatus().textContent).toBe(defaultUiMessages.editRefused);
+  });
+
+  it('code pane: no fix actions while read-only; they follow setReadOnly', async () => {
+    const { editor, fake } = await mount({ readOnly: true });
+    expect(fake.diagnostics.length).toBeGreaterThan(0);
+    expect(fake.diagnostics.some((d) => d.actions)).toBe(false);
+    editor.setReadOnly(false);
+    expect(fake.diagnostics.some((d) => d.actions)).toBe(true);
+    editor.setReadOnly(true);
+    expect(fake.diagnostics.some((d) => d.actions)).toBe(false);
   });
 });

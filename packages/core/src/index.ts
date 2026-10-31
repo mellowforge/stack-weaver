@@ -35,6 +35,7 @@ export type {
   QuickFix,
   RuleInput,
   RuleFinding,
+  RuleFix,
   Rule,
   FormatVariables,
 } from './formats/types.js';

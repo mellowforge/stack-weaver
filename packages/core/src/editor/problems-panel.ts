@@ -12,6 +12,8 @@ export interface ProblemsPanel {
   update(problems: readonly Problem[]): void;
   /** Disables the fix buttons while the editor is read-only. */
   setReadOnly(readOnly: boolean): void;
+  /** Says that a quick fix applied elsewhere (the code pane) was refused, until the problems change or a fix applies. */
+  showRefused(): void;
 }
 
 // Three different shapes, so severity never rests on colour alone; the text alternative is
@@ -24,8 +26,10 @@ let nextId = 0;
  * Fills `host` (the shell's `.sw-problems` element) with a toggle and the list. Each item is a
  * button; `onSelect` receives the problem it stands for. A problem with a quick fix gets a second,
  * sibling button (never nested); `onFix` applies it and returns whether it did, and then the
- * focus moves to the toggle because the item it was in is gone. When an update hides the panel
- * while the focus is inside it, `restoreFocus` hands the focus to a visible target.
+ * focus moves to the toggle because the item it was in is gone. A refused fix leaves the focus on
+ * its button and shows `editRefused` in an alert after the list (outside it, so it stays visible
+ * while the list is collapsed). When an update hides the panel while the focus is inside it,
+ * `restoreFocus` hands the focus to a visible target.
  * @internal
  */
 export function createProblemsPanel(
@@ -37,7 +41,11 @@ export function createProblemsPanel(
   const label: Record<Severity, string> = { error: o.ui.severityError, warning: o.ui.severityWarning, info: o.ui.severityInfo };
   const toggle = h(doc, 'button', { type: 'button', class: 'sw-problems-toggle', 'aria-expanded': 'true', 'aria-controls': listId });
   const list = h(doc, 'ul', { class: 'sw-problem-list', id: listId, role: 'list' });
-  host.append(toggle, list);
+  const status = h(doc, 'p', { class: 'sw-field-error sw-problems-status', role: 'alert' });
+  host.append(toggle, list, status);
+  const setStatus = (text: string): void => {
+    if (status.textContent !== text) status.textContent = text;
+  };
 
   toggle.addEventListener('click', () => {
     const open = toggle.getAttribute('aria-expanded') !== 'true';
@@ -52,7 +60,11 @@ export function createProblemsPanel(
       readOnly = v;
       for (const b of list.querySelectorAll<HTMLButtonElement>('.sw-problem-fix')) b.disabled = v;
     },
+    showRefused() {
+      setStatus(o.ui.editRefused);
+    },
     update(problems) {
+      setStatus('');
       const hiding = problems.length === 0;
       if (hiding && !host.hidden && host.contains(doc.activeElement)) o.restoreFocus();
       host.hidden = hiding;
@@ -70,7 +82,10 @@ export function createProblemsPanel(
         const fixButton = h(doc, 'button', { type: 'button', class: 'sw-problem-fix', 'aria-describedby': `${listId}-msg-${i}` }, [fix.label]);
         fixButton.disabled = readOnly;
         fixButton.addEventListener('click', () => {
-          if (o.onFix(p)) toggle.focus();
+          if (o.onFix(p)) {
+            setStatus('');
+            toggle.focus();
+          } else setStatus(o.ui.editRefused); // the focus stays on this button
         });
         return h(doc, 'li', { class: 'sw-problem-item' }, [button, fixButton]);
       });

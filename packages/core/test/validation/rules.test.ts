@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 import { parseText } from '../../src/document/parse.js';
 import type {
   FormatDefinition,
@@ -10,6 +10,10 @@ import type {
   VariableDecl,
 } from '../../src/formats/types.js';
 import { validateText } from '../../src/validation/validate.js';
+
+afterEach(() => {
+  vi.restoreAllMocks();
+});
 
 /** A bundle whose validator reports `type` errors for `integer` properties holding non-integers. */
 function bundle(schema: Record<string, unknown> = {}): SchemaBundle {
@@ -105,12 +109,14 @@ describe('rules in validateText', () => {
     expect(p!.fix).toEqual({ label: 'Fix X', action });
   });
 
-  it('a throwing rule becomes one rule.failed error and other rules still run', async () => {
+  it('a throwing rule becomes one rule.failed error, logged with its stack, and other rules still run', async () => {
+    const log = vi.spyOn(console, 'error').mockImplementation(() => {});
+    const err = new Error('nope');
     const boom: Rule = {
       id: 'boom',
       messages: {},
       check: () => {
-        throw new Error('nope');
+        throw err;
       },
     };
     const ok = rule(() => [{ severity: 'info', doc: 0, path: ['a'], params: { x: 2 } }]);
@@ -119,6 +125,7 @@ describe('rules in validateText', () => {
       expect.objectContaining({ severity: 'error', source: 'rule', doc: 0, message: 'The “boom” check failed to run: nope' }),
     ]);
     expect(probs.some((x) => x.code === 'rule.demo')).toBe(true);
+    expect(log.mock.calls).toEqual([['stack-weaver: rule "boom" failed', err]]);
   });
 
   it('rules do not run while the text does not parse', async () => {
@@ -146,6 +153,20 @@ describe('rules in validateText', () => {
     expect(seen!.parsed.ok).toBe(true);
     expect(seen!.variables).toEqual([]);
     expect(seen!.variableSource).toBe('document');
+  });
+
+  it('data and bundles are dense: one entry per document, undefined for empty ones at either end', async () => {
+    const b = bundle({ properties: {} });
+    let seen: RuleInput | undefined;
+    const r = rule((i) => {
+      seen = i;
+      return [];
+    });
+    const p = parseText('---\n---\na: 1\n---\n');
+    expect(p.docs).toHaveLength(3);
+    await validateText(p, fake({ rules: [r] }, 'documents', b));
+    expect(seen!.data).toStrictEqual([undefined, { a: 1 }, undefined]);
+    expect(seen!.bundles).toStrictEqual([undefined, b, undefined]);
   });
 
   describe('variables', () => {

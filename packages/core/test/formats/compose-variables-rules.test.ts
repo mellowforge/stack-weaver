@@ -62,6 +62,14 @@ describe('undeclared-variable', () => {
     expect(rules(await run(text))).toEqual([]);
   });
 
+  it('is silent while the document cannot be read (a bad merge): only the yaml.data error shows', async () => {
+    const text = 'x-base: &b 5\nservices:\n  web:\n    <<: *b\n    image: ${IMG}\n';
+    const ps = await run(text);
+    expect(ps.map((p) => p.code)).toEqual(['yaml.data']);
+    // declarations from the host do not depend on the block: the warning stays
+    expect(rules(await run(text, { variables: [] }), 'undeclared-variable')).toHaveLength(1);
+  });
+
   it('falls back to the scalar range when the literal text is escaped away', async () => {
     const text = 'services:\n  web:\n    image: nginx\n    hostname: "\\x24{ESC}"\n';
     // "\x24{ESC}" has the value ${ESC} but the source never holds that text.

@@ -108,7 +108,7 @@ function createFieldRow(ctx: EditorContext, registry: WidgetRegistry, envFor: (p
   const descEl = h(doc, 'p', { class: 'sw-row-description', id: `${id}-desc`, hidden: true });
   const body = h(doc, 'div', { class: 'sw-row-body' });
   const noteEl = h(doc, 'p', { class: 'sw-row-note', hidden: true });
-  const errorEl = h(doc, 'p', { class: 'sw-field-error sw-row-error', hidden: true });
+  const errorEl = h(doc, 'p', { class: 'sw-field-error sw-row-error', role: 'alert', hidden: true });
   const problemsEl = h(doc, 'ul', { class: 'sw-row-problems', id: `${id}-problems`, hidden: true });
   const rowEl = h(doc, 'div', { class: 'sw-row', 'data-sw-key': String(key) }, [head, descEl, body, noteEl, errorEl, problemsEl]);
 
@@ -371,8 +371,12 @@ function createFieldRow(ctx: EditorContext, registry: WidgetRegistry, envFor: (p
           if (p.fix) {
             const fixBtn = h(doc, 'button', { type: 'button', class: 'sw-row-fix', 'aria-describedby': msgId }, [p.fix.label]);
             fixBtn.addEventListener('click', () => {
-              // The button goes away with its problem: keep the focus on something that stays.
-              if (ctx.applyFix(p)) focusRow();
+              const ok = ctx.applyFix(p);
+              errorEl.textContent = ok ? '' : ui.editRefused;
+              errorEl.hidden = ok;
+              // The button goes away with its problem: keep the focus on something that stays. A
+              // refused fix leaves the button, and the focus on it.
+              if (ok) focusRow();
             });
             fixButtons.push(fixBtn);
             li.append(' ', fixBtn);

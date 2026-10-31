@@ -3,7 +3,7 @@ import { resolveAt } from '../../../engine/resolve.js';
 import type { YamlPath } from '../../../document/types.js';
 import { fieldTypes, fitsField, inferVariableType } from '../../../variables/fit.js';
 import type { JsonSchema, Rule, RuleFinding, RuleInput, VariableDecl, VariableType } from '../../types.js';
-import { VARIABLES_KEY, readBlock } from './block.js';
+import { VARIABLES_KEY, blockReadable, readBlock } from './block.js';
 import { scanPlaceholders } from './syntax.js';
 import type { Placeholder } from './syntax.js';
 
@@ -86,6 +86,13 @@ function inlineDefault(ph: Placeholder, type: VariableType): string | number | b
 
 const byName = (decls: readonly VariableDecl[]): Map<string, VariableDecl> => new Map(decls.map((d) => [d.name, d]));
 
+/**
+ * The document's own declarations are unknown while its block cannot be read (for example a bad
+ * merge, already a `yaml.data` error): checking placeholders against them would only report noise,
+ * with fixes that cannot apply.
+ */
+const declarationsUnknown = (input: RuleInput): boolean => input.variableSource === 'document' && !blockReadable(input.parsed);
+
 const undeclared: Rule = {
   id: 'undeclared-variable',
   messages: {
@@ -93,6 +100,7 @@ const undeclared: Rule = {
     'fix.declare-variable': (e) => `Declare variable ${String(e.params['name'])}`,
   },
   check(input) {
+    if (declarationsUnknown(input)) return [];
     const known = byName(input.variables);
     const out: RuleFinding[] = [];
     walk(input, (site) => {
@@ -183,6 +191,7 @@ const variableType: Rule = {
       `${String(e.params['name'])} is a ${String(e.params['type'])} variable, but this field takes ${String(e.params['expected'])}.`,
   },
   check(input) {
+    if (declarationsUnknown(input)) return [];
     const known = byName(input.variables);
     const out: RuleFinding[] = [];
     walk(input, (site) => {

@@ -13,9 +13,9 @@ export function problemCountText(ui: UiMessages, count: number): string {
   return count === 1 ? ui.problemsOne : ui.problemsMany.replace('{count}', String(count));
 }
 
-/** Enough of a problem to tell whether the list changed. */
+/** Enough of a problem to tell whether the list changed, including a fix that changed on its own (such as a new inline default). */
 function signature(problems: readonly Problem[]): string {
-  return JSON.stringify(problems.map((p) => [p.severity, p.code, p.message, p.doc, p.from, p.to]));
+  return JSON.stringify(problems.map((p) => [p.severity, p.code, p.message, p.doc, p.from, p.to, p.fix?.label, JSON.stringify(p.fix?.action)]));
 }
 
 // Used while no format is resolved: it can report YAML syntax problems, and nothing else.

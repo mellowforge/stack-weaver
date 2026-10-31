@@ -88,8 +88,9 @@ export interface ManifestEditorOptions {
    */
   readonly variables?: VariablesOption;
   /**
-   * Called with the declarations when they change: by a text edit of the block, undo and redo, the
-   * variable controls and quick fixes. Not called for {@link ManifestEditor.setVariables}. A throw is logged.
+   * Called with the declarations (deep-frozen) when they change: by a text edit of the block, undo
+   * and redo, the variable controls and quick fixes. Not called for
+   * {@link ManifestEditor.setVariables}. A throw is logged.
    */
   readonly onVariablesChange?: (decls: readonly VariableDecl[]) => void;
 }
@@ -118,7 +119,10 @@ export interface ManifestEditor {
   redo(): boolean;
   /** Scrolls to and selects the node. */
   reveal(ref: NodeRef): void;
-  /** The declared variables: from the document's block, or the host's list for the `external` store; `[]` when there are none. */
+  /**
+   * The declared variables: from the document's block, or the host's list for the `external`
+   * store; `[]` when there are none. Deep-frozen: change them through the store or `setVariables`.
+   */
   getVariables(): readonly VariableDecl[];
   /**
    * Replaces the declarations of an `external` store and re-validates; does not call
@@ -129,7 +133,8 @@ export interface ManifestEditor {
   /**
    * Applies the quick fix of `problem` (declaring a variable, or edits) as one undo step, all of it
    * or nothing. False, changing nothing, when the problem has no fix, the editor is read-only or
-   * destroyed, or any of its edits is refused.
+   * destroyed, the variable it declares is already declared (a declaration is never replaced), or
+   * any of its edits is refused.
    */
   applyFix(problem: Problem): boolean;
   /**
@@ -263,7 +268,15 @@ export function createEditorWithContext(
 
   const visualPane = createVisualPane(ctx, { el: shell.visualEl, slots: createFieldSlots(ctx, { ...defaultWidgets, ...options.widgets }) });
   const adapter: Promise<CodeEditorAdapter> = options.codeEditor ? Promise.resolve(options.codeEditor) : loaders.loadDefaultAdapter();
-  const codePane = createCodePane(ctx, { el: shell.codeEl, adapter, theme: themeNow, onUndo: () => undo(), onRedo: () => redo() });
+  const codePane = createCodePane(ctx, {
+    el: shell.codeEl,
+    adapter,
+    theme: themeNow,
+    onUndo: () => undo(),
+    onRedo: () => redo(),
+    // The code editor's own fix menu has no room for a message: the problems panel says it.
+    onFixRefused: () => panel.showRefused(),
+  });
   const panes: Pane[] = [visualPane, codePane];
 
   const panel = createProblemsPanel(shell.problemsEl, { ui, onFix: (p) => ctx.applyFix(p),

@@ -29,7 +29,10 @@ export interface CodePane extends Pane {
   instance(): CodeEditorInstance | undefined;
   /** Reveals and selects `range`. */
   revealRange(range: TextRange): void;
-  /** Shows `problems` as markers in the code editor (also applied when the editor mounts later). */
+  /**
+   * Shows `problems` as markers in the code editor (also applied when the editor mounts later). A
+   * problem's quick fix is offered as an action while the editor is not read-only.
+   */
   setProblems(problems: readonly Problem[]): void;
 }
 
@@ -47,6 +50,8 @@ export function createCodePane(
     theme(): ResolvedTheme;
     onUndo(): void;
     onRedo(): void;
+    /** Called when a diagnostic's fix action was refused, so the editor can say so. */
+    onFixRefused(): void;
   },
 ): CodePane {
   const ui = ctx.messages.ui;
@@ -132,6 +137,34 @@ export function createCodePane(
     }
   };
 
+  /** The problems as diagnostics; a fix is offered as an action only while the editor is editable. */
+  let shown: readonly Problem[] = [];
+  const showDiagnostics = (): void => {
+    const editable = !ctx.readOnly();
+    diagnostics = shown.map((p) => {
+      const { fix } = p;
+      return {
+        from: p.from,
+        to: p.to,
+        severity: p.severity,
+        message: p.message,
+        ...(fix && editable
+          ? {
+              actions: [
+                {
+                  label: fix.label,
+                  apply: () => {
+                    if (!ctx.applyFix(p)) o.onFixRefused();
+                  },
+                },
+              ],
+            }
+          : {}),
+      };
+    });
+    inst?.setDiagnostics(diagnostics);
+  };
+
   const ready = o.adapter.then((adapter) => {
     if (destroyed) return;
     inst = adapter.mount(o.el, {
@@ -190,20 +223,12 @@ export function createCodePane(
       inst?.reveal(range, { select: true });
     },
     setProblems(problems) {
-      diagnostics = problems.map((p) => {
-        const { fix } = p;
-        return {
-          from: p.from,
-          to: p.to,
-          severity: p.severity,
-          message: p.message,
-          ...(fix ? { actions: [{ label: fix.label, apply: () => void ctx.applyFix(p) }] } : {}),
-        };
-      });
-      inst?.setDiagnostics(diagnostics);
+      shown = problems;
+      showDiagnostics();
     },
     setReadOnly(v) {
       inst?.setReadOnly(v);
+      showDiagnostics(); // the fix actions come and go with read-only
     },
     destroy() {
       destroyed = true;

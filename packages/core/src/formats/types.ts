@@ -179,13 +179,20 @@ export interface QuickFix {
 export interface RuleInput {
   /** The parsed text; always `ok`. */
   readonly parsed: ParsedText;
-  /** `toData` per document; `undefined` for empty, unbuildable or skipped documents. */
+  /**
+   * `toData` per document: one entry for each of `parsed.docs`, in order, never a hole; an
+   * explicit `undefined` for empty, unbuildable or skipped documents.
+   */
   readonly data: readonly unknown[];
-  /** The bundle each document validated against; `undefined` where there was none. */
+  /** The bundle each document validated against: one entry for each of `parsed.docs`; `undefined` where there was none. */
   readonly bundles: readonly (SchemaBundle | undefined)[];
   /** The variable declarations in effect. */
   readonly variables: readonly VariableDecl[];
-  /** Where `variables` came from: the document itself, or the host (`validateText`'s `variables` option). */
+  /**
+   * Where `variables` came from. `'document'`: the format's own block (`FormatVariables.read`; in
+   * the editor, the `'x-variables'` store). `'host'`: the list `validateText` was given in its
+   * `variables` option (in the editor, the `'external'` store).
+   */
   readonly variableSource: 'document' | 'host';
   /**
    * Formats an entry of the message table for this rule: the host's `messages` over the rule's own
@@ -208,12 +215,18 @@ export interface RuleFinding {
   readonly range?: TextRange;
   /** Parameters for the rule's message. */
   readonly params?: Readonly<Record<string, unknown>>;
-  /** A quick fix: `key` names a message (also resolved through the message table) used as its label. */
-  readonly fix?: {
-    readonly key: string;
-    readonly params?: Readonly<Record<string, unknown>>;
-    readonly action: QuickFixAction;
-  };
+  /** A quick fix for the finding; `validateText` turns it into the problem's {@link QuickFix}. */
+  readonly fix?: RuleFix;
+}
+
+/** The quick fix of a {@link RuleFinding}: what it does, and the message key of its label. */
+export interface RuleFix {
+  /** The message key of the button label, resolved through the same table as the rule's messages (so hosts can translate it). */
+  readonly key: string;
+  /** Parameters for the label message. */
+  readonly params?: Readonly<Record<string, unknown>>;
+  /** What applying the fix does. */
+  readonly action: QuickFixAction;
 }
 
 /** A semantic check run after schema validation. Reports problems with code `rule.<id>`. */

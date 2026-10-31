@@ -215,6 +215,11 @@
   gap: var(--sw-gap);
 }
 
+.sw-problems-status {
+  margin: 0;
+  padding: 4px var(--sw-gap);
+}
+
 .sw-problem:hover,
 .sw-problems-toggle:hover {
   background: color-mix(in srgb, var(--sw-accent) 10%, transparent);

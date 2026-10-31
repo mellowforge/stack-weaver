@@ -4,18 +4,31 @@ import { parseText } from '../document/parse.js';
 import type { DocumentStore } from '../document/store.js';
 import type { FormatDefinition, VariableDecl } from '../formats/types.js';
 import type { Problem } from '../validation/problems.js';
+import { deepFreeze } from '../formats/freeze.js';
 import { checkDecl } from '../variables/decl.js';
 
-/** Where declarations live: in the document's variables block, or in a list the host owns. */
+/**
+ * Where declarations live: in the document's variables block, or in a list the host owns.
+ *
+ * `'x-variables'` names the block of the format's `FormatVariables.key`, whatever that key is
+ * (`x-variables` for compose); validation then sees `variableSource: 'document'`. `'external'`
+ * keeps `value` (copied) outside the text; validation then sees `variableSource: 'host'`.
+ */
 export type VariablesOption =
   | { readonly store: 'x-variables' }
   | { readonly store: 'external'; readonly value: readonly VariableDecl[] };
 
 /** Where declarations live; the editor creates one per instance. */
 export interface VariableStore {
-  /** `'x-variables'` for the block in the document, `'external'` for the host's list. */
+  /**
+   * `'x-variables'` for the block in the document (the one named by the format's
+   * `FormatVariables.key`), `'external'` for the host's list. See {@link VariablesOption}.
+   */
   readonly kind: 'x-variables' | 'external';
-  /** The current declarations (for `x-variables`, from the last good parse while the text is broken). */
+  /**
+   * The current declarations, deep-frozen (for `x-variables`, from the last good parse while the
+   * text is broken).
+   */
   get(): readonly VariableDecl[];
   /** Adds or replaces (by `replaces ?? decl.name`); false when refused (read-only, invalid, name taken, edit refused), changing nothing. */
   set(decl: VariableDecl, replaces?: string): boolean;
@@ -35,6 +48,8 @@ function assertDecls(decls: readonly VariableDecl[]): void {
 }
 
 const copy = (d: VariableDecl): VariableDecl => ({ ...d, ...(d.enumValues ? { enumValues: [...d.enumValues] } : {}) });
+/** Copies of `decls`, deep-frozen: the host's list and the editor's state never share an object. */
+const frozenCopies = (decls: readonly VariableDecl[]): readonly VariableDecl[] => deepFreeze(decls.map(copy));
 
 /**
  * The editor's variable state.
@@ -53,7 +68,10 @@ export interface Variables {
   check(): void;
   /** Takes the current declarations as seen, without notifying. */
   reseed(): void;
-  /** Applies the fix of `problem`, all of it or nothing; false when there is none or it was refused. */
+  /**
+   * Applies the fix of `problem`, all of it or nothing; false when there is none or it was refused
+   * (a declaration fix for a name that is already declared is refused).
+   */
   applyFix(problem: Problem): boolean;
   /** Drops the listeners. */
   destroy(): void;
@@ -79,17 +97,18 @@ export function createVariables(deps: {
   let external: readonly VariableDecl[] = [];
   if (deps.option?.store === 'external') {
     assertDecls(deps.option.value);
-    external = deps.option.value.map(copy);
+    external = frozenCopies(deps.option.value);
   }
   const listeners = new Set<(d: readonly VariableDecl[]) => void>();
   let groupN = 0;
   let hold = 0;
 
   const fv = () => deps.format()?.variables;
+  /** The declarations, deep-frozen (a fresh read of the block each time for `x-variables`). */
   const get = (): readonly VariableDecl[] => {
     if (kind === 'external') return external;
     const f = fv();
-    return f ? f.read(store.parsed.ok ? store.parsed : (store.lastGood ?? store.parsed)) : [];
+    return deepFreeze(f ? f.read(store.parsed.ok ? store.parsed : (store.lastGood ?? store.parsed)) : []);
   };
   const sigOf = (d: readonly VariableDecl[]): string => JSON.stringify(d);
   let last = sigOf(get());
@@ -159,7 +178,7 @@ export function createVariables(deps: {
       if (replaces !== undefined && !taken.includes(replaces)) return false;
       if (decl.name !== target && taken.includes(decl.name)) return false;
       if (kind === 'external') {
-        external = taken.includes(target) ? external.map((d) => (d.name === target ? copy(decl) : d)) : [...external, copy(decl)];
+        external = deepFreeze(taken.includes(target) ? external.map((d) => (d.name === target ? copy(decl) : d)) : [...external, copy(decl)]);
         check();
         return true;
       }
@@ -171,7 +190,7 @@ export function createVariables(deps: {
     remove(name) {
       if (deps.isDestroyed() || deps.readOnly() || !names().includes(name)) return false;
       if (kind === 'external') {
-        external = external.filter((d) => d.name !== name);
+        external = Object.freeze(external.filter((d) => d.name !== name));
         check();
         return true;
       }
@@ -192,7 +211,7 @@ export function createVariables(deps: {
         return;
       }
       assertDecls(decls);
-      external = decls.map(copy);
+      external = frozenCopies(decls);
       last = sigOf(external);
       emit(false); // the host asked for this: no onVariablesChange echo
       deps.revalidate();
@@ -210,7 +229,8 @@ export function createVariables(deps: {
     applyFix(problem) {
       const action = problem.fix?.action;
       if (!action || deps.isDestroyed() || deps.readOnly()) return false;
-      if (action.kind === 'declareVariable') return current()?.set(action.decl) ?? false;
+      // A fix declares; it never replaces a declaration made since the problem was found.
+      if (action.kind === 'declareVariable') return !names().includes(action.decl.name) && (current()?.set(action.decl) ?? false);
       return applyOps(action.ops, 'fix');
     },
     destroy() {

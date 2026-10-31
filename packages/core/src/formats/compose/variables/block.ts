@@ -1,5 +1,6 @@
 import { toData } from '../../../document/data.js';
 import type { EditOp } from '../../../document/edit.js';
+import { renderValue } from '../../../document/render.js';
 import type { NodeRef, ParsedText, YamlPath, YamlValue } from '../../../document/types.js';
 import { checkDecl } from '../../../variables/decl.js';
 import type { VariableDecl, VariableType } from '../../types.js';
@@ -33,6 +34,14 @@ function rawBlock(p: ParsedText): { rootOk: boolean; block: unknown } {
     return { rootOk: false, block: undefined };
   }
   return isRecord(root) ? { rootOk: true, block: root[VARIABLES_KEY] } : { rootOk: false, block: undefined };
+}
+
+/**
+ * True when the block can be read: the first document's data can be built (no bad merge) and its
+ * root is a mapping. While it cannot, the block's declarations are unknown rather than none.
+ */
+export function blockReadable(p: ParsedText): boolean {
+  return rawBlock(p).rootOk;
 }
 
 /** Builds a decl from one entry, or the single issue that makes it malformed. */
@@ -105,13 +114,18 @@ const same = (a: unknown, b: unknown): boolean => JSON.stringify(a) === JSON.str
 
 /**
  * Ops that add `decl` to the block (creating it when missing) or replace the entry named
- * `replaces ?? decl.name` field by field, so the entry's position and comments survive.
+ * `replaces ?? decl.name` field by field, so the entry's position and comments survive. A text
+ * with no document (empty, or comments only) gains one holding the block, after the text as it is.
  * `undefined` when the root is not a mapping or the block cannot hold entries.
  */
 export function writeBlockOps(p: ParsedText, decl: VariableDecl, replaces?: string): readonly EditOp[] | undefined {
+  const fresh = entryValue(decl);
+  if (p.docs.length === 0) {
+    if (replaces !== undefined) return undefined;
+    return [{ op: 'addDocument', yaml: renderValue({ [VARIABLES_KEY]: { [decl.name]: fresh } }, 0, p.eol) }];
+  }
   const { rootOk, block } = rawBlock(p);
   if (!rootOk) return undefined;
-  const fresh = entryValue(decl);
   if (block === undefined) {
     return [{ op: 'add', at: ref(), key: VARIABLES_KEY, value: { [decl.name]: fresh } as YamlValue }];
   }
