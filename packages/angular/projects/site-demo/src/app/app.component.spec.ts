@@ -57,6 +57,8 @@ describe('Angular demo', () => {
     expect(root().querySelector('[role="radiogroup"]')!.getAttribute('aria-label')).toBe('Theme');
     expect(controller()!.getMode()).toBe('split');
     expect(root().querySelectorAll('textarea')).toHaveLength(1);
+    // The wrapper's own host is the .demo-editor box (parity with the Vanilla demo).
+    expect(root().querySelector('sw-manifest-editor')!.classList.contains('demo-editor')).toBe(true);
     await vi.waitFor(() => expect(status()).toContain('kubernetes'));
   });
 

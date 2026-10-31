@@ -42,21 +42,20 @@ let instance = 0;
           }
         </div>
       </div>
-      <div class="demo-editor">
-        <sw-manifest-editor
-          [codeEditor]="codeEditor()"
-          [(value)]="value"
-          mode="split"
-          [format]="example().format"
-          [variables]="example().variables"
-          [readOnly]="readOnly()"
-          [theme]="theme()"
-          (textChange)="origin.set($event.origin)"
-          (problemsChange)="problems.set($event.length)"
-          (activeFormatChange)="activeFormat.set($event)"
-          (historyChange)="history.set($event)"
-        />
-      </div>
+      <sw-manifest-editor
+        class="demo-editor"
+        [codeEditor]="codeEditor()"
+        [(value)]="value"
+        mode="split"
+        [format]="example().format"
+        [variables]="example().variables"
+        [readOnly]="readOnly()"
+        [theme]="theme()"
+        (textChange)="origin.set($event.origin)"
+        (problemsChange)="problems.set($event.length)"
+        (activeFormatChange)="activeFormat.set($event)"
+        (historyChange)="history.set($event)"
+      />
       <p class="demo-status" role="status">{{ status() }}</p>
     </div>
   `,

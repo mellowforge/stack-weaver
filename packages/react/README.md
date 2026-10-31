@@ -84,6 +84,7 @@ export function Editor() {
   through the ref (`ref.current.setValue`) does, with origin `'api'`. `defaultValue` is read once. `mode` follows the
   same rule: a pushed `mode` does not call `onModeChange`, while `ref.current.setMode` does. `format`, `readOnly`,
   `theme` and an `external` `variables.value` are pushed when they change.
+- **Give the editor a height.** The editor fills its host's height (`.sw-editor` is `height: 100%`), so give the component a height with `className` or `style` on `<ManifestEditor>`.
 - **Recreation loses the undo history.** A recreated editor keeps the text, mode, format option, read-only state and
   theme, but starts with nothing to undo.
 - **`ref` is the controller.** It receives the live `ManifestEditorController` (`getValue`, `undo`, `redo`, `reset`,

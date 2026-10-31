@@ -82,6 +82,7 @@ export class Editor {
   nothing pushes the old `value` back until the parent sets a different one. A pushed `value` is not written back
   through `valueChange`; text set through the controller (`controller().setValue`) is. `mode` follows the same rule,
   and `format`, `readOnly`, `theme` and an `external` `variables.value` are pushed when they change.
+- **Give the editor a height.** The editor fills its host's height (`.sw-editor` is `height: 100%`), so give the component a height with a class or style on `<sw-manifest-editor>`, which is `display: block`.
 - **Recreation loses the undo history.** A recreated editor keeps the text, mode, format option, read-only state and
   theme, but starts with nothing to undo. If there was something to undo or redo, `historyChange` emits
   `{ canUndo: false, canRedo: false }`.

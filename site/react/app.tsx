@@ -114,25 +114,24 @@ export function App({ codeEditor }: { codeEditor?: CodeEditorAdapter }) {
         </button>
         <ThemeSwitch theme={theme} />
       </div>
-      <div className="demo-editor">
-        <ManifestEditor
-          ref={editor}
-          codeEditor={codeEditor}
-          value={value}
-          onChange={(text, meta) => {
-            setValue(text);
-            setOrigin(meta.origin);
-          }}
-          mode="split"
-          format={example.format}
-          variables={example.variables}
-          readOnly={readOnly}
-          theme={theme}
-          onProblemsChange={(list) => setProblems(list.length)}
-          onFormatChange={setActiveFormat}
-          onHistoryChange={setHistory}
-        />
-      </div>
+      <ManifestEditor
+        className="demo-editor"
+        ref={editor}
+        codeEditor={codeEditor}
+        value={value}
+        onChange={(text, meta) => {
+          setValue(text);
+          setOrigin(meta.origin);
+        }}
+        mode="split"
+        format={example.format}
+        variables={example.variables}
+        readOnly={readOnly}
+        theme={theme}
+        onProblemsChange={(list) => setProblems(list.length)}
+        onFormatChange={setActiveFormat}
+        onHistoryChange={setHistory}
+      />
       <p className="demo-status" role="status">
         {statusLine({ problems, activeFormat, origin })}
       </p>

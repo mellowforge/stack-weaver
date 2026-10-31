@@ -47,6 +47,8 @@ describe('React demo', () => {
     const { container } = await mount();
     expect(container.querySelectorAll('.sw-editor')).toHaveLength(1);
     expect(container.querySelectorAll('textarea')).toHaveLength(1);
+    // The wrapper's own host is the .demo-editor box (parity with the Vanilla demo).
+    expect(container.querySelector('.sw-editor')!.parentElement!.classList.contains('demo-editor')).toBe(true);
     expect(screen.getByLabelText('Example')).toBeTruthy();
     expect(screen.getByLabelText('Read-only')).toBeTruthy();
     expect(undoButton().disabled).toBe(true);
