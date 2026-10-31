@@ -363,4 +363,37 @@ describe('DocumentStore: transact, reset, clearHistory', () => {
     expect(store.canRedo).toBe(false);
     expect(events).toHaveLength(0);
   });
+
+  it('undo/redo events carry the step origin', () => {
+    const { store, events, clock } = setup('a: 1\n');
+    store.setText('a: 2\n', 'api');
+    clock.advance(1000);
+    store.setText('a: 3\n', 'code');
+    events.length = 0;
+    store.undo();
+    store.undo();
+    store.redo();
+    expect(events.map((e) => [e.origin, e.step])).toEqual([
+      ['history', 'code'],
+      ['history', 'api'],
+      ['history', 'api'],
+    ]);
+  });
+
+  it('a visual edit step reports visual; other events carry no step', () => {
+    const { store, events } = setup();
+    store.edit(setA(5));
+    expect(events[0]!.step).toBeUndefined();
+    store.undo();
+    expect(events[1]).toMatchObject({ origin: 'history', step: 'visual' });
+  });
+
+  it('a merged change keeps the entry origin', () => {
+    const { store, events, clock } = setup('a: 1\n');
+    store.setText('a: 2\n', 'code');
+    clock.advance(10);
+    store.setText('a: 23\n', 'code');
+    store.undo();
+    expect(events[events.length - 1]!.step).toBe('code');
+  });
 });

@@ -18,6 +18,11 @@ export interface StoreEvent {
   readonly change: TextChange;
   /** What caused the change. */
   readonly origin: ChangeOrigin;
+  /**
+   * Present only when `origin` is `'history'`: the origin of the undo step that was undone or redone (a merged
+   * step keeps its first change's origin). Never `'history'`.
+   */
+  readonly step?: Exclude<ChangeOrigin, 'history'>;
   /** The parse of `text`. */
   readonly parsed: ParsedText;
 }
@@ -37,6 +42,8 @@ interface Entry {
   before: string;
   /** Text after the entry's last change. */
   after: string;
+  /** What caused the step's first change. */
+  origin: Exclude<ChangeOrigin, 'history'>;
 }
 
 /**
@@ -173,7 +180,7 @@ export class DocumentStore {
     const entry = this.#undo.pop();
     if (!entry) return false;
     this.#redo.push(entry);
-    this.#apply(entry.before);
+    this.#apply(entry.before, entry.origin);
     return true;
   }
 
@@ -182,7 +189,7 @@ export class DocumentStore {
     const entry = this.#redo.pop();
     if (!entry) return false;
     this.#undo.push(entry);
-    this.#apply(entry.after);
+    this.#apply(entry.after, entry.origin);
     return true;
   }
 
@@ -214,7 +221,7 @@ export class DocumentStore {
     if (merge) {
       top.after = text;
     } else {
-      this.#undo.push({ before: this.#text, after: text });
+      this.#undo.push({ before: this.#text, after: text, origin });
       if (this.#undo.length > this.#limit) this.#undo.shift();
     }
     this.#redo = [];
@@ -224,19 +231,25 @@ export class DocumentStore {
     this.#set(text, change, origin, parsed);
   }
 
-  #apply(text: string): void {
+  #apply(text: string, step: Exclude<ChangeOrigin, 'history'>): void {
     const change = diffText(this.#text, text);
     this.#lastOrigin = 'history';
     this.#lastGroup = undefined;
-    this.#set(text, change, 'history');
+    this.#set(text, change, 'history', undefined, step);
   }
 
   /** Adopts `text`; `parsed`, when given, must be its parse (an edit's result), saving a second parse. */
-  #set(text: string, change: TextChange, origin: ChangeOrigin, parsed: ParsedText = parseText(text)): void {
+  #set(
+    text: string,
+    change: TextChange,
+    origin: ChangeOrigin,
+    parsed: ParsedText = parseText(text),
+    step?: Exclude<ChangeOrigin, 'history'>,
+  ): void {
     this.#text = text;
     this.#parsed = parsed;
     if (this.#parsed.ok) this.#lastGood = this.#parsed;
-    const event: StoreEvent = { text, change, origin, parsed: this.#parsed };
+    const event: StoreEvent = { text, change, origin, parsed: this.#parsed, ...(step ? { step } : {}) };
     // The text has already changed: one listener's failure must not keep the others from hearing of it.
     for (const fn of [...this.#listeners]) {
       try {

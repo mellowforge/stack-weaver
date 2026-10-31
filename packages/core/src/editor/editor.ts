@@ -94,6 +94,18 @@ export interface ManifestEditorOptions {
    */
   readonly onModeChange?: (mode: EditorMode) => void;
   /**
+   * Called with the id of the resolved format (`undefined` when there is none) whenever it changes: by detection
+   * under `'auto'`, {@link ManifestEditorController.setFormat}, a recipe's format choice, and the first load.
+   * Not called when only the option changes and the resolved format stays the same. A throw is logged.
+   */
+  readonly onFormatChange?: (activeFormat: string | undefined) => void;
+  /**
+   * Called with `{ canUndo, canRedo }` when either flag changes: after an edit, undo, redo,
+   * {@link ManifestEditorController.clearHistory} or {@link ManifestEditorController.reset}. The flags ignore
+   * read-only mode. A throw is logged.
+   */
+  readonly onHistoryChange?: (state: { readonly canUndo: boolean; readonly canRedo: boolean }) => void;
+  /**
    * Where variable declarations live: `{ store: 'x-variables' }` (the default) keeps them in the
    * document's variables block; `{ store: 'external', value }` keeps them in a list the host owns
    * (change it with {@link ManifestEditorController.setVariables}). Invalid initial declarations throw a
@@ -136,9 +148,20 @@ export interface ManifestEditorController {
   /**
    * Replaces the text (origin `'api'`) as a minimal diff, so the code caret survives, and as one undo step; a
    * no-op (no `onChange`) when it is equal. Under format `'auto'` the format is detected again (broken text keeps
-   * the current one), as it is on undo and redo.
+   * the current one), as it is on undo and redo of API changes.
    */
   setValue(text: string): void;
+  /**
+   * Replaces the text as an `'api'` change (one `onChange`; none when it is equal) and clears the undo and redo
+   * history, so the new text is the starting point: nothing to undo. Under `'auto'` the format is detected again.
+   */
+  reset(text: string): void;
+  /** Empties the undo and redo history and keeps the text; calls `onHistoryChange` if a flag changed. */
+  clearHistory(): void;
+  /** Whether there is a step to undo. The store's flag: it ignores read-only mode (`undo()` does not). */
+  canUndo(): boolean;
+  /** Whether there is a step to redo. The store's flag: it ignores read-only mode (`redo()` does not). */
+  canRedo(): boolean;
   /**
    * Applies several changes at once, in this order: `format`, `value`, `variables`, `readOnly`, `mode`, `theme`.
    * Each does what its setter does: nothing when it is current, except `variables`, which (like `setVariables`)
@@ -158,7 +181,7 @@ export interface ManifestEditorController {
    * Sets the format option; a no-op when it is the current option (`'auto'` included). An id fixes the format (an
    * unknown id resolves to no format, as the `format` option does). `'auto'` (or `undefined`, the option's
    * default) detects the format from the text now, and again on every later API text change and on undo and
-   * redo. Built-in formats
+   * redo of API changes (undoing typed text keeps the format). Built-in formats
    * that were not needed so far load first, so the change can then land after a tick; if they fail to load, there
    * is no format and the editor says so (setting the same id again is then a no-op: retry through another
    * option first). `onVariablesChange` is called when the format change changes the declarations.
@@ -412,7 +435,16 @@ export function createEditorWithContext(
     focusCode: () => codePane.instance()?.focus(),
   });
 
-  const refreshHistory = (): void => shell.setHistory({ canUndo: store.canUndo, canRedo: store.canRedo, readOnly });
+  let lastHistory = { canUndo: store.canUndo, canRedo: store.canRedo };
+  const refreshHistory = (): void => {
+    const state = { canUndo: store.canUndo, canRedo: store.canRedo };
+    shell.setHistory({ ...state, readOnly });
+    if (state.canUndo === lastHistory.canUndo && state.canRedo === lastHistory.canRedo) return;
+    lastHistory = state;
+    if (!destroyed && options.onHistoryChange) {
+      guarded('an onHistoryChange callback', () => options.onHistoryChange?.(Object.freeze({ ...state })));
+    }
+  };
   const refreshRecipes = (): void => guarded('the recipe cards', () => recipes.refresh());
 
   function undo(): boolean {
@@ -432,12 +464,16 @@ export function createEditorWithContext(
 
   function applyFormat(next: FormatDefinition | undefined): void {
     if (next === format) return;
+    const changed = next?.id !== format?.id;
     format = next;
     cache.clear();
     shell.setBadge(next ? badgeText(ui, next) : ui.formatNone);
     updatePanes(null);
     void scheduler.run(); // a new format means new problems: now, rather than after the debounce
     refreshRecipes();
+    if (changed && !destroyed && options.onFormatChange) {
+      guarded('an onFormatChange callback', () => options.onFormatChange?.(next?.id));
+    }
   }
   shell.setBadge(ui.formatNone);
 
@@ -547,12 +583,12 @@ export function createEditorWithContext(
       guarded('the format detection', () => {
         const p = store.parsed;
         // Under `auto` the format follows the text: it is detected once there is some, again whenever the host
-        // sets the text (origin 'api') or undo / redo brings back an earlier one (origin 'history', so undoing a
-        // format-switching `setValue` switches back), and dropped when the text is cleared (else the badge, guide
-        // and problems would keep describing a document that is gone). Typing keeps the format: a half-typed
-        // document must not switch it. Broken text keeps the last format, so typing through a syntax error does
-        // not flicker.
-        if (!format || e.origin === 'api' || e.origin === 'history') redetect();
+        // sets the text (origin 'api') or undo / redo brings back an earlier API change (origin 'history' with
+        // step 'api', so undoing a format-switching `setValue` switches back), and dropped when the text is
+        // cleared (else the badge, guide and problems would keep describing a document that is gone). Typing
+        // keeps the format, and so does undoing or redoing typed text: a half-typed document must not switch it.
+        // Broken text keeps the last format, so typing through a syntax error does not flicker.
+        if (!format || e.origin === 'api' || (e.origin === 'history' && e.step === 'api')) redetect();
         else if (p.ok && allDocumentsEmpty(p)) applyFormat(undefined);
       });
     }
@@ -635,6 +671,16 @@ export function createEditorWithContext(
   function setValue(text: string): void {
     if (!destroyed) store.setText(text, 'api');
   }
+  function reset(text: string): void {
+    if (destroyed) return;
+    store.reset(text); // a text change goes through the subscription, which refreshes the history
+    refreshHistory(); // equal text changes the flags without an event
+  }
+  function clearHistory(): void {
+    if (destroyed) return;
+    store.clearHistory();
+    refreshHistory();
+  }
   function setTheme(t: EditorTheme): void {
     if (destroyed || t === theme) return;
     theme = t;
@@ -654,6 +700,10 @@ export function createEditorWithContext(
   const editor: ManifestEditorController = {
     getValue: () => store.text,
     setValue,
+    reset,
+    clearHistory,
+    canUndo: () => !destroyed && store.canUndo,
+    canRedo: () => !destroyed && store.canRedo,
     update(patch) {
       // The documented order: the format first, so a new text is read in the new format.
       if (patch.format !== undefined) setFormat(patch.format);

@@ -117,6 +117,8 @@ CodeMirror. Give the host element a height: the editor fills it, with a 320px mi
 | `onChange(value, { origin })` | Called after every change. `origin` is `'visual'`, `'code'`, `'api'` (`setValue`) or `'history'` (undo and redo). |
 | `onProblemsChange(problems)` | Called with the problems (a frozen array) when the validation result changes. |
 | `onModeChange(mode)` | Called when the mode changes: by the user, by `setMode`, or when an "Edit in code" or "Jump to error" link opens Split from Visual. |
+| `onFormatChange(activeFormat)` | Called with the id of the resolved format (or `undefined`) when it changes: by detection, `setFormat`, a recipe's format choice, and the first load. Not called when the option changes but the resolved format stays the same. |
+| `onHistoryChange({ canUndo, canRedo })` | Called when either flag changes: after an edit, undo, redo, `clearHistory` or `reset`. The flags ignore read-only mode. |
 | `onVariablesChange(decls)` | Called when the effective variable declarations change. See [Compose variables](#compose-variables). |
 
 `value`, `mode`, `readOnly`, `theme` and `format` are initial values with setters (`setValue`, `setMode`,
@@ -127,12 +129,17 @@ at once, in that order. The other options are read once, when the editor is crea
 that throws is logged and does not stop the editor.
 
 The controller (`ManifestEditorController`) also has `getFormat()`, `getActiveFormat()`, `getMode()`,
-`getProblems()`, `getReadOnly()`, `undo()`, `redo()` and `reveal(ref)`, which selects a node (`{ doc, path }`) in both
+`getProblems()`, `getReadOnly()`, `undo()`, `redo()`, `canUndo()`, `canRedo()`, `clearHistory()`, `reset(text)` and `reveal(ref)`, which selects a node (`{ doc, path }`) in both
 panes, and `getVariables()`, `setVariables(decls)` and `applyFix(problem)` for variables and quick fixes (below).
 `getFormat()` returns the format option (`'auto'` or an id), so it round-trips with `setFormat` as `getMode()` does
 with `setMode`: bind both to keep `'auto'` detecting. `getActiveFormat()` returns the id of the format it resolved to,
 or `undefined`. A host format whose `detect` throws is logged; applying the format option then resolves to no format,
 and a later text change keeps the current one.
+
+`reset(text)` replaces the text as an `'api'` change and clears the undo history (no `onChange` when the text is equal);
+`clearHistory()` keeps the text and empties the history; `canUndo()` and `canRedo()` read the history flags, which
+ignore read-only mode. Under `format: 'auto'`, undo and redo re-detect the format only for steps that came from the API
+(`setValue`, `reset`); undoing or redoing typed text keeps the format.
 
 Not every action can run: `applyFix` returns an `ActionResult`, `{ ok: true }` or `{ ok: false, reason }`.
 `reason` is an `ActionRefusal`: `'no-fix'`, `'read-only'`, `'destroyed'`, `'unavailable'` (no variables for this
