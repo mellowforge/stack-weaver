@@ -300,9 +300,9 @@ const editor = createManifestEditor(el, {
   onModeChange?(mode): void,  onVariablesChange?(decls: VariableDecl[]): void,
 });
 editor.getValue(); editor.setValue(text); editor.getMode(); editor.setMode(m); editor.getProblems();
-editor.getReadOnly(); editor.setReadOnly(b);
-editor.getVariables(); editor.setVariables(decls); /* external store only */ editor.applyFix(problem); /* a problem's quick fix, one undo step */
- editor.setTheme(t); editor.undo(); editor.redo(); editor.reveal(ref: NodeRef);
+editor.getReadOnly(); editor.setReadOnly(b); editor.setTheme(t); editor.undo(); editor.redo(); editor.reveal(ref: NodeRef);
+editor.getVariables(); editor.setVariables(decls); /* external store only */
+editor.applyFix(problem); /* a problem's quick fix, one undo step */
 editor.ready; /* Promise<void>, see below */ editor.destroy();
 ```
 

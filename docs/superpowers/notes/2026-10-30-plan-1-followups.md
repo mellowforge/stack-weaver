@@ -43,6 +43,22 @@ start of Plan 4, before the wrappers freeze the API:
 - `renameKey` (and likely `add`) accept the key `<<`, which turns an ordinary key into a YAML merge key. Refuse `<<` as a new key name.
 - Host widget `focus()` (reached through `focusField`) and `destroy()` (in the field row's `dropBody`) are unguarded. A throw there is not caught.
 - In the editor's store subscriber, `applyFormat` → `recipes.refresh()` runs before `onChange`. A throw there is logged but skips `onChange`.
+- R15(b) (Plan 3) extended the edit engine: `applyEdit` can `add` and `delete` a pair in a single-line flow map, by a
+  minimal splice that keeps the flow style. Keep it.
+- R18 (Plan 3): `VariableStore.set` and `remove` and `ManifestEditor.applyFix` return a boolean. Before release, change
+  them to a result object that carries the refusal reason (read-only, name taken, invalid declaration, already
+  declared, an edit refused and why).
+- From the Plan 3 milestone review (type design and error handling), deferred:
+  - `VariableDecl` as a discriminated union (`enumValues` only on `enum`); derive `VariableType` from a const tuple.
+  - Export `checkDecl` (or a `validateVariableDecl`) so hosts can check a declaration before `setVariables`.
+  - `setVariables` under the `x-variables` store only warns; decide whether it should throw.
+  - Check that a `Rule.messages` table covers every key the rule uses (`rule.<id>` and its fix keys).
+  - `registerFormat` does not deep-freeze the format, although its TSDoc says registered formats are deep-frozen.
+  - TSDoc on `applyFix`: a fix applies to the current text, not to the text it was found in.
+  - `applyEdit`'s catch-all maps any exception to `unsupported` silently (`edit.ts`, `applyEdit`); consider a
+    `console.debug` so an engine bug is not mistaken for a refusal.
+  - A type change in the Variables section drops a default that no longer fits (`fitted` in `variables-section.ts`)
+    without saying so.
 
 ## Plan 4 (wrappers and release)
 - **Changesets:** restore `.changeset/config.json` `fixed: [["@stack-weaver/core","@stack-weaver/angular","@stack-weaver/react"]]` when the wrappers are added. It is set to `[]` until then.
@@ -117,10 +133,8 @@ Each was found in a per-task review and judged not worth blocking the task. Grou
 Each was found in a per-task review and judged not worth blocking the task. Grouped by task.
 
 **Task 1 (rule and variable hooks)**
-- `RuleInput.data` and `bundles` are sparse (holes for empty or skipped documents, and may be shorter than `docs`): iterate by index.
 - A `substitute()` throw is reported as `schema.unavailable`, which is misleading.
 - No test for the missing `fix.key` fallback or a throwing rule message function.
-- The `SchemaMessages` TSDoc line in `messages.ts` needs a re-wrap.
 - Type-only import cycle between `formats/types.ts` and `validation/problems.ts`.
 
 **Task 2 (placeholder syntax and substitution)**
@@ -132,7 +146,6 @@ Each was found in a per-task review and judged not worth blocking the task. Grou
 
 **Task 3 (`x-variables` block)**
 - `skippedPointer` hides an unknown-key typo whose value is a type-only placeholder (`pull_polcy: "${P}"`); the same trade-off as D1, with no dedicated test.
-- `rawBlock` swallows a `toData` throw, and an empty document (no docs) cannot gain a block.
 - `raw.default as string` is a misleading cast (`block.ts`).
 - Test gaps: `description` set, `replaces` naming a missing entry, a non-mapping existing entry.
 - `edit.ts` `dataAt` reads inherited properties on records (an out-of-scope observation).
@@ -141,16 +154,16 @@ Each was found in a per-task review and judged not worth blocking the task. Grou
 - No tests for multi-document or sparse input, alias skipping, or `variable-type` with several or `:-` placeholders.
 - `${A:-${B}}`: an undeclared `B` inside an inline default is never reported (`scanPlaceholders` returns the outer one only).
 - `rules.ts` has a `def as string` cast, a hard-coded document 0 that needs a comment, and three walks per check (they could share the sites).
+- CRLF: only plain, double-quoted and single-quoted scalars are tested for exact ranges (not block scalars or keys).
 
 **Task 5 (Kubernetes rules)**
 - `requests: null` and `limits: {}` count as present.
 - `collect()` runs four times per validation.
 - An unnamed container message reads `Container "0"`.
 - `stringMap` turns `null` into `"null"`.
-- Test gaps: a sparse leading document, Pod, Job and CronJob as Service targets, the StatefulSet, DaemonSet and ReplicaSet selector check. The perf fixture has no Services.
+- Test gaps: a sparse leading document, Pod, Job and CronJob as Service targets, the StatefulSet, DaemonSet and ReplicaSet selector check.
 
 **Task 6 (variable stores and `applyFix`)**
-- `get()` and the emit hand out internal arrays and objects: a host mutation corrupts the store (copy or freeze).
 - An unknown `store` string from JS sets a bogus kind.
 - `setAll` notifies and revalidates even when nothing changed.
 - `applyFix(edit, ops: [])` returns true.
@@ -159,9 +172,9 @@ Each was found in a per-task review and judged not worth blocking the task. Grou
 - The `setVariables` D5 cases are partly untested.
 
 **Task 7 (quick fixes in the UI)**
-- No status announcement after a fix (WCAG 4.1.3); check the problem-count live region.
+- No status announcement after a successful fix (WCAG 4.1.3); check the problem-count live region. A refused fix is announced.
 - Identical Fix button texts are told apart only by `aria-describedby`.
-- No UI test for the Kubernetes `missing-resources` fix, or for the panel staying visible while problems remain.
+- No UI test that applies the Kubernetes `missing-resources` fix (only its refusal on a flow container), or for the panel staying visible while problems remain.
 
 **Task 8 (Variables section)**
 - No test that an empty compose document shows the recipe cards and Variables together. Decide whether adding a variable on an empty document should dismiss the recipes (it does today, because the text is no longer empty).
@@ -173,3 +186,17 @@ Each was found in a per-task review and judged not worth blocking the task. Grou
 - Variable completion is offered after a `$$` escape and inside block scalars.
 - No test for the select disabled when read-only, or for focus on an undeclared reference after a variables change.
 - The variable-binding error span is not cleared by a later successful update.
+
+**Task 10 (docs, playground, release chain; flow-style entries)**
+- `acceptsAll` re-parses text that `applyEdit` already parsed (about two extra parses per op on multi-op commits).
+- A multi-op commit is one prefix/suffix splice of the old and new text: a code-pane caret or fold that sits between two
+  far-apart ops can be remapped (the lines themselves stay byte-identical).
+- Deviations accepted in review: `{}` is filled in only inside flow maps; single-line flow maps stay read-only in the
+  visual tree; `renameKey` inside a flow map is still refused (`flow`); an enum change on a flow entry moves `enum:` last.
+- Finding F2 (Plan 1/2 behaviour, not a regression): with `format: 'auto'` the format detected from the initial text stays
+  locked; `setValue` of a compose document into a Kubernetes-detected editor validates it as Kubernetes.
+
+**Found in the milestone fix wave (not fixed)**
+- When a field's type list holds `'string'` and other scalar types, `fieldTypes` drops `'string'`. So a compose
+  `environment` value (`string | number | boolean | null`) reports `variable-type` for a whole-value `string` or `enum`
+  variable (`LOG: ${MODE}`). Decide whether only a `[T, 'string']` pair should drop it.

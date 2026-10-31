@@ -10,8 +10,9 @@ export type MessageFn = (error: SchemaError) => string;
 /**
  * The message table: ajv keywords (`type`, `required`, ...) plus the core's own problem codes
  * (`kind.unknown`, `kind.apiVersion`, `document.mapping`, `format.extraDocument`,
- * `schema.unavailable`, `yaml.data`, `rule.failed`) and the entries of each rule's own `messages`. Pass a partial table to `validateText` to replace entries,
- * for example with translations.
+ * `schema.unavailable`, `yaml.data`, `rule.failed`) and the entries of each rule's own
+ * `messages`. Pass a partial table to `validateText` to replace entries, for example with
+ * translations.
  */
 export type SchemaMessages = Record<string, MessageFn>;
 

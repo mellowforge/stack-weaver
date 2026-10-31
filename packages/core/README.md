@@ -137,14 +137,20 @@ or duplicate name, an unknown type, an `enum` without values, a default of the w
 only: references to the old name become undeclared and show a warning with a "Declare variable" fix.
 
 `applyFix(problem)` applies a problem's quick fix (`problem.fix`) as one undo step, all of it or nothing, and
-returns whether it was applied. The panel, the visual rows and the code pane already offer a Fix button for every problem that has one;
-`applyFix` is for hosts that build their own problem list. The Variables section also appears first in the outline.
+returns whether it was applied. A fix that declares a variable never replaces one that is already declared: it is
+refused. The panel, the visual rows and the code pane already offer a Fix button for every problem that has one (the
+code pane only while the editor is editable), and say so when a fix is refused; `applyFix` is for hosts that build
+their own problem list. The Variables section also appears first in the outline. On an empty compose document (or
+one with only comments), "Add variable" starts the document with the `x-variables` block. The declarations that
+`getVariables()` returns and `onVariablesChange` receives are frozen.
 
 ### Semantic rules
 
 After schema validation `validateText` runs the format's `rules` (`FormatDefinition.rules`). Their problems have
-`source: 'rule'` and the code `rule.<id>`. A rule that throws becomes one `rule.failed` error and the other rules
-still run.
+`source: 'rule'` and the code `rule.<id>`. A rule that throws becomes one `rule.failed` error (and a
+`console.error` with the thrown error) and the other rules still run. `validateText(parsed, format, { variables })`
+replaces the document's own declarations with `variables`; rules then see `variableSource: 'host'` (otherwise
+`'document'`).
 
 | Code | Severity | Format | Reports |
 | --- | --- | --- | --- |
@@ -161,14 +167,15 @@ Selector rules read `matchLabels` only. "Workloads" are Deployment, StatefulSet,
 and Pod.
 
 A rule is `{ id, messages, check(input) }`. `check` receives the parsed text, the data and schema bundle of each
-document, the variable declarations in effect, and `message(key, params?)`, which formats an entry of the merged
-message table. It returns `RuleFinding`s (severity, document, path, optional `params` and an optional `fix`). A
-`fix` is a `QuickFix`: a label key plus an action that either declares a variable or applies edit operations. Add
-rules to your own format through `FormatDefinition.rules`.
+document (one entry per document, `undefined` where there is none), the variable declarations in effect, and
+`message(key, params?)`, which formats an entry of the merged message table. It returns `RuleFinding`s (severity,
+document, path, optional `params` and an optional `fix`). A `fix` is a `RuleFix`: a label key (with its `params`)
+plus an action that either declares a variable or applies edit operations; the problem gets it as a `QuickFix` with
+the label resolved. Add rules to your own format through `FormatDefinition.rules`.
 
 Rule messages resolve through the same table as schema messages, so override them by key with `messages.schema`
-(an entry per code such as `'rule.missing-resources'`, plus the rule's fix label keys such as `'fix.add-resources'`) in `createManifestEditor` or in the `messages` option of
-`validateText`:
+(an entry per code such as `'rule.missing-resources'`, plus the rule's fix label keys such as
+`'fix.add-resources'`) in `createManifestEditor` or in the `messages` option of `validateText`:
 
 ```ts
 createManifestEditor(el, {
