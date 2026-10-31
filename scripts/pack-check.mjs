@@ -3,12 +3,13 @@
  * Packs each of the three published packages listed in PACKAGES below (core, react and
  * Angular) exactly as `pnpm publish` would and checks each tarball: required files
  * present (including generated schema modules), no sources, tests or scripts, no
- * `workspace:` specifier left in the packed package.json, and type declarations that
+ * `workspace:` specifier left in the packed package.json, the packed version equal to the
+ * source package.json's (catches a stale Angular dist), and type declarations that
  * resolve (arethetypeswrong). Add a package to PACKAGES when it becomes publishable.
  * Run after `pnpm build`.
  */
 import { execFileSync } from 'node:child_process';
-import { mkdtempSync, rmSync } from 'node:fs';
+import { mkdtempSync, readFileSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
@@ -64,8 +65,12 @@ try {
     for (const path of paths) {
       if (FORBIDDEN.some((pattern) => pattern.test(path))) problems.push(`should not ship ${path}`);
     }
-    const manifest = execFileSync('tar', ['-xOf', filename, 'package/package.json'], { encoding: 'utf8' });
-    for (const [field, deps] of Object.entries(JSON.parse(manifest))) {
+    const manifest = JSON.parse(execFileSync('tar', ['-xOf', filename, 'package/package.json'], { encoding: 'utf8' }));
+    const source = JSON.parse(readFileSync(join(pkg.dir, 'package.json'), 'utf8'));
+    if (manifest.version !== source.version) {
+      problems.push(`packed version ${manifest.version} is not the source version ${source.version} (rebuild the package)`);
+    }
+    for (const [field, deps] of Object.entries(manifest)) {
       if (!field.toLowerCase().includes('dependencies') || typeof deps !== 'object') continue;
       for (const [dep, range] of Object.entries(deps)) {
         if (String(range).startsWith('workspace:')) problems.push(`${field}.${dep} is still "${range}"`);

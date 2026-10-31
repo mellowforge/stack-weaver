@@ -11,7 +11,7 @@ const editor = createManifestEditor(document.getElementById('editor'), {
   format: 'auto', // or 'kubernetes' | 'compose'
   value: 'services:\\n  web:\\n    image: nginx:1.27\\n',
   mode: 'split',
-  onChange: (value, { origin }) => localStorage.setItem('manifest', value),
+  onChange: (value) => localStorage.setItem('manifest', value),
   onProblemsChange: (problems) => console.log(problems.length, 'problems'),
 });
 

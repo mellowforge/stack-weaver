@@ -35,8 +35,9 @@ jobs:
       # (the same steps as the root `pnpm build:site`, without building the packages twice)
       - run: pnpm --filter @stack-weaver/site build:site
         env:
-          # The packages are on npm, so the site shows the npm links
-          SHOW_NPM: '1'
+          # The npm links show once the repository variable SHOW_NPM is set to 1 (after the first publish);
+          # unset, it is empty and the site hides them
+          SHOW_NPM: ${{ vars.SHOW_NPM }}
       - run: pnpm --filter @stack-weaver/site check
       - uses: actions/upload-pages-artifact@v5
         with:

@@ -78,7 +78,8 @@ All items are implemented in both wrappers, with matching test names.
 - `defaultWidgets` and `defaultUiMessages` are frozen. Done (Plan 5 Task 2).
 - The Angular wrapper gained a `textChange` output (`{ value, origin }`) for parity with React's `onChange`. Done.
 - S6: the `ActionRefusal` TSDoc says a multi-op refusal reports the first refused op's reason. Done (Plan 5 Task 2).
-- S7: `recipes.choose` warns once per format when that format is not loaded, and still inserts the text. Done (Plan 5 Task 2).
+- S7: `recipes.choose` warns once per format when that format is not loaded, and still inserts the text. Done (Plan 5 Task 2;
+  keyed by recipe id and format since the milestone review, S3).
 - S5 (parked): map `ActionResult.edit` (`flow`, `alias`, `block-scalar`) to the "Edit in code" hint. The wrappers have no UI of their own, so there is nothing to map; the core editor already shows the hint.
 
 ### Plan 5 browser verification (Task 9)
@@ -102,6 +103,25 @@ Run with Chrome DevTools against `pnpm build:site` + `vite preview`:
   - Typing into the visual `apiVersion` field changes the kind after the first keystroke. The form then switches to "Unknown kind, edit in code" mid-typing, and the remaining keystrokes are lost. This was already the case in Plan 2. A possible fix: defer kind re-resolution while the field has focus, or commit `apiVersion` on change instead of on input.
   - Chrome reports the issue "No label associated with a form field" (count 6), although no unlabelled field is present and Lighthouse's label audits pass. The likely source is transient elements; worth a look.
 
+### Plan 5 milestone review (panel fix wave)
+The panel findings triaged IN landed in one fix wave (ruling P5-5: R1 is fixed in the wrappers, not in the core):
+- Both wrappers: a recreation reports emptied problems (`[]`) and no active format (`undefined`) when the old editor
+  had them (R1); the React reports run after the ref points at the new editor (R2); a pushed mode is not reported back
+  in Angular either (R3); a push whose `update()` throws is not recorded as applied, so the next push retries it (S2);
+  a failed Angular recreation leaves no controller, and the next input change retries it (S1); the recreation's
+  history report is guarded in React and isolated by Angular's own output (S10). Done.
+- Types: `HistoryState` is a core type export, used by `onHistoryChange` and both wrappers; both wrappers re-export the
+  core types their API uses; Angular's `format` input has the core option type (T1, T2, T3). Done.
+- Core: the recipe "format not loaded" warning is keyed by recipe and format (S3); TSDoc for `format` (R16 wording),
+  `onFormatChange`, `reset`, `clearHistory` (no-ops after destroy) and the two detection policies (C1, C7, R4, R5, T7).
+  Done.
+- Tests: `formats` / `recipes` / `widgets` recreation and same-reference checks, unhandled-rejection listeners in the
+  before-ready tests, store-kind recreation carries text and mode, and demo tests for the status after a recreation
+  (X1, X3, X4, R1). Done.
+- Docs and release: READMEs (C2, C5, C6, T4, T5), spec R12 note (C3), changeset wording (C8), CONTRIBUTING on the
+  Version Packages PR (R6) and the `SHOW_NPM` repository variable (R7), the snippet's unused `origin` (R8), and
+  `pack:check` compares the packed version with the source (S9). Done.
+
 ### Deferred from the Plan 4 final review (E)
 - S4: the code pane's assist callbacks (completion, hover) have bare `catch` blocks; log with `console.debug`. Done (Plan 5 Task 2).
 - S8: a widget whose `destroy()` throws after a `widgetFailed` note is logged a second time. Done (Plan 5 Task 2: a regression test pins one log per failure; the code already swallowed the destroy error).
@@ -114,6 +134,17 @@ Run with Chrome DevTools against `pnpm build:site` + `vite preview`:
 - The reserved rule id `'failed'` warning is deduped per page, not per format. Done (Plan 5 Task 2: keyed by format id).
 
 ## Parked, low priority
+- Plan 5 review X2/X8: test-name symmetry between the wrappers (unmount vs destroy before ready, `onHistoryChange` vs
+  `historyChange` drives undo buttons), and the React demo's missing counterparts of the Angular demo's "recreates the
+  editor for another variables store" and "removes its DOM and editor on destroy".
+- Plan 5 review X5: a controller-level test that undoing a `'visual'` step under `'auto'` does not re-detect.
+- Plan 5 review X6: `reset()` tests: under `'auto'` with text of another format it calls `onFormatChange`; with a redo
+  stack it reports `{ canUndo: false, canRedo: false }` once.
+- Plan 5 review X7: the zone spec could assert that `textChange` / `historyChange` listeners run inside the Angular zone.
+- Plan 5 review S5: format detection dedupes its log by the last message only.
+- Plan 5 review S6: the code pane's `console.debug` for persistent hover and completion failures could warn once per message.
+- Plan 5 review S8: the site's dist check does not assert that referenced assets are non-empty.
+- Plan 5 review: `StoreEvent` as a discriminated union (`step` only on `'history'` events).
 - Core `ready` never settles when the editor is destroyed while a mount never settles (a code editor whose `mount` promise stays pending): `destroy()` does not resolve it.
 - `@changesets/cli` ^3 together with `changesets/action` v2 (grid-master is on ^2.31.1).
 - Wrapper UIs: S5, the "Edit in code" hint mapping (see Plan 5 above).

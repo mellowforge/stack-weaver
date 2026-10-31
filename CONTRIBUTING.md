@@ -71,7 +71,7 @@ Releases are automated with [Changesets](https://github.com/changesets/changeset
 - **Peer range on core:** the wrappers declare `workspace:0.x` (published as `0.x`), together with `onlyUpdatePeerDependentsWhenOutOfRange`. Don't change it to `workspace:^`: pre-1.0, `^0.1.0` excludes `0.2.0` and Changesets would answer with a major bump. Run `pnpm changeset status --verbose` after touching the config. At 1.0 the range becomes `workspace:^`.
 - `@stack-weaver/angular` publishes from `packages/angular/dist/stack-weaver-angular` (`publishConfig.directory`); pnpm rewrites `workspace:` ranges at pack time, and `pnpm pack:check` proves it.
 - Each package carries a byte-identical copy of the root `LICENSE` (CI compares them).
-- The Version Packages PR is opened with `GITHUB_TOKEN`, so it shows no CI checks; `pnpm release` re-runs the build, tests, core graph checks and `pack:check` before publishing.
+- The Version Packages PR is opened with `GITHUB_TOKEN`, so `ci.yml` does not run on it and it shows no CI checks; `pnpm release` re-runs the build, tests, core graph checks and `pack:check` before publishing. Required status checks on `main` would therefore block that PR: if you add them, let `release.yml` open the PR with a GitHub App token or a PAT instead, so CI runs on it.
 
 ### First publish (maintainer, once)
 
@@ -81,7 +81,8 @@ npm trusted publishers can only be added to packages that already exist, so the 
 2. Locally, on an up-to-date `main`: `npm login` (an account in the `stack-weaver` npm org), then `pnpm build && pnpm changeset publish`, then `git push --follow-tags` so GitHub gets the release tags it created.
 3. On npmjs.com, for each package → Settings → Trusted Publisher: GitHub owner `Constantine-24`, repository `stack-weaver`, workflow `release.yml`, no environment, allow `npm publish`.
 4. From then on, `release.yml` publishes through OIDC with provenance.
+5. In the repository **Settings → Secrets and variables → Actions → Variables**, add `SHOW_NPM` with the value `1`, so the demo site shows the npm links from its next deploy (see below).
 
 ### GitHub Pages (once)
 
-In the repository **Settings → Pages**, set **Source: GitHub Actions**. `.github/workflows/pages.yml` then deploys the demo site on every push to `main`. The site build step in `pages.yml` sets `SHOW_NPM=1`, so the deployed site shows the npm links.
+In the repository **Settings → Pages**, set **Source: GitHub Actions**. `.github/workflows/pages.yml` then deploys the demo site on every push to `main`. The site build step in `pages.yml` passes the repository variable `SHOW_NPM` to the build: the deployed site shows the npm links only once that variable is `1`, which you set after the first publish (step 5 above).
