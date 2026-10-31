@@ -175,6 +175,16 @@ export interface QuickFix {
   readonly action: QuickFixAction;
 }
 
+/** What a format's `detect` sees. */
+export interface DetectInput {
+  /**
+   * `toData` per document of the text: one entry per document, in order; `undefined` for an empty
+   * or comment-only document and for one whose data cannot be built (for example `<<: 5`). Empty
+   * when the text does not parse.
+   */
+  readonly docs: readonly unknown[];
+}
+
 /** What a {@link Rule} sees. */
 export interface RuleInput {
   /** The parsed text; always `ok`. */
@@ -199,6 +209,12 @@ export interface RuleInput {
    * `messages`. An unknown key gives the key itself.
    */
   message(key: string, params?: Readonly<Record<string, unknown>>): string;
+  /**
+   * The range of the value (or, with `at: 'key'`, the key) at `path` in document `doc`, for a
+   * finding's `range`. A path that does not exist maps to its nearest existing ancestor, as a
+   * finding's own `path` does; `at` defaults to `'value'`.
+   */
+  locate(doc: number, path: YamlPath, at?: 'key' | 'value'): TextRange | undefined;
 }
 
 /** One problem a {@link Rule} found; `validateText` turns it into a `Problem`. */
@@ -260,7 +276,10 @@ export interface FormatVariables {
   substitute(data: unknown, decls: readonly VariableDecl[]): { readonly data: unknown; readonly skip: readonly YamlPath[] };
 }
 
-/** A registered document format (Kubernetes, compose, ...). Registered formats are deep-frozen. */
+/**
+ * A registered document format (Kubernetes, compose, ...). The built-in formats are deep-frozen;
+ * `registerFormat` stores a host's object as given and does not freeze it.
+ */
 export interface FormatDefinition {
   /** Registry key, e.g. `'kubernetes'` or `'compose'`. */
   readonly id: string;
@@ -277,18 +296,22 @@ export interface FormatDefinition {
    */
   readonly rootModel: 'documents' | 'mapping';
   /**
-   * True when the parsed text looks like this format (empty documents should not count).
-   * Read the documents with `toData(p, i)` for `i` below `p.docCount`.
+   * True when the text looks like this format. `input.docs` holds the plain data of each
+   * document; empty and unbuildable documents are `undefined` and should not count.
    */
-  detect(p: ParsedText): boolean;
+  detect(input: DetectInput): boolean;
   /**
    * Known kinds; empty for `'mapping'` formats. For a `'documents'` format, a non-empty list makes
    * `validateText` check each document's shape (`apiVersion` / `kind`) and tell an unknown kind
    * from a known kind under a wrong `apiVersion`.
    */
   kinds(): readonly KindEntry[];
-  /** Loads the schema for document `doc`; `undefined` means unknown kind. May reject (reported as `schema.unavailable`). */
-  loadSchema(p: ParsedText, doc: number): Promise<SchemaBundle | undefined>;
+  /**
+   * Loads the schema for a document, given its plain data (`toData`); `undefined` means unknown
+   * kind. Called with whatever the document holds, so `data` may be any value. May reject
+   * (reported as `schema.unavailable`).
+   */
+  loadSchema(data: unknown): Promise<SchemaBundle | undefined>;
   /** The format's guide overlay. */
   readonly guide: Guide;
   /** Starter documents offered while the editor is empty. */

@@ -44,9 +44,9 @@ function gatedKubernetes(): { format: FormatDefinition; hold(): void; release():
   let gate: { promise: Promise<void>; resolve(): void; reject(e: unknown): void } | undefined;
   const format: FormatDefinition = {
     ...kubernetesFormat,
-    async loadSchema(p, d) {
+    async loadSchema(data) {
       if (gate) await gate.promise;
-      return kubernetesFormat.loadSchema(p, d);
+      return kubernetesFormat.loadSchema(data);
     },
   };
   return {

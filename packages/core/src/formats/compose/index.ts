@@ -1,9 +1,5 @@
-import { isMap } from 'yaml';
-import { isEmptyDocument } from '../../document/data.js';
-import { yamlDocs } from '../../document/internal.js';
-import type { ParsedText } from '../../document/types.js';
 import { deepFreeze } from '../freeze.js';
-import type { FormatDefinition, SchemaBundle } from '../types.js';
+import type { DetectInput, FormatDefinition, SchemaBundle } from '../types.js';
 import { composeGuide } from './guide.js';
 import { loadComposeSchema } from './loader.js';
 import { composeRecipes } from './recipes.js';
@@ -24,12 +20,11 @@ export const composeFormat: FormatDefinition = deepFreeze<FormatDefinition>({
    * that has a compose top-level key (`services`, `networks`, `volumes`, `configs`, `secrets` or
    * `include`).
    */
-  detect(p: ParsedText): boolean {
-    const docs = yamlDocs(p).filter((_, i) => !isEmptyDocument(p, i));
-    if (!p.ok || docs.length !== 1) return false;
-    const root = docs[0]?.contents;
-    if (!isMap(root)) return false;
-    return !root.has('apiVersion') && TOP_LEVEL_KEYS.some((k) => root.has(k));
+  detect(input: DetectInput): boolean {
+    const docs = input.docs.filter((d) => d !== undefined);
+    const root = docs[0];
+    if (docs.length !== 1 || typeof root !== 'object' || root === null || Array.isArray(root)) return false;
+    return !Object.hasOwn(root, 'apiVersion') && TOP_LEVEL_KEYS.some((k) => Object.hasOwn(root, k));
   },
   kinds: () => [],
   loadSchema(): Promise<SchemaBundle | undefined> {

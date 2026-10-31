@@ -178,7 +178,7 @@ describe('schema and widget failures are not silent (A7)', () => {
     let fail = true;
     const flaky: FormatDefinition = {
       ...kubernetesFormat,
-      loadSchema: (p, d) => (fail ? Promise.reject(new Error('offline')) : kubernetesFormat.loadSchema(p, d)),
+      loadSchema: (data) => (fail ? Promise.reject(new Error('offline')) : kubernetesFormat.loadSchema(data)),
     };
     const loadSchema = vi.spyOn(flaky, 'loadSchema');
     const { editor, ctx, fake } = await mount({ formats: [flaky] });

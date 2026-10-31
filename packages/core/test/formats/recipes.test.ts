@@ -4,6 +4,7 @@ import { parseText } from '../../src/document/parse.js';
 import { yamlDocs } from '../../src/document/internal.js';
 import { composeFormat } from '../../src/formats/compose/index.js';
 import { kubernetesFormat } from '../../src/formats/kubernetes/index.js';
+import { detectInputOf } from '../../src/formats/registry.js';
 import type { Recipe } from '../../src/formats/types.js';
 import { validateText } from '../../src/validation/validate.js';
 
@@ -27,7 +28,7 @@ describe('built-in recipes', () => {
 
   it('every recipe is detected as its format', () => {
     for (const r of all) {
-      const detected = formats.find((f) => f.detect(parseText(r.yaml)));
+      const detected = formats.find((f) => f.detect(detectInputOf(parseText(r.yaml))));
       expect(detected?.id, r.id).toBe(r.format);
     }
   });

@@ -1,21 +1,23 @@
 import { readFileSync } from 'node:fs';
 import { describe, expect, it } from 'vitest';
+import { toData } from '../../src/document/data.js';
+import { detectInputOf } from '../../src/formats/registry.js';
 import { parseText } from '../../src/document/parse.js';
 import { composeFormat } from '../../src/formats/compose/index.js';
 import { kubernetesFormat } from '../../src/formats/kubernetes/index.js';
 
 const fx = (n: string) => parseText(readFileSync(new URL(`../fixtures/corpus/${n}`, import.meta.url), 'utf8'));
-const both = (t: string) => [kubernetesFormat.detect(parseText(t)), composeFormat.detect(parseText(t))];
+const both = (t: string) => [kubernetesFormat.detect(detectInputOf(parseText(t))), composeFormat.detect(detectInputOf(parseText(t)))];
 
 describe('detect', () => {
   it('web-app fixture is kubernetes only', () => {
     const p = fx('k8s-web-app.yaml');
-    expect([kubernetesFormat.detect(p), composeFormat.detect(p)]).toEqual([true, false]);
+    expect([kubernetesFormat.detect(detectInputOf(p)), composeFormat.detect(detectInputOf(p))]).toEqual([true, false]);
   });
   it('compose fixtures are compose only', () => {
     for (const n of ['compose-basic.yaml', 'compose-anchors.yaml', 'compose-networks-healthcheck.yaml']) {
       const p = fx(n);
-      expect([kubernetesFormat.detect(p), composeFormat.detect(p)], n).toEqual([false, true]);
+      expect([kubernetesFormat.detect(detectInputOf(p)), composeFormat.detect(detectInputOf(p))], n).toEqual([false, true]);
     }
   });
   it('empty, comment-only and broken text are neither', () => {
@@ -54,7 +56,7 @@ describe('detect', () => {
 
     it('the Helm fixture is kubernetes only', () => {
       const p = fx('k8s-helm-empty-docs.yaml');
-      expect([kubernetesFormat.detect(p), composeFormat.detect(p)]).toEqual([true, false]);
+      expect([kubernetesFormat.detect(detectInputOf(p)), composeFormat.detect(detectInputOf(p))]).toEqual([true, false]);
     });
 
     it('compose still needs exactly one non-empty document', () => {
@@ -63,10 +65,12 @@ describe('detect', () => {
   });
 
   it('loadSchema', async () => {
-    const k = await kubernetesFormat.loadSchema(fx('k8s-web-app.yaml'), 0);
+    const k = await kubernetesFormat.loadSchema(toData(fx('k8s-web-app.yaml'), 0));
     expect(k?.id).toBe('apps_v1_Deployment');
-    expect(await kubernetesFormat.loadSchema(fx('k8s-crd-unknown-kind.yaml'), 0)).toBeUndefined();
-    expect(await kubernetesFormat.loadSchema(parseText('foo: 1\n'), 0)).toBeUndefined();
-    expect((await composeFormat.loadSchema(fx('compose-basic.yaml'), 0))?.id).toBe('compose');
+    expect(await kubernetesFormat.loadSchema(toData(fx('k8s-crd-unknown-kind.yaml'), 0))).toBeUndefined();
+    expect(await kubernetesFormat.loadSchema({ foo: 1 })).toBeUndefined();
+    expect(await kubernetesFormat.loadSchema('Deployment')).toBeUndefined();
+    expect(await kubernetesFormat.loadSchema(undefined)).toBeUndefined();
+    expect((await composeFormat.loadSchema(toData(fx('compose-basic.yaml'), 0)))?.id).toBe('compose');
   });
 });

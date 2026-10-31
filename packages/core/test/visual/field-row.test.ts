@@ -155,7 +155,7 @@ describe('field rows', () => {
   it('while the bundle is loading, rows render read-only text and become widgets when it resolves', async () => {
     let release!: () => void;
     const gate = new Promise<void>((r) => (release = r));
-    const slow: FormatDefinition = { ...kubernetesFormat, loadSchema: async (p, d) => (await gate, kubernetesFormat.loadSchema(p, d)) };
+    const slow: FormatDefinition = { ...kubernetesFormat, loadSchema: async (data) => (await gate, kubernetesFormat.loadSchema(data)) };
     createEditorWithContext(el, { codeEditor: createFakeAdapter(), format: 'kubernetes', value: TEXT, formats: [slow] });
     await vi.waitFor(() => expect(items().length).toBeGreaterThan(0)); // ready itself waits for the schema
     click('spec');

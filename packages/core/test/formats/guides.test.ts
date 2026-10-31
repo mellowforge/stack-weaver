@@ -57,7 +57,7 @@ describe('compose guide', () => {
   });
 
   it('every guide field exists in the compose schema', async () => {
-    const bundle = await composeFormat.loadSchema(undefined as never, 0);
+    const bundle = await composeFormat.loadSchema(undefined);
     const defs = (bundle?.schema.$defs ?? {}) as Record<string, unknown>;
     expect(Object.keys(guide.fields).length).toBeGreaterThan(0);
     for (const key of Object.keys(guide.fields)) {
@@ -110,7 +110,7 @@ async function allDefs(): Promise<{ k8s: Map<string, unknown>; compose: Record<s
     for (const [n, d] of Object.entries((schema.$defs ?? {}) as Record<string, unknown>)) k8s.set(n, d);
     if (!k8s.has(k.defName)) k8s.set(k.defName, schema);
   }
-  const compose = ((await composeFormat.loadSchema(undefined as never, 0))?.schema.$defs ?? {}) as Record<string, unknown>;
+  const compose = ((await composeFormat.loadSchema(undefined))?.schema.$defs ?? {}) as Record<string, unknown>;
   return { k8s, compose };
 }
 

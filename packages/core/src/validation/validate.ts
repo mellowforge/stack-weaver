@@ -142,14 +142,15 @@ function runRule(
       variableSource: ctx.host ? 'host' : 'document',
       message: (key, params = {}) =>
         Object.hasOwn(table, key) ? messageFor({ instancePath: '', keyword: key, params: { ...params } }, table) : key,
+      locate: (doc, path, at) => {
+        const [from, to] = pathRange(p, doc, path, at);
+        return { from, to };
+      },
     });
     return findings.map((f) => {
       let range: Range;
       if (f.range) range = [f.range.from, f.range.to];
-      else {
-        const node = f.at === 'key' ? getPairKey(p, { doc: f.doc, path: f.path }) : getNode(p, { doc: f.doc, path: f.path });
-        range = rangeOf(node) ?? nearestRange(p, f.doc, f.path);
-      }
+      else range = pathRange(p, f.doc, f.path, f.at);
       const found = problem(p, f.doc, f.severity, 'rule', code, table, { ...f.params }, f.path, range);
       if (!f.fix) return found;
       const label = messageFor({ instancePath: '', keyword: f.fix.key, params: { ...f.fix.params } }, table);
@@ -189,7 +190,7 @@ async function validateDocument(
   let bundle: SchemaBundle | undefined;
   let errors: SchemaError[];
   try {
-    bundle = await format.loadSchema(p, doc);
+    bundle = await format.loadSchema(data);
     if (bundle && format.variables) {
       const sub = format.variables.substitute(data, decls);
       const skip = sub.skip.map(toPointer);
@@ -475,6 +476,12 @@ function rootRange(p: ParsedText, doc: number): Range {
 function firstKeyRange(p: ParsedText, doc: number): Range {
   const root = yamlDocs(p)[doc]?.contents;
   return (isMap(root) ? rangeOf(root.items[0]?.key) : undefined) ?? rootRange(p, doc);
+}
+
+/** Range of the key or value at `path`, else that of its nearest existing ancestor (the rule for findings and `locate`). */
+function pathRange(p: ParsedText, doc: number, path: YamlPath, at: 'key' | 'value' = 'value'): Range {
+  const node = at === 'key' ? getPairKey(p, { doc, path }) : getNode(p, { doc, path });
+  return rangeOf(node) ?? nearestRange(p, doc, path);
 }
 
 /** Range of the nearest existing node at or above `path`, falling back to the document root. */

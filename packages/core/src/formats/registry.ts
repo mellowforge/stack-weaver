@@ -1,5 +1,7 @@
+import { isEmptyDocument, toData } from '../document/data.js';
+import { assertParsed } from '../document/internal.js';
 import type { ParsedText } from '../document/types.js';
-import type { FormatDefinition } from './types.js';
+import type { DetectInput, FormatDefinition } from './types.js';
 
 const registry = new Map<string, FormatDefinition>();
 
@@ -20,13 +22,40 @@ export function getFormat(id: string): FormatDefinition | undefined {
 }
 
 /**
- * Returns the first format whose `detect` accepts `p`.
+ * The {@link DetectInput} of `p`: `toData` per document, `undefined` for empty or unbuildable
+ * ones, and no documents when the text does not parse.
+ * @internal Shared by `detectFormat` and tests; not part of the public API.
+ * @throws {TypeError} When `p` was not made by `parseText`.
+ */
+export function detectInputOf(p: ParsedText): DetectInput {
+  assertParsed(p);
+  const docs: unknown[] = [];
+  if (p.ok) {
+    for (let i = 0; i < p.docCount; i++) {
+      let data: unknown;
+      if (!isEmptyDocument(p, i)) {
+        try {
+          data = toData(p, i);
+        } catch {
+          data = undefined;
+        }
+      }
+      docs.push(data);
+    }
+  }
+  return { docs };
+}
+
+/**
+ * Returns the first format whose `detect` accepts `p`; the documents are read once and handed to
+ * every `detect`, which gets no documents when the text does not parse.
  * @param p - The parsed text.
  * @param formats - Formats to try, in order; defaults to the registered formats in registration order.
- * @throws {TypeError} When `p` was not made by `parseText` (the built-in formats' `detect` reads it).
+ * @throws {TypeError} When `p` was not made by `parseText`.
  */
 export function detectFormat(p: ParsedText, formats?: readonly FormatDefinition[]): FormatDefinition | undefined {
-  for (const f of formats ?? registry.values()) if (f.detect(p)) return f;
+  const input = detectInputOf(p);
+  for (const f of formats ?? registry.values()) if (f.detect(input)) return f;
   return undefined;
 }
 

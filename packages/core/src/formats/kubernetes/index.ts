@@ -1,18 +1,15 @@
-import { isMap, isScalar } from 'yaml';
-import type { Document } from 'yaml';
-import { isEmptyDocument } from '../../document/data.js';
-import { yamlDocs } from '../../document/internal.js';
-import type { ParsedText } from '../../document/types.js';
 import { deepFreeze } from '../freeze.js';
-import type { FormatDefinition, SchemaBundle } from '../types.js';
+import type { DetectInput, FormatDefinition, SchemaBundle } from '../types.js';
 import { kubernetesGuide } from './guide.js';
 import { kubernetesKinds, loadKubernetesKind } from './loader.js';
 import { kubernetesRecipes } from './recipes.js';
 import { kubernetesRules } from './rules.js';
 
-function str(doc: Document.Parsed | undefined, key: string): string | undefined {
-  const node = doc?.get(key, true);
-  return isScalar(node) && typeof node.value === 'string' ? node.value : undefined;
+const isRecord = (v: unknown): v is Record<string, unknown> => typeof v === 'object' && v !== null && !Array.isArray(v);
+
+function str(data: unknown, key: string): string | undefined {
+  const v = isRecord(data) ? data[key] : undefined;
+  return typeof v === 'string' ? v : undefined;
 }
 
 /** The Kubernetes format: multi-document resources validated per `apiVersion`/`kind`. */
@@ -23,19 +20,14 @@ export const kubernetesFormat: FormatDefinition = deepFreeze<FormatDefinition>({
   version: '1.37.2',
   rootModel: 'documents',
   /** True when the text parses, has a non-empty document, and every non-empty document is a mapping with string `apiVersion` and `kind`. */
-  detect(p: ParsedText): boolean {
-    const docs = yamlDocs(p).filter((_, i) => !isEmptyDocument(p, i));
-    return (
-      p.ok &&
-      docs.length > 0 &&
-      docs.every((d) => isMap(d.contents) && str(d, 'apiVersion') !== undefined && str(d, 'kind') !== undefined)
-    );
+  detect(input: DetectInput): boolean {
+    const docs = input.docs.filter((d) => d !== undefined);
+    return docs.length > 0 && docs.every((d) => isRecord(d) && str(d, 'apiVersion') !== undefined && str(d, 'kind') !== undefined);
   },
   kinds: kubernetesKinds,
-  loadSchema(p: ParsedText, doc: number): Promise<SchemaBundle | undefined> {
-    const d = yamlDocs(p)[doc];
-    const apiVersion = str(d, 'apiVersion');
-    const kind = str(d, 'kind');
+  loadSchema(data: unknown): Promise<SchemaBundle | undefined> {
+    const apiVersion = str(data, 'apiVersion');
+    const kind = str(data, 'kind');
     if (apiVersion === undefined || kind === undefined) return Promise.resolve(undefined);
     return loadKubernetesKind(apiVersion, kind);
   },

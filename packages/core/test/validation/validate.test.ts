@@ -360,7 +360,7 @@ data:
     expect(refAtOffset(p, bad.from)).toEqual({ doc: 0, path: bad.path });
     expect(getNode(p, { doc: 0, path: bad.path })).toBeDefined();
 
-    const bundle = (await kubernetesFormat.loadSchema(p, 0))!;
+    const bundle = (await kubernetesFormat.loadSchema(toData(p, 0)))!;
     const data = toData(p, 0);
     expect(resolveAt(bundle, ref!.path, data)?.schema['type']).toBe('string');
     expect(resolveAt(bundle, bad.path, data)?.schema['type']).toBe('string');

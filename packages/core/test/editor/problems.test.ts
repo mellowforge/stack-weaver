@@ -1,7 +1,6 @@
 // @vitest-environment happy-dom
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { breadcrumbAt } from '../../src/assist/hover.js';
-import { yamlDocs } from '../../src/document/internal.js';
 import { DocumentStore } from '../../src/document/store.js';
 import type { EditorContext } from '../../src/editor/context.js';
 import { createEditorWithContext } from '../../src/editor/editor.js';
@@ -74,8 +73,8 @@ describe('validation scheduling', () => {
       ...twoErrors,
       id: 'kinds',
       rootModel: 'documents',
-      loadSchema: (p, doc) => {
-        const kind = yamlDocs(p)[doc]!.get('kind') as string;
+      loadSchema: (data) => {
+        const kind = (data as { kind: string }).kind;
         if (kind === 'Slow') return new Promise<SchemaBundle>((r) => (release = r));
         return Promise.resolve(bundle('fast', ['fast']));
       },
@@ -102,8 +101,8 @@ describe('validation scheduling', () => {
       ...twoErrors,
       id: 'kinds',
       rootModel: 'documents',
-      loadSchema: (p, doc) => {
-        if ((yamlDocs(p)[doc]!.get('kind') as string) === 'Slow') return new Promise<SchemaBundle>((r) => (release = r));
+      loadSchema: (data) => {
+        if ((data as { kind: string }).kind === 'Slow') return new Promise<SchemaBundle>((r) => (release = r));
         return Promise.resolve(bundle('fast', ['fast']));
       },
     };
@@ -186,7 +185,7 @@ describe('validation scheduling', () => {
   });
 
   it('a format change validates now, not after the debounce (A10)', async () => {
-    const detected: FormatDefinition = { ...twoErrors, detect: (p) => p.text.trim() !== '' };
+    const detected: FormatDefinition = { ...twoErrors, detect: (input) => input.docs.some((d) => d !== undefined) };
     const onProblemsChange = vi.fn();
     const { editor } = await mount({ format: 'auto', formats: [detected], value: '', onProblemsChange });
     vi.useFakeTimers();

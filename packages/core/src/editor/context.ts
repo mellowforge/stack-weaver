@@ -5,6 +5,7 @@ import type { NodeRef, ParsedText, TextRange } from '../document/types.js';
 import type { CodeEditorAdapter } from '../editors/adapter.js';
 import { kindKey } from '../formats/guide.js';
 import type { FormatDefinition, Guide, SchemaBundle } from '../formats/types.js';
+import { safeData } from '../visual/util.js';
 import type { SchemaMessages } from '../validation/messages.js';
 import type { Problem } from '../validation/problems.js';
 import { loadBuiltinFormats } from './formats.js';
@@ -101,7 +102,7 @@ export function rangeForRef(parsed: ParsedText, ref: NodeRef): TextRange | undef
 }
 
 /** The cache key of document `doc`'s schema: the kind key for `documents` formats, the format id for `mapping` ones. */
-function bundleKey(format: FormatDefinition, parsed: ParsedText, doc: number): string | undefined {
+export function bundleKey(format: FormatDefinition, parsed: ParsedText, doc: number): string | undefined {
   if (format.rootModel === 'mapping') return format.id;
   const str = (field: string): string | undefined => {
     try {
@@ -152,7 +153,7 @@ export function createBundleCache(deps: {
       if (!p) {
         let load: Promise<SchemaBundle | undefined>;
         try {
-          load = Promise.resolve(format.loadSchema(parsedNow(), doc));
+          load = Promise.resolve(format.loadSchema(safeData(parsedNow(), doc)));
         } catch (err) {
           load = Promise.reject(err);
         }

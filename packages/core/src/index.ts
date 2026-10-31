@@ -28,6 +28,7 @@ export type {
   GuideOverride,
   Tier,
   FormatDefinition,
+  DetectInput,
   Recipe,
   VariableType,
   VariableDecl,

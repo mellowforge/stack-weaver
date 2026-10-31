@@ -215,7 +215,7 @@ describe('visual pane', () => {
     const guide = { kubernetes: { fields: { 'io.k8s.api.apps.v1.DeploymentSpec#replicas': { label: 'How many copies' } } } };
     let release!: () => void;
     const gate = new Promise<void>((r) => (release = r));
-    const slow: FormatDefinition = { ...kubernetesFormat, loadSchema: async (p, d) => (await gate, kubernetesFormat.loadSchema(p, d)) };
+    const slow: FormatDefinition = { ...kubernetesFormat, loadSchema: async (data) => (await gate, kubernetesFormat.loadSchema(data)) };
     createEditorWithContext(el, { codeEditor: createFakeAdapter(), format: 'kubernetes', mode: 'split', value: DEPLOY, guide, formats: [slow] });
     await vi.waitFor(() => expect(items().length).toBeGreaterThan(0)); // ready itself waits for the schema
     click('spec'); // the row exists before the schema does
@@ -301,7 +301,7 @@ describe('visual pane destroy (B3)', () => {
   it('destroy while a schema load is pending: its result writes nothing', async () => {
     let release!: () => void;
     const gate = new Promise<void>((r) => (release = r));
-    const slow: FormatDefinition = { ...kubernetesFormat, loadSchema: async (p, d) => (await gate, kubernetesFormat.loadSchema(p, d)) };
+    const slow: FormatDefinition = { ...kubernetesFormat, loadSchema: async (data) => (await gate, kubernetesFormat.loadSchema(data)) };
     const { editor } = createEditorWithContext(el, { codeEditor: createFakeAdapter(), format: 'kubernetes', value: DEPLOY, formats: [slow] });
     await vi.waitFor(() => expect(items().length).toBeGreaterThan(0));
     const pane = el.querySelector<HTMLElement>('.sw-pane-visual')!;

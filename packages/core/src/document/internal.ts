@@ -122,3 +122,18 @@ export function getPairKey(p: ParsedText, ref: NodeRef): Scalar | undefined {
   const pr = findPair(parent, ref.path[ref.path.length - 1]!);
   return pr && isScalar(pr.key) ? pr.key : undefined;
 }
+
+/**
+ * What the map at `at` itself holds under `key` (not what it inherits through a `<<` merge).
+ * @param p - The parsed text.
+ * @param at - Reference to the map.
+ * @param key - The key to look for.
+ * @returns `undefined` when `at` is not a map or has no such pair of its own; otherwise whether the pair's value is a block or flow map (an alias or scalar is not).
+ * @throws A `TypeError` when `p` was not made by `parseText`.
+ */
+export function ownMapValue(p: ParsedText, at: NodeRef, key: string): { readonly isMap: boolean } | undefined {
+  const node = getNode(p, at);
+  if (!isMap(node)) return undefined;
+  const own = node.items.find((pair) => isScalar(pair.key) && pair.key.value === key);
+  return own ? { isMap: isMap(own.value) } : undefined;
+}

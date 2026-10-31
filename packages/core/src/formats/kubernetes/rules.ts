@@ -1,6 +1,5 @@
-import { isMap, isScalar } from 'yaml';
 import type { EditOp } from '../../document/edit.js';
-import { getNode } from '../../document/internal.js';
+import { ownMapValue } from '../../document/internal.js';
 import type { NodeRef, YamlPath } from '../../document/types.js';
 import type { Rule, RuleFinding, RuleInput } from '../types.js';
 
@@ -146,8 +145,7 @@ const DEFAULT_RESOURCES = { requests: { cpu: '100m', memory: '128Mi' }, limits: 
  */
 function fixOps(input: RuleInput, at: NodeRef, container: Rec, res: unknown): readonly EditOp[] | undefined {
   if (!Object.hasOwn(container, 'resources')) return [{ op: 'add', at, key: 'resources', value: DEFAULT_RESOURCES }];
-  const node = getNode(input.parsed, at);
-  const own = isMap(node) ? node.items.find((pair) => isScalar(pair.key) && pair.key.value === 'resources') : undefined;
+  const own = ownMapValue(input.parsed, at, 'resources');
   if (!own) return undefined;
   if (res === null || (isRec(res) && Object.keys(res).length === 0)) {
     return [
@@ -155,7 +153,7 @@ function fixOps(input: RuleInput, at: NodeRef, container: Rec, res: unknown): re
       { op: 'add', at, key: 'resources', value: DEFAULT_RESOURCES },
     ];
   }
-  if (!isRec(res) || !isMap(own.value)) return undefined;
+  if (!isRec(res) || !own.isMap) return undefined;
   const target = { doc: at.doc, path: [...at.path, 'resources'] };
   return [
     { op: 'add', at: target, key: 'requests', value: DEFAULT_RESOURCES.requests },

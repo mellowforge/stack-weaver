@@ -1,4 +1,3 @@
-import { parseText } from '../document/parse.js';
 import type { EditorContext } from '../editor/context.js';
 import { h } from '../editor/dom.js';
 import { firstSentence } from '../engine/addable.js';
@@ -42,7 +41,7 @@ const FOCUSABLE = 'button:not([disabled]), input:not([disabled])';
  * {@link skeletonFor}; the picker never asks anything else.
  *
  * The kind's schema must be loaded to build the skeleton. The picker loads it through the format
- * (`format.loadSchema`) over a one-document parse of `apiVersion` and `kind`, so any format with
+ * (`format.loadSchema`) from the data `{ apiVersion, kind }`, so any format with
  * `documents` roots works without a kind-specific loader.
  * @internal
  */
@@ -115,7 +114,7 @@ export function createAddResource(ctx: EditorContext, doc: Document = document):
       busy = true;
       errorEl.textContent = '';
       try {
-        const bundle = await format?.loadSchema(parseText(`apiVersion: ${entry.apiVersion}\nkind: ${entry.kind}\n`), 0);
+        const bundle = await format?.loadSchema({ apiVersion: entry.apiVersion, kind: entry.kind });
         if (!close) return; // closed while the schema loaded
         // The editor moved on while the schema loaded: another format makes this catalog stale, and
         // a read-only editor must not be written to.
