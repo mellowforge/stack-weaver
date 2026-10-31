@@ -3,6 +3,7 @@ import type {
   CodeEditorAdapter,
   CodeEditorInit,
   CodeEditorInstance,
+  SyncCodeEditorAdapter,
 } from '../../src/editors/adapter.js';
 import type { TextChange, TextRange } from '../../src/document/types.js';
 
@@ -17,6 +18,10 @@ export interface FakeInstance extends CodeEditorInstance {
   readonly readOnly: boolean;
   readonly theme: 'light' | 'dark';
   readonly revealed: { range: TextRange; select: boolean } | undefined;
+  /** Whether `destroy()` ran. */
+  readonly destroyed: boolean;
+  /** Names of the host-driven methods called after `destroy()` (should stay empty). */
+  readonly callsAfterDestroy: readonly string[];
   /** Simulates user input: sets the textarea value and fires `input`, as a user's edit would. The `input` handler rejects it while read-only. */
   type(text: string): void;
   /** Moves the caret as the user would; calls `onSelectionChange`. */
@@ -38,7 +43,7 @@ export interface FakeAdapterOptions {
 
 type FakeBase = { last?: FakeInstance; mounts: number; release(): void };
 /** The fake adapter mounting synchronously (the default). */
-export type SyncFakeAdapter = FakeBase & Omit<CodeEditorAdapter, 'mount'> & { mount(el: HTMLElement, init: CodeEditorInit): FakeInstance };
+export type SyncFakeAdapter = FakeBase & SyncCodeEditorAdapter & { mount(el: HTMLElement, init: CodeEditorInit): FakeInstance };
 /** The fake adapter mounting asynchronously or rejecting. */
 export type AsyncFakeAdapter = FakeBase & Omit<CodeEditorAdapter, 'mount'> & { mount(el: HTMLElement, init: CodeEditorInit): Promise<FakeInstance> };
 
@@ -48,11 +53,10 @@ export type AsyncFakeAdapter = FakeBase & Omit<CodeEditorAdapter, 'mount'> & { m
  */
 export function createFakeAdapter(opts?: { async?: false }): SyncFakeAdapter;
 export function createFakeAdapter(opts: FakeAdapterOptions): AsyncFakeAdapter;
-export function createFakeAdapter(opts: FakeAdapterOptions = {}): SyncFakeAdapter & AsyncFakeAdapter {
+export function createFakeAdapter(opts: FakeAdapterOptions = {}): FakeBase & CodeEditorAdapter {
   const pending: (() => void)[] = [];
-  const adapter = {
+  const adapter: FakeBase & CodeEditorAdapter = {
     mounts: 0,
-    last: undefined as FakeInstance | undefined,
     /** Resolves the mounts waiting under `async: 'manual'`. */
     release() {
       for (const resolve of pending.splice(0)) resolve();
@@ -69,128 +73,141 @@ export function createFakeAdapter(opts: FakeAdapterOptions = {}): SyncFakeAdapte
     },
   };
   function build(el: HTMLElement, init: CodeEditorInit): FakeInstance {
-    {
-      const area = el.ownerDocument.createElement('textarea');
-      area.setAttribute('aria-label', init.ariaLabel);
-      area.value = init.text;
-      el.appendChild(area);
-      let text = init.text;
-      let selection: TextRange = { from: 0, to: 0 };
-      let diagnostics: readonly CodeDiagnostic[] = [];
-      let readOnly = init.readOnly;
-      let theme = init.theme;
-      let revealed: FakeInstance['revealed'];
-      let destroyed = false;
+    const area = el.ownerDocument.createElement('textarea');
+    area.setAttribute('aria-label', init.ariaLabel);
+    area.value = init.text;
+    el.appendChild(area);
+    let text = init.text;
+    let selection: TextRange = { from: 0, to: 0 };
+    let diagnostics: readonly CodeDiagnostic[] = [];
+    let readOnly = init.readOnly;
+    let theme = init.theme;
+    let revealed: FakeInstance['revealed'];
+    let destroyed = false;
+  const callsAfterDestroy: string[] = [];
+  const note = (name: string): void => {
+    if (destroyed) callsAfterDestroy.push(name);
+  };
 
-      const setSelection = (next: TextRange): void => {
-        if (next.from === selection.from && next.to === selection.to) return;
-        selection = next;
-        init.onSelectionChange?.(selection);
-      };
-      // As CodeMirror maps positions: inside a replaced range `assoc < 0` gives its start and
-      // `assoc >= 0` its end; at an insertion point `assoc < 0` stays before the inserted text.
-      const mapPos = (pos: number, c: TextChange, assoc: number): number => {
-        if (pos < c.from) return pos;
-        if (pos > c.to || (pos === c.to && c.to > c.from)) return pos + c.insert.length - (c.to - c.from);
-        if (pos === c.from && c.to > c.from) return c.from;
-        return assoc < 0 ? c.from : c.from + c.insert.length;
-      };
-      // A caret maps with assoc -1; a range maps its start with +1 and its end with -1, as CodeMirror does.
-      const mapSelection = (s: TextRange, c: TextChange): TextRange =>
-        s.from === s.to ? { from: mapPos(s.from, c, -1), to: mapPos(s.from, c, -1) } : { from: mapPos(s.from, c, 1), to: mapPos(s.to, c, -1) };
-      const isMac = /Mac|iP(hone|ad|od)/.test(el.ownerDocument.defaultView?.navigator.platform ?? '');
-      const clamp = (n: number): number => Math.min(Math.max(n, 0), text.length);
-      /** The exact text `type` asked for: a textarea may normalize line breaks in `value`, the fake must not. */
-      let typed: string | undefined;
-      // The user's input path, like a real <textarea>: read-only refuses the edit (and restores the value).
-      area.addEventListener('input', () => {
-        const next = typed ?? area.value;
-        typed = undefined;
-        if (readOnly || destroyed) {
-          area.value = text;
-          return;
-        }
-        text = next;
-        selection = { from: text.length, to: text.length };
-        init.onChange(text);
-      });
-      area.addEventListener('keydown', (e) => {
-        if (!(isMac ? e.metaKey : e.ctrlKey)) return;
-        const key = e.key.toLowerCase();
-        if (key === 'z' && !e.shiftKey) init.onUndo();
-        else if ((key === 'z' && e.shiftKey) || key === 'y') init.onRedo();
-        else return;
-        e.preventDefault();
-      });
-      const render = (): void => {
+    const setSelection = (next: TextRange): void => {
+      if (next.from === selection.from && next.to === selection.to) return;
+      selection = next;
+      init.onSelectionChange?.(selection);
+    };
+    // As CodeMirror maps positions: inside a replaced range `assoc < 0` gives its start and
+    // `assoc >= 0` its end; at an insertion point `assoc < 0` stays before the inserted text.
+    const mapPos = (pos: number, c: TextChange, assoc: number): number => {
+      if (pos < c.from) return pos;
+      if (pos > c.to || (pos === c.to && c.to > c.from)) return pos + c.insert.length - (c.to - c.from);
+      if (pos === c.from && c.to > c.from) return c.from;
+      return assoc < 0 ? c.from : c.from + c.insert.length;
+    };
+    // A caret maps with assoc -1; a range maps its start with +1 and its end with -1, as CodeMirror does.
+    const mapSelection = (s: TextRange, c: TextChange): TextRange =>
+      s.from === s.to ? { from: mapPos(s.from, c, -1), to: mapPos(s.from, c, -1) } : { from: mapPos(s.from, c, 1), to: mapPos(s.to, c, -1) };
+    const isMac = /Mac|iP(hone|ad|od)/.test(el.ownerDocument.defaultView?.navigator.platform ?? '');
+    const clamp = (n: number): number => Math.min(Math.max(n, 0), text.length);
+    /** The exact text `type` asked for: a textarea may normalize line breaks in `value`, the fake must not. */
+    let typed: string | undefined;
+    // The user's input path, like a real <textarea>: read-only refuses the edit (and restores the value).
+    area.addEventListener('input', () => {
+      const next = typed ?? area.value;
+      typed = undefined;
+      if (readOnly || destroyed) {
         area.value = text;
-        area.readOnly = readOnly;
-        area.dataset['theme'] = theme;
-      };
-      render();
+        return;
+      }
+      text = next;
+      selection = { from: text.length, to: text.length };
+      init.onChange(text);
+    });
+    area.addEventListener('keydown', (e) => {
+      if (!(isMac ? e.metaKey : e.ctrlKey)) return;
+      const key = e.key.toLowerCase();
+      if (key === 'z' && !e.shiftKey) init.onUndo();
+      else if ((key === 'z' && e.shiftKey) || key === 'y') init.onRedo();
+      else return;
+      e.preventDefault();
+    });
+    const render = (): void => {
+      area.value = text;
+      area.readOnly = readOnly;
+      area.dataset['theme'] = theme;
+    };
+    render();
 
-      const inst: FakeInstance = {
-        init,
-        getText: () => text,
-        applyChange(c) {
-          text = text.slice(0, c.from) + c.insert + text.slice(c.to);
-          selection = mapSelection(selection, c);
-          render();
-        },
-        setDiagnostics(d) {
-          diagnostics = d.map((x) => {
-            const from = clamp(x.from);
-            return { ...x, from, to: Math.min(Math.max(x.to, from), text.length) };
-          });
-        },
-        reveal(range, opts) {
-          revealed = { range, select: opts?.select === true };
-          if (opts?.select) setSelection(range);
-        },
-        getSelection: () => selection,
-        setReadOnly(v) {
-          readOnly = v;
-          render();
-        },
-        setTheme(t) {
-          theme = t;
-          render();
-        },
-        focus: () => area.focus(),
-        destroy() {
-          if (destroyed) return;
-          destroyed = true;
-          area.remove();
-        },
-        get diagnostics() {
-          return diagnostics;
-        },
-        get selection() {
-          return selection;
-        },
-        get readOnly() {
-          return readOnly;
-        },
-        get theme() {
-          return theme;
-        },
-        get revealed() {
-          return revealed;
-        },
-        type(next) {
-          typed = next;
-          area.value = next;
-          area.dispatchEvent(new Event('input', { bubbles: true }));
-        },
-        setCaret: (offset) => setSelection({ from: offset, to: offset }),
-        async requestCompletions() {
-          const result = await init.complete?.(text, selection.from, true);
-          return result ? result.options.map((o) => o.label) : [];
-        },
-      };
-      adapter.last = inst;
-      return inst;
-    }
+    const inst: FakeInstance = {
+      init,
+      getText: () => text,
+      applyChange(c) {
+      note('applyChange');
+        text = text.slice(0, c.from) + c.insert + text.slice(c.to);
+        selection = mapSelection(selection, c);
+        render();
+      },
+      setDiagnostics(d) {
+      note('setDiagnostics');
+        diagnostics = d.map((x) => {
+          const from = clamp(x.from);
+          return { ...x, from, to: Math.min(Math.max(x.to, from), text.length) };
+        });
+      },
+      reveal(range, opts) {
+      note('reveal');
+        revealed = { range, select: opts?.select === true };
+        if (opts?.select) setSelection(range);
+      },
+      getSelection: () => selection,
+      setReadOnly(v) {
+      note('setReadOnly');
+        readOnly = v;
+        render();
+      },
+      setTheme(t) {
+      note('setTheme');
+        theme = t;
+        render();
+      },
+      focus: () => area.focus(),
+      destroy() {
+        if (destroyed) return;
+        destroyed = true;
+        area.remove();
+      },
+      get diagnostics() {
+        return diagnostics;
+      },
+      get selection() {
+        return selection;
+      },
+      get readOnly() {
+        return readOnly;
+      },
+      get theme() {
+        return theme;
+      },
+      get destroyed() {
+        return destroyed;
+      },
+      get callsAfterDestroy() {
+        return callsAfterDestroy;
+      },
+      get revealed() {
+        return revealed;
+      },
+      type(next) {
+        typed = next;
+        area.value = next;
+        area.dispatchEvent(new Event('input', { bubbles: true }));
+      },
+      setCaret: (offset) => setSelection({ from: offset, to: offset }),
+      async requestCompletions() {
+        const result = await init.complete?.(text, selection.from, true);
+        return result ? result.options.map((o) => o.label) : [];
+      },
+    };
+    adapter.last = inst;
+    return inst;
   }
-  return adapter as unknown as SyncFakeAdapter & AsyncFakeAdapter;
+  return adapter;
 }

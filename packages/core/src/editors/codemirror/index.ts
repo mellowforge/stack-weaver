@@ -12,7 +12,7 @@ import type { CodeCompletion } from '../../assist/complete.js';
 import { detectEol } from '../../document/eol.js';
 import type { TextChange } from '../../document/types.js';
 import type { ResolvedTheme } from '../../editor/theme.js';
-import type { CodeDiagnostic, CodeEditorAdapter, CodeEditorInit, CodeEditorInstance } from '../adapter.js';
+import type { CodeDiagnostic, SyncCodeEditorAdapter, CodeEditorInit, CodeEditorInstance } from '../adapter.js';
 
 /** Options for {@link codemirrorAdapter}. */
 export interface CodemirrorAdapterOptions {
@@ -75,7 +75,7 @@ function toCompletion(c: CodeCompletion): Completion {
  * separator; the selection is mapped through the change. Pasted or dropped text takes the
  * document's line ending.
  */
-export function codemirrorAdapter(opts: CodemirrorAdapterOptions = {}): Omit<CodeEditorAdapter, 'mount'> & { mount(el: HTMLElement, init: CodeEditorInit): CodeEditorInstance } {
+export function codemirrorAdapter(opts: CodemirrorAdapterOptions = {}): SyncCodeEditorAdapter {
   return {
     mount(el: HTMLElement, init: CodeEditorInit): CodeEditorInstance {
       const readOnlyCompartment = new Compartment();
@@ -195,13 +195,14 @@ export function codemirrorAdapter(opts: CodemirrorAdapterOptions = {}): Omit<Cod
           const s = view.state;
           const mapped: Diagnostic[] = d.map((x) => {
             const from = stateToCm(s, x.from);
-            // `code` and the action `id` ride along on the CodeMirror objects so they can be read back.
-            const diagnostic: Diagnostic & { code: string } = {
+            // `code`, `source` and the action `id` ride along as extra properties so they can be read back;
+            // CodeMirror's own `source` would render as a visible, untranslated label.
+            const diagnostic: Diagnostic & { code: string; swSource: string } = {
               from,
               to: Math.max(stateToCm(s, x.to), from),
               severity: x.severity,
               message: x.message,
-              source: x.source,
+              swSource: x.source,
               code: x.code,
             };
             if (x.actions?.length) diagnostic.actions = x.actions.map((a) => ({ id: a.id, name: a.label, apply: () => a.apply() }));

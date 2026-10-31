@@ -1,6 +1,6 @@
 // Shared contract suite (not a test file): run it from each adapter's test file.
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import type { CodeDiagnostic, CodeEditorAdapter, CodeEditorInit, CodeEditorInstance } from '../../src/editors/adapter.js';
+import type { CodeDiagnostic, SyncCodeEditorAdapter, CodeEditorInit, CodeEditorInstance } from '../../src/editors/adapter.js';
 
 /** A mounted editor plus the element it lives in. */
 export interface Mounted {
@@ -10,7 +10,7 @@ export interface Mounted {
 
 /** Adapter-specific ways to act like a user and to look inside the editor. */
 export interface ContractHarness {
-  readonly adapter: Omit<CodeEditorAdapter, 'mount'> & { mount(el: HTMLElement, init: CodeEditorInit): CodeEditorInstance };
+  readonly adapter: SyncCodeEditorAdapter;
   /** Simulates the user typing `s` at the end of the text (calls `onChange`). */
   type(m: Mounted, s: string): void;
   /** Places the caret without going through `applyChange`. */

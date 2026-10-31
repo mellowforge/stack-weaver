@@ -15,7 +15,8 @@ export function hoverSource(
     let info: HoverInfo | undefined;
     try {
       info = await hover(s.sliceDoc(), stateToText(s, pos));
-    } catch {
+    } catch (e) {
+      console.error('stack-weaver: hover failed', e);
       return null; // a failing hover shows no tooltip
     }
     if (!info) return null;

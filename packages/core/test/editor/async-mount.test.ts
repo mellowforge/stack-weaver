@@ -29,17 +29,25 @@ describe('async adapter mount', () => {
 
   it('state set while the mount is pending is applied once it arrives', async () => {
     const adapter = createFakeAdapter({ async: 'manual' });
-    const { editor } = createEditorWithContext(el, { codeEditor: adapter, format: 'kubernetes', value: DEPLOY, mode: 'code' });
+    const onChange = vi.fn();
+    const { editor } = createEditorWithContext(el, { codeEditor: adapter, format: 'kubernetes', value: DEPLOY + 'x: [\n', mode: 'code', onChange });
     await vi.waitFor(() => expect(adapter.mounts).toBe(1));
-    editor.setValue(DEPLOY.replace('web', 'api'));
+    editor.setValue(DEPLOY.replace('web', 'api') + 'x: [\n');
     editor.setReadOnly(true);
     editor.setTheme('dark');
+    editor.reveal({ doc: 0, path: ['spec', 'replicas'] });
     adapter.release();
     await editor.ready;
     const fake = adapter.last!;
     expect(fake.getText()).toContain('name: api');
     expect(fake.readOnly).toBe(true);
     expect(fake.theme).toBe('dark');
+    expect(fake.diagnostics.some((d) => d.code === 'yaml.syntax')).toBe(true);
+    expect(fake.revealed?.select).toBe(true);
+    editor.setReadOnly(false);
+    fake.type(fake.getText() + '# more\n');
+    expect(editor.getValue()).toContain('# more');
+    expect(onChange).toHaveBeenLastCalledWith(editor.getValue(), expect.anything());
     editor.destroy();
   });
 
@@ -50,8 +58,10 @@ describe('async adapter mount', () => {
     editor.destroy();
     adapter.release();
     await vi.waitFor(() => expect(adapter.last).toBeDefined());
-    await new Promise((r) => setTimeout(r, 0));
-    expect(el.querySelector('textarea')).toBeNull(); // the instance's destroy() removed it
+    await vi.waitFor(() => expect(adapter.last!.destroyed).toBe(true));
+    expect(adapter.last!.callsAfterDestroy).toEqual([]);
+    expect(adapter.last!.diagnostics).toEqual([]); // nothing was pushed into it
+    expect(adapter.last!.getText()).toBe(DEPLOY);
   });
 
   it('a rejected mount rejects ready and shows the failure', async () => {

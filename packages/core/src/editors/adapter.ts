@@ -97,6 +97,14 @@ export interface CodeEditorInstance {
   destroy(): void;
 }
 
+/**
+ * A {@link CodeEditorAdapter} known to mount synchronously, so callers need not await.
+ * @internal
+ */
+export type SyncCodeEditorAdapter = Omit<CodeEditorAdapter, 'mount'> & {
+  mount(el: HTMLElement, init: CodeEditorInit): CodeEditorInstance;
+};
+
 /** Creates code editors. Implementations wrap a concrete editor library. */
 export interface CodeEditorAdapter {
   /**

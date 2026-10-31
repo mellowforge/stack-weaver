@@ -3,7 +3,7 @@ import { forEachDiagnostic } from '@codemirror/lint';
 import { acceptCompletion, currentCompletions, startCompletion } from '@codemirror/autocomplete';
 import { EditorSelection } from '@codemirror/state';
 import { EditorView } from '@codemirror/view';
-import { expect, it } from 'vitest';
+import { expect, it, vi } from 'vitest';
 import { codemirrorAdapter } from '../../src/editors/codemirror/index.js';
 import { hoverSource, hoverTooltipFor } from '../../src/editors/codemirror/hover.js';
 import type { CodeDiagnostic } from '../../src/editors/adapter.js';
@@ -41,7 +41,7 @@ runAdapterContract('codemirror adapter', () => ({
     const out: CodeDiagnostic[] = [];
     forEachDiagnostic(view.state, (d, from, to) => {
       if (d.severity === 'hint') return;
-      const extra = d as typeof d & { code: ProblemCode };
+      const extra = d as typeof d & { code: ProblemCode; swSource: ProblemSource };
       const actions = d.actions?.map((x) => ({ id: (x as typeof x & { id: string }).id, label: x.name, apply: () => x.apply(view, from, to) }));
       out.push({
         from: fromCm(view, from),
@@ -49,7 +49,7 @@ runAdapterContract('codemirror adapter', () => ({
         severity: d.severity,
         message: d.message,
         code: extra.code,
-        source: d.source as ProblemSource,
+        source: extra.swSource,
         ...(actions ? { actions } : {}),
       });
     });
@@ -124,8 +124,25 @@ it('an async hover result is shown by CodeMirror', async () => {
 });
 
 it('a rejected hover shows no tooltip and rejects nothing', async () => {
+  const log = vi.spyOn(console, 'error').mockImplementation(() => {});
   const view = new EditorView({ doc: 'replicas: 2\n' });
   expect(await hoverSource(() => Promise.reject(new Error('nope')))(view, 2)).toBeNull();
+  expect(log).toHaveBeenCalledWith('stack-weaver: hover failed', expect.any(Error));
   expect(await hoverSource(() => undefined)(view, 2)).toBeNull();
   view.destroy();
+  log.mockRestore();
+});
+
+it('diagnostics render no visible source label', () => {
+  const el = document.createElement('div');
+  document.body.append(el);
+  const inst = codemirrorAdapter().mount(el, { text: 'a: 1\n', readOnly: false, theme: 'light', ariaLabel: 'x', onChange() {}, onUndo() {}, onRedo() {} });
+  inst.setDiagnostics([{ from: 0, to: 1, severity: 'error', message: 'm', code: 'schema.type', source: 'schema' }]);
+  const view = viewOf({ el, inst });
+  forEachDiagnostic(view.state, (d) => {
+    expect(d.source).toBeUndefined();
+  });
+  expect(el.querySelector('.cm-diagnosticSource')).toBeNull();
+  inst.destroy();
+  el.remove();
 });
