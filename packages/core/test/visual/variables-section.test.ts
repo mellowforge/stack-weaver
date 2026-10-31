@@ -185,6 +185,65 @@ describe('cards', () => {
     expect(focused()).toBe(select);
   });
 
+  it('a multi-op type change keeps the same select connected and focused (no intermediate render)', async () => {
+    // port → boolean drops the default: two ops, and the declaration is invalid between them.
+    const { editor } = await mount();
+    const select = ctl<HTMLSelectElement>('PORT', 'type');
+    select.focus();
+    type(select, 'boolean');
+    expect(editor.getValue()).toBe(TEXT.replace('    type: port\n    default: 8080\n', '    type: boolean\n'));
+    expect(select.isConnected).toBe(true);
+    expect(ctl('PORT', 'type')).toBe(select);
+    expect(focused()).toBe(select);
+    expect(editor.undo()).toBe(true);
+    expect(editor.getValue()).toBe(TEXT);
+  });
+
+  it('a refused rename shows the message, puts the old name back and keeps focus', async () => {
+    const text = 'x-variables: { PORT: { type: port, default: 8080 } }\n' + BODY; // renameKey in a flow map is refused
+    const { editor } = await mount({ value: text });
+    const name = ctl<HTMLInputElement>('PORT', 'name');
+    name.focus();
+    type(name, 'HTTP_PORT');
+    expect(editor.getValue()).toBe(text);
+    expect(ctl('PORT', 'name')).toBe(name);
+    expect(name.value).toBe('PORT');
+    expect(name.getAttribute('aria-invalid')).toBe('true');
+    expect(card('PORT').querySelector('.sw-field-error')!.textContent).toBe('This value cannot be changed here. Edit it in code.');
+    expect(focused()).toBe(name);
+  });
+
+  it('a refused enum commit keeps the typed values with the message and keeps focus', async () => {
+    const text = 'x-variables:\n  E: { type: enum,\n    enum: [a, b] }\n' + BODY;
+    const { editor } = await mount({ value: text });
+    const input = ctl<HTMLInputElement>('E', 'enum');
+    input.focus();
+    type(input, 'a, c');
+    expect(editor.getValue()).toBe(text);
+    expect(editor.getVariables()).toEqual([{ name: 'E', type: 'enum', enumValues: ['a', 'b'] }]);
+    expect(ctl('E', 'enum')).toBe(input);
+    expect(input.value).toBe('a, c');
+    expect(input.getAttribute('aria-invalid')).toBe('true');
+    expect(card('E').querySelector('.sw-field-error')!.textContent).toBe('This value cannot be changed here. Edit it in code.');
+    expect(focused()).toBe(input);
+  });
+
+  it('a refused first enum commit (type just switched to enum) keeps the enum field and the typed values', async () => {
+    const text = 'x-variables:\n  PORT: { type: port,\n    default: 8080 }\n' + BODY;
+    const { editor } = await mount({ value: text });
+    type(ctl('PORT', 'type'), 'enum');
+    const input = ctl<HTMLInputElement>('PORT', 'enum');
+    input.focus();
+    type(input, 'http, https');
+    expect(editor.getValue()).toBe(text);
+    expect(ctl('PORT', 'enum')).toBe(input);
+    expect(input.closest('[hidden]')).toBeNull();
+    expect(input.value).toBe('http, https');
+    expect(input.getAttribute('aria-invalid')).toBe('true');
+    expect(ctl<HTMLSelectElement>('PORT', 'type').value).toBe('enum');
+    expect(focused()).toBe(input);
+  });
+
   it('keeps focus in the edited control across re-renders', async () => {
     await mount();
     const d = ctl<HTMLInputElement>('TAG', 'description');

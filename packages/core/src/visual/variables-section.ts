@@ -174,8 +174,10 @@ export function mountVariablesSection(ctx: EditorContext, doc: Document): Variab
     }
     const { default: _d, ...rest } = card.decl;
     const withDefault = card.decl.default !== undefined ? { ...rest, default: card.decl.default } : rest;
-    const ok = commit(card, fitted({ ...withDefault, type: 'enum', enumValues: values }), card.enumInput);
-    if (ok) card.pendingEnum = false;
+    const typed = card.enumInput.value;
+    if (commit(card, fitted({ ...withDefault, type: 'enum', enumValues: values }), card.enumInput)) card.pendingEnum = false;
+    // A refused list stays as typed, like a rejected value (the stored one may be empty while the enum is pending).
+    else card.enumInput.value = typed;
   }
 
   function onDefault(card: Card, control: HTMLInputElement | HTMLSelectElement): void {

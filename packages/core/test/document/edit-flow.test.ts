@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { applyEdit } from '../../src/document/edit.js';
+import { applyEdit, isOneLineFlowMap } from '../../src/document/edit.js';
 import type { EditOp } from '../../src/document/edit.js';
 import { parseText } from '../../src/document/parse.js';
 
@@ -65,6 +65,12 @@ describe('applyEdit: delete in a single-line flow map', () => {
   it('keeps a comment after the closing brace', () => {
     expect(edit('m: { a: 1, b: 2 } # note\n', del('m', 'b'))).toBe('m: { a: 1 } # note\n');
     expect(edit('m: { a: 1, b: 2 } # note\n', add(['m'], 'c', 3))).toBe('m: { a: 1, b: 2, c: 3 } # note\n');
+  });
+
+  it('a pair with an empty (null) value ends after its colon', () => {
+    expect(edit('m: { a: , b: 2 }\n', del('m', 'b'), { m: { a: null } })).toBe('m: { a: }\n');
+    expect(edit('m: { a: , b: 2 }\n', del('m', 'a'), { m: { b: 2 } })).toBe('m: { b: 2 }\n');
+    expect(edit('m: { a: }\n', add(['m'], 'c', 1), { m: { a: null, c: 1 } })).toBe('m: { a:, c: 1 }\n');
   });
 
   it('uses UTF-16 offsets', () => {
@@ -165,5 +171,20 @@ describe('applyEdit: flow edits that stay refused', () => {
 
   it('renameKey in a flow map', () => {
     expect(refusal('m: { a: 1, b: 2 }\n', { op: 'renameKey', at: at('m', 'a'), key: 'c' })).toBe('flow');
+  });
+});
+
+describe('isOneLineFlowMap', () => {
+  it('matches the maps whose pairs add and delete splice', () => {
+    const yes = (text: string, ...path: (string | number)[]) => isOneLineFlowMap(parseText(text), at(...path));
+    expect(yes('v: { a: 1 }\n', 'v')).toBe(true);
+    expect(yes('v: { a: { k: 1 } }\n', 'v', 'a')).toBe(true);
+    expect(yes('v: {}\n', 'v')).toBe(true);
+    expect(yes('v: [{ a: 1 }]\n', 'v', 0)).toBe(false);
+    expect(yes('v: { a: 1,\n  b: 2 }\n', 'v')).toBe(false);
+    expect(yes('v: { a: { k: 1 },\n  b: 2 }\n', 'v', 'a')).toBe(false);
+    expect(yes('v:\n  a: 1\n', 'v')).toBe(false);
+    expect(yes('v: [a]\n', 'v')).toBe(false);
+    expect(yes('v: [\n', 'v')).toBe(false);
   });
 });

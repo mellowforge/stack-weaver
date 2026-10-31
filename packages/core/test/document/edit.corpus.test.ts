@@ -3,7 +3,7 @@ import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
 import { isAlias, isMap, isNode, isScalar, isSeq, visit } from 'yaml';
 import type { Node, YAMLMap, YAMLSeq } from 'yaml';
-import { applyEdit, canEdit } from '../../src/document/edit.js';
+import { applyEdit, canEdit, isOneLineFlowMap } from '../../src/document/edit.js';
 import type { ScalarValue } from '../../src/document/edit.js';
 import { parseText } from '../../src/document/parse.js';
 import { getNode, getPairKey } from '../../src/document/paths.js';
@@ -151,12 +151,15 @@ describe.each(files)('corpus %s', (file) => {
     expect(changed).toEqual(Object.keys(IDENTITY_EXCEPTIONS).filter((k) => k.startsWith(`${file} `)));
   });
 
-  it('add on every single-line flow map is a pure insertion on its own line', () => {
+  it('add on every single-line flow map is a pure insertion on its own line; other flow maps refuse', () => {
     for (const { ref, node } of entries) {
       if (!isMap(node) || !node.flow || node.items.length === 0) continue;
-      if (text.slice(node.range![0], node.range![1]).includes('\n')) continue;
       const label = `${file} ${ref.path.join('.')}`;
       const r = applyEdit(p, { op: 'add', at: ref, key: 'zz-added', value: 'v' });
+      if (!isOneLineFlowMap(p, ref)) {
+        expect(r, label).toEqual({ ok: false, reason: 'flow' });
+        continue;
+      }
       expect(r.ok, label).toBe(true);
       if (!r.ok) continue;
       expect(r.change.from, label).toBe(r.change.to);
@@ -204,13 +207,8 @@ describe.each(files)('corpus %s', (file) => {
       // A pair whose value is a flow collection is deletable; only the parent being flow blocks.
       const own = canEdit(p, ref);
       const label = `${file} ${ref.path.join('.')}`;
-      const grandRef = { doc: ref.doc, path: ref.path.slice(0, -2) };
-      const oneLineFlowMap =
-        isMap(parent) &&
-        parent.flow &&
-        !text.slice(parent.range![0], parent.range![1]).includes('\n') &&
-        (ref.path.length < 2 || canEdit(p, grandRef) !== 'flow');
-      if (oneLineFlowMap && (own === undefined || own === 'flow') && !anchorStillUsed(p, ref.doc, parent, node)) {
+      const inOneLineFlowMap = isOneLineFlowMap(p, parentRef);
+      if (inOneLineFlowMap && (own === undefined || own === 'flow') && !anchorStillUsed(p, ref.doc, parent, node)) {
         // A pair of a single-line flow map is spliced out of that line; no other line changes.
         expect(r.ok, label).toBe(true);
         if (!r.ok) continue;

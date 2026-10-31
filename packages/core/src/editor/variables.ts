@@ -115,27 +115,32 @@ export function createVariables(deps: {
     emit(true);
     if (kind === 'external') deps.revalidate();
   };
-  /** True when every op of `ops`, applied in turn, is accepted (a single op needs no dry run: `store.edit` refuses it whole). */
-  const acceptsAll = (ops: readonly EditOp[]): boolean => {
-    if (ops.length < 2) return true;
+  /** The text after every op of `ops` in turn, applied to scratch text; `undefined` when one is refused. */
+  const dryRun = (ops: readonly EditOp[]): string | undefined => {
     let p = store.parsed;
+    let text = p.text;
     for (const [i, op] of ops.entries()) {
       const r = applyEdit(p, op);
-      if (!r.ok) return false;
-      if (i < ops.length - 1) p = parseText(r.text);
+      if (!r.ok) return undefined;
+      text = r.text;
+      if (i < ops.length - 1) p = parseText(text);
     }
-    return true;
+    return text;
   };
   /**
-   * Applies `ops` all or nothing, under one group (one undo step); listeners hear of the net change
-   * once. A dry run on scratch text first, so a refused op leaves the text untouched.
+   * Applies `ops` all or nothing, as one undo step; listeners hear of the net change once. A single
+   * op is one store edit (refused whole). Several ops are applied to scratch text first and then
+   * committed as one store change (the splice between the old and new text), so a refused op
+   * leaves the text untouched and no subscriber, such as the visual pane, ever sees an
+   * intermediate text (where a declaration can be invalid between two ops).
    */
   const applyOps = (ops: readonly EditOp[], prefix: string): boolean => {
-    if (!acceptsAll(ops)) return false;
     hold++;
     try {
-      const group = `${prefix}:${++groupN}`;
-      for (const op of ops) if (!store.edit(op, { group }).ok) return false;
+      if (ops.length === 1) return store.edit(ops[0]!, { group: `${prefix}:${++groupN}` }).ok;
+      const text = dryRun(ops);
+      if (text === undefined) return false;
+      store.setText(text, 'visual'); // a 'visual' change is always its own undo step
       return true;
     } finally {
       hold--;

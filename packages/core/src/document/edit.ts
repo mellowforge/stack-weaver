@@ -319,9 +319,23 @@ function oneLineFlowMap(t: string, m: YAMLMap, chain: readonly Node[]): FlowSpan
 }
 
 /**
+ * True when the node at `ref` is a flow map whose pairs `add` and `delete` can splice: it and every
+ * flow collection around it are maps, and the outermost one sits on one line.
+ * @internal Shared with the corpus tests; not part of the public API.
+ */
+export function isOneLineFlowMap(p: ParsedText, ref: NodeRef): boolean {
+  try {
+    const tg = locate(p, ref);
+    return typeof tg !== 'string' && isMap(tg.node) && tg.node.flow === true && oneLineFlowMap(p.text, tg.node, tg.chain) !== undefined;
+  } catch {
+    return false;
+  }
+}
+
+/**
  * Where each pair of a one-line flow map starts (after the preceding `,` and spaces, so at its
- * props or key) and ends (after its value, or its key when it has none). `undefined` when the
- * text between pairs is not a plain `,` separator.
+ * props or key) and ends (after its value, its `:` when the value is empty, or its key when it has
+ * no `:`). `undefined` when the text between pairs is not a plain `,` separator.
  */
 function flowPairs(t: string, m: YAMLMap, span: FlowSpan): { start: number; end: number }[] | undefined {
   const skip = (i: number): number => {
@@ -335,8 +349,10 @@ function flowPairs(t: string, m: YAMLMap, span: FlowSpan): { start: number; end:
       if (t[at] !== ',') return undefined;
       at = skip(at + 1);
     }
-    const end = (pr.value as Node | null)?.range?.[1] ?? (pr.key as Node | null)?.range?.[1];
+    let end = (pr.value as Node | null)?.range?.[1] ?? (pr.key as Node | null)?.range?.[1];
     if (end === undefined || end < at) return undefined;
+    // An empty (null) value's range sits after the spaces that follow its `:`.
+    while (end > at && (t[end - 1] === ' ' || t[end - 1] === '\t')) end--;
     out.push({ start: at, end });
     at = skip(end);
   }
