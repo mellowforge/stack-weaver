@@ -39,7 +39,9 @@ runAdapterContract('codemirror adapter', () => ({
     const view = viewOf(m);
     const out: CodeDiagnostic[] = [];
     forEachDiagnostic(view.state, (d, from, to) => {
-      if (d.severity !== 'hint') out.push({ from: fromCm(view, from), to: fromCm(view, to), severity: d.severity, message: d.message });
+      if (d.severity === 'hint') return;
+      const actions = d.actions?.map((x) => ({ label: x.name, apply: () => x.apply(view, from, to) }));
+      out.push({ from: fromCm(view, from), to: fromCm(view, to), severity: d.severity, message: d.message, ...(actions ? { actions } : {}) });
     });
     return out;
   },

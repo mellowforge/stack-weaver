@@ -161,7 +161,16 @@ export function createCodePane(
       inst?.reveal(range, { select: true });
     },
     setProblems(problems) {
-      diagnostics = problems.map((p) => ({ from: p.from, to: p.to, severity: p.severity, message: p.message }));
+      diagnostics = problems.map((p) => {
+        const { fix } = p;
+        return {
+          from: p.from,
+          to: p.to,
+          severity: p.severity,
+          message: p.message,
+          ...(fix ? { actions: [{ label: fix.label, apply: () => void ctx.applyFix(p) }] } : {}),
+        };
+      });
       inst?.setDiagnostics(diagnostics);
     },
     setReadOnly(v) {

@@ -128,6 +128,16 @@ export function runAdapterContract(name: string, makeHarness: () => ContractHarn
       expect(h.diagnostics(m)).toEqual([]);
     });
 
+    it('setDiagnostics carries actions, and applying one calls its apply', () => {
+      const m = mount(base('a: 1\nb: 2\n'));
+      const apply = vi.fn();
+      m.inst.setDiagnostics([{ from: 0, to: 1, severity: 'error', message: 'one', actions: [{ label: 'Fix it', apply }] }]);
+      const [d] = h.diagnostics(m);
+      expect(d?.actions?.map((x) => x.label)).toEqual(['Fix it']);
+      d?.actions?.[0]?.apply();
+      expect(apply).toHaveBeenCalledTimes(1);
+    });
+
     it('reveal with select sets the selection', () => {
       const m = mount(base('one\ntwo\nthree\n'));
       m.inst.reveal({ from: 4, to: 7 }, { select: true });

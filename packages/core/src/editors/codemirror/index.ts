@@ -195,7 +195,9 @@ export function codemirrorAdapter(opts: CodemirrorAdapterOptions = {}): CodeEdit
           const s = view.state;
           const mapped: Diagnostic[] = d.map((x) => {
             const from = stateToCm(s, x.from);
-            return { from, to: Math.max(stateToCm(s, x.to), from), severity: x.severity, message: x.message };
+            const diagnostic: Diagnostic = { from, to: Math.max(stateToCm(s, x.to), from), severity: x.severity, message: x.message };
+            if (x.actions?.length) diagnostic.actions = x.actions.map((a) => ({ name: a.label, apply: () => a.apply() }));
+            return diagnostic;
           });
           view.dispatch(setDiagnostics(s, mapped));
         },

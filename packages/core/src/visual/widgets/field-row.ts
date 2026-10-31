@@ -113,6 +113,7 @@ function createFieldRow(ctx: EditorContext, registry: WidgetRegistry, envFor: (p
   let lastView: NodeView = init.view;
   let readOnlyNow = false;
   let problemsSig = '';
+  let fixButtons: HTMLButtonElement[] = [];
   let destroyed = false;
 
   removeBtn.addEventListener('click', () => {
@@ -284,18 +285,30 @@ function createFieldRow(ctx: EditorContext, registry: WidgetRegistry, envFor: (p
       if (cardBtn.textContent !== text) cardBtn.textContent = text;
     }
 
-    const sig = problems.map((p) => `${p.severity}\u0000${p.message}`).join('\u0001');
+    const sig = problems.map((p) => `${p.severity}\u0000${p.message}\u0000${p.fix?.label ?? ''}`).join('\u0001');
     if (sig !== problemsSig) {
       problemsSig = sig;
+      fixButtons = [];
       problemsEl.replaceChildren(
-        ...problems.map((p) =>
-          h(doc, 'li', { class: `sw-row-problem sw-row-problem-${p.severity}` }, [
-            h(doc, 'span', { class: 'sw-sr-only' }, [`${p.severity === 'error' ? ui.severityError : p.severity === 'warning' ? ui.severityWarning : ui.severityInfo}: `]),
-            p.message,
-          ]),
-        ),
+        ...problems.map((p, i) => {
+          const msgId = `${id}-problem-${i}`;
+          const li = h(doc, 'li', { class: `sw-row-problem sw-row-problem-${p.severity}` }, [
+            h(doc, 'span', { id: msgId }, [
+              h(doc, 'span', { class: 'sw-sr-only' }, [`${p.severity === 'error' ? ui.severityError : p.severity === 'warning' ? ui.severityWarning : ui.severityInfo}: `]),
+              p.message,
+            ]),
+          ]);
+          if (p.fix) {
+            const fixBtn = h(doc, 'button', { type: 'button', class: 'sw-row-fix', 'aria-describedby': msgId }, [p.fix.label]);
+            fixBtn.addEventListener('click', () => void ctx.applyFix(p));
+            fixButtons.push(fixBtn);
+            li.append(' ', fixBtn);
+          }
+          return li;
+        }),
       );
     }
+    for (const b of fixButtons) b.disabled = readOnly;
     problemsEl.hidden = problems.length === 0;
   }
 

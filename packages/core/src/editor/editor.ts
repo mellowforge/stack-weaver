@@ -266,7 +266,7 @@ export function createEditorWithContext(
   const codePane = createCodePane(ctx, { el: shell.codeEl, adapter, theme: themeNow, onUndo: () => undo(), onRedo: () => redo() });
   const panes: Pane[] = [visualPane, codePane];
 
-  const panel = createProblemsPanel(shell.problemsEl, { ui, onSelect: (p) => {
+  const panel = createProblemsPanel(shell.problemsEl, { ui, onFix: (p) => ctx.applyFix(p), onSelect: (p) => {
       // The code pane is hidden in visual mode: select the node in the outline instead.
       if (mode !== 'code') visualPane.reveal({ doc: p.doc, path: p.path });
       if (mode !== 'visual') ctx.revealRange({ from: p.from, to: p.to });
@@ -401,6 +401,7 @@ export function createEditorWithContext(
 
   refreshHistory();
   shell.setReadOnly(readOnly);
+  panel.setReadOnly(readOnly);
 
   const editor: ManifestEditor = {
     getValue: () => store.text,
@@ -422,6 +423,7 @@ export function createEditorWithContext(
       readOnly = v;
       for (const p of panes) p.setReadOnly(v);
       shell.setReadOnly(v);
+      panel.setReadOnly(v);
       recipes.refresh();
       refreshHistory();
     },

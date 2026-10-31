@@ -14,6 +14,16 @@ export interface CodeDiagnostic {
   readonly severity: Severity;
   /** Text shown for the marker. Plain text, never markup. */
   readonly message: string;
+  /** Quick fixes offered next to the marker; each `apply` changes the document through the host. */
+  readonly actions?: readonly CodeDiagnosticAction[];
+}
+
+/** One quick fix of a {@link CodeDiagnostic}. */
+export interface CodeDiagnosticAction {
+  /** Plain-text label of the action. */
+  readonly label: string;
+  /** Runs the fix. */
+  apply(): void;
 }
 
 /** Completions for the cursor position: the options replace `[from, cursor)` when accepted. */

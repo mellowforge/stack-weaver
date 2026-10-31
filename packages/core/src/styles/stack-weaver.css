@@ -241,6 +241,43 @@
   font-family: var(--sw-mono);
 }
 
+.sw-problem-item {
+  display: flex;
+  align-items: center;
+}
+
+.sw-problem-item > .sw-problem {
+  flex: 1;
+  min-width: 0;
+}
+
+.sw-problem-fix,
+.sw-row-fix {
+  padding: 2px 8px;
+  color: var(--sw-fg);
+  background: transparent;
+  border: 1px solid var(--sw-control-border);
+  border-radius: 4px;
+  font: inherit;
+  cursor: pointer;
+}
+
+.sw-problem-fix {
+  flex: none;
+  margin-inline: var(--sw-gap);
+}
+
+.sw-problem-fix:hover:not(:disabled),
+.sw-row-fix:hover:not(:disabled) {
+  background: color-mix(in srgb, var(--sw-accent) 10%, transparent);
+}
+
+.sw-problem-fix:disabled,
+.sw-row-fix:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
 .sw-recipes {
   padding: var(--sw-gap);
   border-bottom: 1px solid var(--sw-border);
@@ -606,6 +643,8 @@
 .sw-visual-empty:focus-visible,
 .sw-problems-toggle:focus-visible,
 .sw-problem:focus-visible,
+.sw-problem-fix:focus-visible,
+.sw-row-fix:focus-visible,
 .sw-picker:focus-visible,
 .sw-picker-card:focus-visible,
 .sw-recipe:focus-visible,

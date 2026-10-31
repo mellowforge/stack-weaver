@@ -10,6 +10,8 @@ import { problemCountText } from './problems.js';
 export interface ProblemsPanel {
   /** Shows `problems`; the panel is hidden while there are none. */
   update(problems: readonly Problem[]): void;
+  /** Disables the fix buttons while the editor is read-only. */
+  setReadOnly(readOnly: boolean): void;
 }
 
 // Three different shapes, so severity never rests on colour alone; the text alternative is
@@ -20,10 +22,15 @@ let nextId = 0;
 
 /**
  * Fills `host` (the shell's `.sw-problems` element) with a toggle and the list. Each item is a
- * button; `onSelect` receives the problem it stands for.
+ * button; `onSelect` receives the problem it stands for. A problem with a quick fix gets a second,
+ * sibling button (never nested); `onFix` applies it and returns whether it did, and then the
+ * focus moves to the toggle because the item it was in is gone.
  * @internal
  */
-export function createProblemsPanel(host: HTMLElement, o: { ui: UiMessages; onSelect(problem: Problem): void }): ProblemsPanel {
+export function createProblemsPanel(
+  host: HTMLElement,
+  o: { ui: UiMessages; onSelect(problem: Problem): void; onFix(problem: Problem): boolean },
+): ProblemsPanel {
   const doc = host.ownerDocument;
   const listId = `sw-problem-list-${++nextId}`;
   const label: Record<Severity, string> = { error: o.ui.severityError, warning: o.ui.severityWarning, info: o.ui.severityInfo };
@@ -37,19 +44,32 @@ export function createProblemsPanel(host: HTMLElement, o: { ui: UiMessages; onSe
     list.hidden = !open;
   });
 
+  let readOnly = false;
+
   return {
+    setReadOnly(v) {
+      readOnly = v;
+      for (const b of list.querySelectorAll<HTMLButtonElement>('.sw-problem-fix')) b.disabled = v;
+    },
     update(problems) {
       host.hidden = problems.length === 0;
       toggle.textContent = `${o.ui.problemsLabel}: ${problemCountText(o.ui, problems.length)}`;
-      const items = problems.map((p) => {
+      const items = problems.map((p, i) => {
         const button = h(doc, 'button', { type: 'button', class: 'sw-problem', 'data-sw-severity': p.severity }, [
           h(doc, 'span', { class: 'sw-problem-icon', 'aria-hidden': 'true' }, [ICONS[p.severity]]),
           h(doc, 'span', { class: 'sw-visually-hidden' }, [`${label[p.severity]}: `]),
-          h(doc, 'span', { class: 'sw-problem-message' }, [p.message]),
+          h(doc, 'span', { class: 'sw-problem-message', id: `${listId}-msg-${i}` }, [p.message]),
           h(doc, 'span', { class: 'sw-problem-pos' }, [`${p.line}:${p.col}`]),
         ]);
         button.addEventListener('click', () => o.onSelect(p));
-        return h(doc, 'li', {}, [button]);
+        const { fix } = p;
+        if (!fix) return h(doc, 'li', {}, [button]);
+        const fixButton = h(doc, 'button', { type: 'button', class: 'sw-problem-fix', 'aria-describedby': `${listId}-msg-${i}` }, [fix.label]);
+        fixButton.disabled = readOnly;
+        fixButton.addEventListener('click', () => {
+          if (o.onFix(p)) toggle.focus();
+        });
+        return h(doc, 'li', { class: 'sw-problem-item' }, [button, fixButton]);
       });
       list.replaceChildren(...items);
     },
