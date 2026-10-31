@@ -16,6 +16,7 @@ import {
 } from '@angular/core';
 import { createManifestEditor } from '@stack-weaver/core';
 import type {
+  ChangeOrigin,
   CodeEditorAdapter,
   EditorMessages,
   EditorMode,
@@ -108,6 +109,12 @@ export class SwManifestEditor {
   /** UI and schema message overrides. Init-only. */
   readonly messages = input<EditorMessages | undefined>();
 
+  /**
+   * Every text change with where it came from (`'visual'`, `'code'`, `'api'` or `'history'`), like the core's
+   * `onChange(value, { origin })`. Emitted with `valueChange`; not for a pushed `value`. The payload is frozen.
+   * It is not named `change`: Angular would also bind the DOM `change` event bubbling from the editor's inputs.
+   */
+  readonly textChange = output<{ readonly value: string; readonly origin: ChangeOrigin }>();
   /** The problems, when they change. */
   readonly problemsChange = output<readonly Problem[]>();
   /** The declarations, when an edit changes them; not for a pushed `variables.value`. */
@@ -204,10 +211,13 @@ export class SwManifestEditor {
         guide: init.guide,
         widgets: init.widgets,
         messages: init.messages,
-        onChange: (text) => {
+        onChange: (text, meta) => {
           if (this.pushing) return;
           this.lastValue = text;
-          this.zone.run(() => this.value.set(text));
+          this.zone.run(() => {
+            this.value.set(text);
+            this.textChange.emit(Object.freeze({ value: text, origin: meta.origin }));
+          });
         },
         onModeChange: (m) => {
           this.lastMode = m;

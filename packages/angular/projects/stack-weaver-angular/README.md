@@ -116,6 +116,7 @@ The host element is the editor's container. It has no content of its own: the ed
 | Output | Payload | When |
 | --- | --- | --- |
 | `valueChange` | `string` | Every text change: typing, the form, undo and redo, and controller calls. Not for a pushed `value`. |
+| `textChange` | `{ readonly value: string; readonly origin: ChangeOrigin }` | Every text change with its origin (`'visual'`, `'code'`, `'api'`, `'history'`), emitted together with `valueChange`. Not for a pushed `value`. Controller calls such as `setValue` report `'api'`. |
 | `modeChange` | `EditorMode` | The mode switch, `controller().setMode`, or a control that opens Split. |
 | `activeFormatChange` | `string \| undefined` | The resolved format changed. Also emitted once when the editor first resolves its format. |
 | `problemsChange` | `readonly Problem[]` | The problems changed. |

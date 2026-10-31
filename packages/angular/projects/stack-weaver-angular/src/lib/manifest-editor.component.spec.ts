@@ -2,6 +2,7 @@ import { Component, NgZone, Type, signal, viewChild } from '@angular/core';
 import { ComponentFixture, TestBed } from '@angular/core/testing';
 import type { MockInstance } from 'vitest';
 import type {
+  ChangeOrigin,
   CodeEditorAdapter,
   EditorMode,
   EditorTheme,
@@ -41,6 +42,7 @@ type History = { canUndo: boolean; canRedo: boolean };
       [variables]="variables()"
       [guide]="guide()"
       (valueChange)="values.push($event)"
+      (textChange)="changes.push($event)"
       (modeChange)="modes.push($event)"
       (activeFormatChange)="active.set($event); formats.push($event)"
       (historyChange)="history.set($event); histories.push($event)"
@@ -62,6 +64,7 @@ class Host {
   readonly active = signal<string | undefined>(undefined);
   readonly history = signal<History>({ canUndo: false, canRedo: false });
   readonly values: string[] = [];
+  readonly changes: { value: string; origin: ChangeOrigin }[] = [];
   readonly modes: EditorMode[] = [];
   readonly formats: (string | undefined)[] = [];
   readonly histories: History[] = [];
@@ -143,6 +146,30 @@ describe('sw-manifest-editor', () => {
     expect(f.componentInstance.value()).toBe('a: 2');
     expect(f.componentInstance.values).toEqual(['a: 2']);
     expect(update).not.toHaveBeenCalled();
+  });
+
+  it("typing emits textChange with origin 'code'", async () => {
+    const f = await create(Host);
+    await settle(f);
+    await type(f, 'a: 2');
+    expect(f.componentInstance.changes).toEqual([{ value: 'a: 2', origin: 'code' }]);
+    expect(Object.isFrozen(f.componentInstance.changes[0])).toBe(true);
+  });
+
+  it('a pushed value does not emit textChange', async () => {
+    const f = await create(Host);
+    await settle(f);
+    f.componentInstance.value.set('b: 2');
+    await f.whenStable();
+    expect(f.componentInstance.changes).toEqual([]);
+  });
+
+  it("controller().setValue emits textChange with origin 'api'", async () => {
+    const f = await create(Host);
+    const ed = await settle(f);
+    ed.setValue('b: 2');
+    await f.whenStable();
+    expect(f.componentInstance.changes).toEqual([{ value: 'b: 2', origin: 'api' }]);
   });
 
   it('controlled value: a changed value is pushed and does not echo valueChange', async () => {

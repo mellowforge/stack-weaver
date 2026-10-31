@@ -107,6 +107,7 @@ describe('Angular demo', () => {
     adapter.instances.at(-1)!.type('kind: Pod');
     await fixture.whenStable();
     expect(button('Undo').disabled).toBe(false);
+    expect(status()).toContain('last change: code');
     button('Undo').click();
     await fixture.whenStable();
     expect(controller()!.getValue()).toBe(original);

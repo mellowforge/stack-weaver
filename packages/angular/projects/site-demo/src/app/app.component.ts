@@ -1,6 +1,6 @@
 import { ChangeDetectionStrategy, Component, DestroyRef, ElementRef, inject, input, signal, viewChild, viewChildren } from '@angular/core';
 import { SwManifestEditor } from '@stack-weaver/angular';
-import type { CodeEditorAdapter } from '@stack-weaver/core';
+import type { ChangeOrigin, CodeEditorAdapter } from '@stack-weaver/core';
 import { EXAMPLES, THEMES, THEME_KEY, applyPageTheme, readTheme, statusLine, writeTheme } from '@stack-weaver/demo-kit';
 import type { SiteTheme } from '@stack-weaver/demo-kit';
 
@@ -9,8 +9,6 @@ let instance = 0;
 /**
  * The Angular demo: the same toolbar, split-mode editor and status line as the Vanilla and React demos.
  * `codeEditor` replaces the CodeMirror adapter (tests); pass a stable value.
- *
- * The wrapper reports no change origin, so the status line has no "last change" part here.
  */
 @Component({
   selector: 'app-root',
@@ -53,6 +51,7 @@ let instance = 0;
           [variables]="example().variables"
           [readOnly]="readOnly()"
           [theme]="theme()"
+          (textChange)="origin.set($event.origin)"
           (problemsChange)="problems.set($event.length)"
           (activeFormatChange)="activeFormat.set($event)"
           (historyChange)="history.set($event)"
@@ -77,7 +76,9 @@ export class AppComponent {
   protected readonly history = signal({ canUndo: false, canRedo: false });
   protected readonly problems = signal(0);
   protected readonly activeFormat = signal<string | undefined>(undefined);
-  protected readonly status = () => statusLine({ problems: this.problems(), activeFormat: this.activeFormat() });
+  protected readonly origin = signal<ChangeOrigin | undefined>(undefined);
+  protected readonly status = () =>
+    statusLine({ problems: this.problems(), activeFormat: this.activeFormat(), origin: this.origin() });
 
   constructor() {
     applyPageTheme(document, this.theme());
@@ -96,6 +97,7 @@ export class AppComponent {
     const next = EXAMPLES.find((e) => e.id === id)!;
     this.example.set(next);
     this.value.set(next.value);
+    this.origin.set(undefined);
   }
 
   protected setTheme(theme: SiteTheme): void {
