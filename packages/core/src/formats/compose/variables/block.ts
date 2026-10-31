@@ -117,7 +117,7 @@ export function writeBlockOps(p: ParsedText, decl: VariableDecl, replaces?: stri
   }
   if (block !== null && !isRecord(block)) return undefined;
   const from = replaces ?? decl.name;
-  const old = (block as Raw | null)?.[from];
+  const old = isRecord(block) && Object.hasOwn(block, from) ? block[from] : undefined;
   if (!isRecord(old)) {
     const ops: EditOp[] = [];
     if (old !== undefined) ops.push({ op: 'delete', at: ref(VARIABLES_KEY, from) });
@@ -144,7 +144,7 @@ export function writeBlockOps(p: ParsedText, decl: VariableDecl, replaces?: stri
 /** Ops that delete the entry `name`, or the whole block when it was the only entry. */
 export function removeBlockOps(p: ParsedText, name: string): readonly EditOp[] {
   const { block } = rawBlock(p);
-  if (!isRecord(block) || !(name in block)) return [];
+  if (!isRecord(block) || !Object.hasOwn(block, name)) return [];
   const only = Object.keys(block).length === 1;
   return [{ op: 'delete', at: only ? ref(VARIABLES_KEY) : ref(VARIABLES_KEY, name) }];
 }

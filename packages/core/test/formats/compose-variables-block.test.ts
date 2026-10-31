@@ -137,6 +137,21 @@ describe('composeVariables.writeOps', () => {
     expect(readBlock(parseText(apply(text, ops))).decls).toEqual([next]);
   });
 
+  it('fills an empty x-variables: block, leaving other lines byte-identical', () => {
+    const text = `x-variables:\n${SERVICES}`;
+    const out = apply(text, composeVariables.writeOps(parseText(text), port));
+    expect(out).toBe(`x-variables:\n  WEB_PORT:\n    type: port\n    default: 8080\n${SERVICES}`);
+    expect(readBlock(parseText(out)).decls).toEqual([port]);
+  });
+
+  it('does not match inherited names when replacing or removing', () => {
+    const text = `x-variables:\n  A:\n    type: string\n${SERVICES}`;
+    const ctor: VariableDecl = { name: 'X', type: 'string' };
+    const ops = composeVariables.writeOps(parseText(text), ctor, 'constructor');
+    expect(ops?.map((o) => o.op)).toEqual(['add']);
+    expect(composeVariables.removeOps(parseText(text), 'toString')).toEqual([]);
+  });
+
   it('returns undefined when the root is not a mapping', () => {
     expect(composeVariables.writeOps(parseText('- a\n- b\n'), port)).toBeUndefined();
   });
