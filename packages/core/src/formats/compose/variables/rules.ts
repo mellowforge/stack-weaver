@@ -3,7 +3,7 @@ import { resolveAt } from '../../../engine/resolve.js';
 import { yamlDocs } from '../../../document/internal.js';
 import type { YamlPath } from '../../../document/types.js';
 import { fieldTypes, fitsField, inferVariableType } from '../../../variables/fit.js';
-import type { JsonSchema, Rule, RuleFinding, RuleInput, VariableDecl, VariableType } from '../../types.js';
+import type { JsonSchema, Rule, RuleFinding, RuleInput, VariableDecl } from '../../types.js';
 import { VARIABLES_KEY, blockReadable, readBlock } from './block.js';
 import { scanPlaceholders } from './syntax.js';
 import type { Placeholder } from './syntax.js';
@@ -74,15 +74,18 @@ function fieldSchema(input: RuleInput, site: Site): JsonSchema | undefined {
   return resolveAt(bundle, site.path, input.data[site.doc])?.schema;
 }
 
-/** The inline default of a placeholder as the type the fix declares; `undefined` when there is none or it does not fit. */
-function inlineDefault(ph: Placeholder, type: VariableType): string | number | boolean | undefined {
-  if ((ph.op !== ':-' && ph.op !== '-') || ph.arg === undefined || ph.arg.includes('$')) return undefined;
+/** The declaration a quick fix adds for `ph`: its inline default becomes the default when it fits the type. */
+function declareFor(ph: Placeholder, type: 'string' | 'number' | 'boolean'): VariableDecl {
+  const name = ph.name;
+  const arg = (ph.op !== ':-' && ph.op !== '-') || ph.arg === undefined || ph.arg.includes('$') ? undefined : ph.arg;
   if (type === 'number') {
-    const n = Number(ph.arg);
-    return ph.arg.trim() !== '' && Number.isFinite(n) ? n : undefined;
+    const n = arg === undefined || arg.trim() === '' ? Number.NaN : Number(arg);
+    return Number.isFinite(n) ? { name, type, default: n } : { name, type };
   }
-  if (type === 'boolean') return ph.arg === 'true' ? true : ph.arg === 'false' ? false : undefined;
-  return ph.arg;
+  if (type === 'boolean') {
+    return arg === 'true' || arg === 'false' ? { name, type, default: arg === 'true' } : { name, type };
+  }
+  return arg === undefined ? { name, type } : { name, type, default: arg };
 }
 
 const byName = (decls: readonly VariableDecl[]): Map<string, VariableDecl> => new Map(decls.map((d) => [d.name, d]));
@@ -109,7 +112,6 @@ const undeclared: Rule = {
         if (known.has(ph.name)) continue;
         const schema = isWhole(site, ph) ? fieldSchema(input, site) : undefined;
         const type = schema ? inferVariableType(schema) : 'string';
-        const def = inlineDefault(ph, type);
         out.push({
           severity: 'warning',
           doc: site.doc,
@@ -121,7 +123,7 @@ const undeclared: Rule = {
             params: { name: ph.name },
             action: {
               kind: 'declareVariable',
-              decl: { name: ph.name, type, ...(def !== undefined ? { default: def as string } : {}) },
+              decl: declareFor(ph, type),
             },
           },
         });

@@ -343,3 +343,19 @@ describe('an unknown kind first, then editing the rest (B7)', () => {
     expect(editor.getValue()).not.toContain('Deployment');
   });
 });
+
+describe('Variables selection', () => {
+  const COMPOSE = 'x-variables:\n  PORT:\n    type: port\nservices:\n  web:\n    image: nginx\n';
+
+  it('after a format change the Variables selection does not come back', async () => {
+    const { fake } = await mount({ format: 'auto', mode: 'visual', value: COMPOSE });
+    click('Variables');
+    expect(title()).toBe('Variables');
+    fake.type(''); // an empty text has no format, so no Variables node
+    await vi.waitFor(() => expect(item('Variables')).toBeUndefined());
+    expect(el.querySelector('.sw-variables')).toBeNull();
+    fake.type(COMPOSE); // the node returns, but the selection is not restored
+    await vi.waitFor(() => expect(item('Variables')).toBeTruthy());
+    expect(title()).not.toBe('Variables');
+  });
+});

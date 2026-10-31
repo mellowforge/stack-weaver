@@ -2,6 +2,7 @@ import type { EditOp } from '../document/edit.js';
 import type { NodeRef, ParsedText, TextRange, YamlPath, YamlValue } from '../document/types.js';
 import type { Severity } from '../validation/problems.js';
 import type { MessageFn } from '../validation/messages.js';
+import type { VARIABLE_TYPES } from '../variables/decl.js';
 
 /** A JSON Schema document as plain data. */
 export type JsonSchema = Record<string, unknown>;
@@ -146,21 +147,60 @@ export interface Recipe {
 }
 
 /** The type of a declared variable. */
-export type VariableType = 'string' | 'number' | 'boolean' | 'port' | 'enum';
+export type VariableType = (typeof VARIABLE_TYPES)[number];
 
-/** One declared variable: a named placeholder value a document may reference. */
-export interface VariableDecl {
+/** What every variable declaration has, whatever its type. */
+export interface VariableBase {
   /** The variable's name, as written in the placeholder. */
   readonly name: string;
-  /** The kind of value the variable holds. */
-  readonly type: VariableType;
-  /** The allowed values when `type` is `'enum'`. */
-  readonly enumValues?: readonly string[];
-  /** The value used when none is supplied. */
-  readonly default?: string | number | boolean;
   /** Plain-language description. */
   readonly description?: string;
 }
+
+/** A variable that holds text. */
+export interface StringVariable extends VariableBase {
+  /** The kind of value the variable holds. */
+  readonly type: 'string';
+  /** The value used when none is supplied. */
+  readonly default?: string;
+}
+
+/** A variable that holds a number. */
+export interface NumberVariable extends VariableBase {
+  /** The kind of value the variable holds. */
+  readonly type: 'number';
+  /** The value used when none is supplied. */
+  readonly default?: number;
+}
+
+/** A variable that holds `true` or `false`. */
+export interface BooleanVariable extends VariableBase {
+  /** The kind of value the variable holds. */
+  readonly type: 'boolean';
+  /** The value used when none is supplied. */
+  readonly default?: boolean;
+}
+
+/** A variable that holds a port number (an integer from 1 to 65535). */
+export interface PortVariable extends VariableBase {
+  /** The kind of value the variable holds. */
+  readonly type: 'port';
+  /** The value used when none is supplied. */
+  readonly default?: number;
+}
+
+/** A variable that holds one of a fixed list of strings. */
+export interface EnumVariable extends VariableBase {
+  /** The kind of value the variable holds. */
+  readonly type: 'enum';
+  /** The allowed values. Must not be empty; `validateVariableDecl` checks that at run time. */
+  readonly enumValues: readonly string[];
+  /** The value used when none is supplied; one of `enumValues`. */
+  readonly default?: string;
+}
+
+/** One declared variable: a named placeholder value a document may reference. Narrow on `type`. */
+export type VariableDecl = StringVariable | NumberVariable | BooleanVariable | PortVariable | EnumVariable;
 
 /** What applying a {@link QuickFix} does. */
 export type QuickFixAction =

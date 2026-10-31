@@ -189,6 +189,25 @@ describe('cards', () => {
     expect(card('PORT').querySelector('.sw-variable-enum')).toBeNull();
   });
 
+  it('a type change that drops a default announces it in the status region', async () => {
+    const { editor } = await mount();
+    const status = el.querySelector<HTMLElement>('.sw-variables-status')!;
+    expect(status.getAttribute('role')).toBe('status');
+    expect(status.getAttribute('aria-live')).toBe('polite');
+    expect(status.textContent).toBe('');
+    type(ctl('PORT', 'type'), 'boolean'); // 8080 is not a boolean
+    expect(editor.getVariables()[0]).toEqual({ name: 'PORT', type: 'boolean' });
+    expect(status.textContent).toBe('The default 8080 does not fit the new type and was removed.');
+    type(ctl('PORT', 'type'), 'string'); // nothing left to drop: the next commit clears the message
+    expect(status.textContent).toBe('');
+  });
+
+  it('a type change that keeps the default does not announce', async () => {
+    await mount();
+    type(ctl('PORT', 'type'), 'number');
+    expect(el.querySelector('.sw-variables-status')!.textContent).toBe('');
+  });
+
   it('emptying the allowed values keeps the declaration and shows a message', async () => {
     const { editor } = await mount();
     type(ctl('PORT', 'type'), 'enum');
@@ -350,6 +369,25 @@ describe('cards', () => {
     expect(editor.getValue()).toBe(value);
     expect(error.textContent).toBe(defaultUiMessages.editRefused);
     expect(focused()).toBe(addButton());
+  });
+
+  it('the add-variable error clears once the block is a mapping again', async () => {
+    const { fake } = await mount({ value: `x-variables: 5\n${BODY}` });
+    const error = el.querySelector<HTMLElement>('.sw-variables-error')!;
+    addButton().click();
+    expect(error.textContent).toBe(defaultUiMessages.editRefused);
+    fake.type(TEXT);
+    await vi.waitFor(() => expect(cards().length).toBe(2));
+    expect(error.textContent).toBe('');
+  });
+
+  it('the add-variable error stays while its cause remains', async () => {
+    const { fake } = await mount({ value: `x-variables: 5\n${BODY}` });
+    const error = el.querySelector<HTMLElement>('.sw-variables-error')!;
+    addButton().click();
+    fake.type(`x-variables: 6\n${BODY}`);
+    await new Promise((r) => setTimeout(r, 150));
+    expect(error.textContent).toBe(defaultUiMessages.editRefused);
   });
 });
 

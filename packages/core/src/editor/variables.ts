@@ -3,7 +3,7 @@ import type { DocumentStore } from '../document/store.js';
 import type { FormatDefinition, VariableDecl } from '../formats/types.js';
 import type { Problem } from '../validation/problems.js';
 import { deepFreeze } from '../formats/freeze.js';
-import { checkDecl } from '../variables/decl.js';
+import { validateVariableDecl } from '../variables/decl.js';
 
 /**
  * Why a variable or fix action was refused: `no-fix` (the problem has no fix), `read-only` and
@@ -69,14 +69,14 @@ export interface VariableStore {
 function assertDecls(decls: readonly VariableDecl[]): void {
   const seen = new Set<string>();
   for (const d of decls) {
-    const bad = checkDecl(d);
+    const bad = validateVariableDecl(d);
     if (bad) throw new TypeError(`stack-weaver: invalid variable declaration "${String(d?.name)}" (${bad})`);
     if (seen.has(d.name)) throw new TypeError(`stack-weaver: duplicate variable "${d.name}"`);
     seen.add(d.name);
   }
 }
 
-const copy = (d: VariableDecl): VariableDecl => ({ ...d, ...(d.enumValues ? { enumValues: [...d.enumValues] } : {}) });
+const copy = (d: VariableDecl): VariableDecl => (d.type === 'enum' ? { ...d, enumValues: [...d.enumValues] } : { ...d });
 /** Copies of `decls`, deep-frozen: the host's list and the editor's state never share an object. */
 const frozenCopies = (decls: readonly VariableDecl[]): readonly VariableDecl[] => deepFreeze(decls.map(copy));
 
@@ -187,7 +187,7 @@ export function createVariables(deps: {
     set(decl, replaces) {
       if (deps.isDestroyed()) return refuse('destroyed');
       if (deps.readOnly()) return refuse('read-only');
-      if (checkDecl(decl)) return refuse('invalid');
+      if (validateVariableDecl(decl)) return refuse('invalid');
       const target = replaces ?? decl.name;
       const taken = names();
       if (replaces !== undefined && !taken.includes(replaces)) return refuse('not-found');

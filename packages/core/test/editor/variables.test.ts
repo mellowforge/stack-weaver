@@ -171,7 +171,7 @@ describe('external store', () => {
     expect(heard).toHaveBeenCalledTimes(1);
     await vi.waitFor(() => expect(find(editor.getProblems(), 'rule.undeclared-variable')).toBeUndefined());
     expect(() => editor.setVariables([{ name: 'A', type: 'string' }, { name: 'A', type: 'string' }])).toThrow(TypeError);
-    expect(() => editor.setVariables([{ name: 'A', type: 'enum' }])).toThrow(TypeError);
+    expect(() => editor.setVariables([{ name: 'A', type: 'enum' } as unknown as VariableDecl])).toThrow(TypeError);
     expect(editor.getVariables()).toEqual([{ name: 'PORT', type: 'port' }]);
   });
 
@@ -249,7 +249,7 @@ describe('invalid initial declarations', () => {
 describe('declarations handed out are frozen', () => {
   const ENUM = { name: 'MODE', type: 'enum', enumValues: ['a', 'b'], default: 'a' } as const;
   const deeplyFrozen = (decls: readonly VariableDecl[]): boolean =>
-    Object.isFrozen(decls) && decls.every((d) => Object.isFrozen(d) && (d.enumValues === undefined || Object.isFrozen(d.enumValues)));
+    Object.isFrozen(decls) && decls.every((d) => Object.isFrozen(d) && (d.type !== 'enum' || Object.isFrozen(d.enumValues)));
 
   it.each(['x-variables', 'external'] as const)('%s store: getVariables, get() and every listener payload', async (store) => {
     const onVariablesChange = vi.fn();

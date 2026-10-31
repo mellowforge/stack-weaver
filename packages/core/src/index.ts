@@ -32,6 +32,12 @@ export type {
   Recipe,
   VariableType,
   VariableDecl,
+  VariableBase,
+  StringVariable,
+  NumberVariable,
+  BooleanVariable,
+  PortVariable,
+  EnumVariable,
   QuickFixAction,
   QuickFix,
   RuleInput,
@@ -40,6 +46,8 @@ export type {
   Rule,
   FormatVariables,
 } from './formats/types.js';
+export { VARIABLE_TYPES, validateVariableDecl } from './variables/decl.js';
+export type { VariableDeclIssue } from './variables/decl.js';
 export { registerFormat, getFormat, detectFormat } from './formats/registry.js';
 export { mergeGuide, guideField, kindKey } from './formats/guide.js';
 

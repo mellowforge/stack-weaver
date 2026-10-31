@@ -112,6 +112,17 @@ export async function validateText(
   return sortProblems(out);
 }
 
+const warnedKeys = new Set<string>();
+
+/** Warns, once per rule and key, that the rule's merged message table lacks `key` (the problem then shows the key itself). */
+function warnMissingKey(ruleId: string, key: string, table: SchemaMessages): void {
+  if (Object.hasOwn(table, key)) return;
+  const id = `${ruleId}\u0000${key}`;
+  if (warnedKeys.has(id)) return;
+  warnedKeys.add(id);
+  console.warn(`stack-weaver: rule "${ruleId}" has no message for "${key}"`);
+}
+
 /** Runs one rule; a throw (from `check` or from a message) becomes a single `rule.failed` error. */
 function runRule(
   p: ParsedText,
@@ -149,6 +160,8 @@ function runRule(
       },
     });
     return findings.map((f) => {
+      warnMissingKey(rule.id, code, table);
+      if (f.fix) warnMissingKey(rule.id, f.fix.key, table);
       let range: Range;
       if (f.range) range = [f.range.from, f.range.to];
       else range = pathRange(p, f.doc, f.path, f.at);

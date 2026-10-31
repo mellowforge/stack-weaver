@@ -1,4 +1,4 @@
-import type { JsonSchema, VariableDecl, VariableType } from '../formats/types.js';
+import type { JsonSchema, VariableDecl } from '../formats/types.js';
 
 type FieldType = 'string' | 'number' | 'integer' | 'boolean';
 
@@ -51,7 +51,7 @@ export function fieldTypes(schema: JsonSchema): ReadonlySet<FieldType> {
  * string, `boolean` fits boolean, and `enum` fits string fields (every member must be allowed by
  * the field's own `enum`, if it has one). A field with no scalar type accepts anything.
  */
-export function fitsField(decl: Pick<VariableDecl, 'type' | 'enumValues'>, schema: JsonSchema): boolean {
+export function fitsField(decl: VariableDecl, schema: JsonSchema): boolean {
   const types = fieldTypes(schema);
   if (types.size === 0) return true;
   switch (decl.type) {
@@ -66,7 +66,7 @@ export function fitsField(decl: Pick<VariableDecl, 'type' | 'enumValues'>, schem
     default: {
       if (!types.has('string')) return false;
       const allowed = schema['enum'];
-      return !Array.isArray(allowed) || (decl.enumValues ?? []).every((v) => allowed.includes(v));
+      return !Array.isArray(allowed) || (decl.type === 'enum' ? decl.enumValues : []).every((v) => allowed.includes(v));
     }
   }
 }
@@ -76,7 +76,7 @@ export function fitsField(decl: Pick<VariableDecl, 'type' | 'enumValues'>, schem
  * `'string'` next to other types (such as an environment value), else boolean, number (for integer
  * or number), else string.
  */
-export function inferVariableType(schema: JsonSchema): VariableType {
+export function inferVariableType(schema: JsonSchema): 'string' | 'number' | 'boolean' {
   const types = fieldTypes(schema);
   if (Array.isArray(schema['type']) && types.has('string') && types.size > 1) return 'string';
   if (types.has('boolean')) return 'boolean';

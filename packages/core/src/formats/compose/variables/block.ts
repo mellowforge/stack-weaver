@@ -2,8 +2,8 @@ import { toData } from '../../../document/data.js';
 import type { EditOp } from '../../../document/edit.js';
 import { renderValue } from '../../../document/render.js';
 import type { NodeRef, ParsedText, YamlPath, YamlValue } from '../../../document/types.js';
-import { checkDecl } from '../../../variables/decl.js';
-import type { VariableDecl, VariableType } from '../../types.js';
+import { validateVariableDecl } from '../../../variables/decl.js';
+import type { VariableDecl } from '../../types.js';
 
 /** The root key of the compose block that declares variables. */
 export const VARIABLES_KEY = 'x-variables';
@@ -60,19 +60,15 @@ function readEntry(
   }
   const list = raw.enum;
   if (list !== undefined && raw.type !== 'enum') return fail('badField', [...path, 'enum']);
-  const enumValues =
-    Array.isArray(list) && list.length > 0 && list.every((v) => typeof v === 'string')
-      ? (list as string[])
-      : undefined;
-  const decl: VariableDecl = {
+  const candidate = {
     name,
-    type: raw.type as VariableType,
-    ...(enumValues ? { enumValues } : {}),
-    ...(raw.default !== undefined ? { default: raw.default as string } : {}),
-    ...(raw.description !== undefined ? { description: raw.description as string } : {}),
+    type: raw.type,
+    ...(list !== undefined ? { enumValues: list } : {}),
+    ...(raw.default !== undefined ? { default: raw.default } : {}),
+    ...(raw.description !== undefined ? { description: raw.description } : {}),
   };
-  const reason = checkDecl(decl);
-  if (reason === undefined) return { decl };
+  const reason = validateVariableDecl(candidate);
+  if (reason === undefined) return { decl: candidate as VariableDecl };
   if (reason === 'noEnumValues') return fail(reason, list === undefined ? path : [...path, 'enum']);
   if (reason === 'badType') return fail(reason, [...path, 'type']);
   if (reason === 'badDefault') return fail(reason, [...path, 'default']);
@@ -105,7 +101,7 @@ export function readBlock(p: ParsedText): {
 
 const entryValue = (d: VariableDecl): Raw => ({
   type: d.type,
-  ...(d.enumValues ? { enum: [...d.enumValues] } : {}),
+  ...(d.type === 'enum' ? { enum: [...d.enumValues] } : {}),
   ...(d.default !== undefined ? { default: d.default } : {}),
   ...(d.description !== undefined ? { description: d.description } : {}),
 });

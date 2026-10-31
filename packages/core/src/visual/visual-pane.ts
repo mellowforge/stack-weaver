@@ -241,6 +241,7 @@ export function createVisualPane(
         variablesSelected = hit.type === 'variables';
       }
     }
+    if (!flat.has(VARIABLES_ID)) variablesSelected = false; // the node is gone (for example after a format change): a later one is not the selection
     const sel =
       (variablesSelected ? flat.get(VARIABLES_ID) : undefined) ??
       (selectedRef ? nearest(selectedRef) : undefined) ??

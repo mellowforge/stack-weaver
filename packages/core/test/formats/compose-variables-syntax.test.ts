@@ -44,7 +44,7 @@ describe('substituteValue', () => {
   it('substitutes whole placeholders with the declared type', () => {
     const d = decls(
       { name: 'P', type: 'port', default: 8080 },
-      { name: 'N', type: 'number', default: '3' },
+      { name: 'N', type: 'number', default: '3' } as unknown as VariableDecl,
       { name: 'B', type: 'boolean', default: true },
       { name: 'E', type: 'enum', enumValues: ['dev', 'prod'], default: 'dev' },
       { name: 'S', type: 'string', default: 'x' },

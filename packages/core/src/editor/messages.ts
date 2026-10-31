@@ -174,6 +174,8 @@ export interface UiMessages {
   variableTypeEnum: string;
   /** Shown when the allowed values of a one-of-a-list variable are left empty. */
   variableEnumValuesRequired: string;
+  /** Announced when a type change removes the variable's default because it no longer fits; `{value}` is the removed default. */
+  variableDefaultDropped: string;
   /** Accessible name of the button that switches a field between its own value and a variable. */
   useVariable: string;
   /** Accessible name of the variable select of a field; `{label}` is replaced by the field's label. */
@@ -275,6 +277,7 @@ export const defaultUiMessages: UiMessages = {
   variableTypePort: 'Port',
   variableTypeEnum: 'One of a list',
   variableEnumValuesRequired: 'List at least one value.',
+  variableDefaultDropped: 'The default {value} does not fit the new type and was removed.',
   useVariable: 'Use variable',
   variableSelect: 'Variable for {label}',
   variableNone: 'No variables of this type yet. Add one under Variables.',

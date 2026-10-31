@@ -273,3 +273,35 @@ describe('RuleInput.message', () => {
     expect(await probe({ 'demo.part': () => 'host' })).toEqual(['host', 'demo.missing']);
   });
 });
+
+describe('rule message hygiene', () => {
+  it('a missing rule message key warns once and still yields a problem', async () => {
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => undefined);
+    const action = { kind: 'edit', ops: [] } as const;
+    const r: Rule = {
+      id: 'hygiene-missing',
+      messages: {}, // neither "rule.hygiene-missing" nor the fix key
+      check: () => [
+        { severity: 'error', doc: 0, path: ['a'], params: {}, fix: { key: 'fix.hygiene-missing', action } },
+        { severity: 'error', doc: 0, path: ['a'], params: {}, fix: { key: 'fix.hygiene-missing', action } },
+      ],
+    };
+    const text = parseText('a: 5\n');
+    for (let i = 0; i < 2; i++) {
+      const probs = await validateText(text, fake({ rules: [r] }));
+      expect(probs.map((p) => p.code)).toEqual(['rule.hygiene-missing', 'rule.hygiene-missing']);
+      expect(probs[0]!.fix?.id).toBe('fix.hygiene-missing');
+    }
+    expect(warn.mock.calls.map((c) => c[0])).toEqual([
+      'stack-weaver: rule "hygiene-missing" has no message for "rule.hygiene-missing"',
+      'stack-weaver: rule "hygiene-missing" has no message for "fix.hygiene-missing"',
+    ]);
+  });
+
+  it('a rule with all its messages does not warn', async () => {
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => undefined);
+    const r = rule(() => [{ severity: 'error', doc: 0, path: ['a'], params: { x: 1 } }]);
+    await validateText(parseText('a: 5\n'), fake({ rules: [r] }));
+    expect(warn).not.toHaveBeenCalled();
+  });
+});

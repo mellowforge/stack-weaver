@@ -3,7 +3,7 @@ import { h } from '../editor/dom.js';
 import type { UiMessages } from '../editor/messages.js';
 import type { ActionResult } from '../editor/variables.js';
 import type { VariableDecl, VariableType } from '../formats/types.js';
-import { NAME_PATTERN, checkDecl } from '../variables/decl.js';
+import { NAME_PATTERN, VARIABLE_TYPES, validateVariableDecl } from '../variables/decl.js';
 
 /**
  * The Variables section of the visual pane.
@@ -20,7 +20,7 @@ export interface VariablesSection {
   destroy(): void;
 }
 
-const TYPES: readonly VariableType[] = ['string', 'number', 'boolean', 'port', 'enum'];
+const TYPES = VARIABLE_TYPES;
 
 const typeLabel = (ui: UiMessages, t: VariableType): string =>
   ({
@@ -59,17 +59,17 @@ function clean(d: VariableDecl): VariableDecl {
   return {
     name: d.name,
     type: d.type,
-    ...(d.type === 'enum' && d.enumValues ? { enumValues: [...d.enumValues] } : {}),
+    ...(d.type === 'enum' ? { enumValues: [...d.enumValues] } : {}),
     ...(d.default !== undefined ? { default: d.default } : {}),
     ...(d.description !== undefined && d.description !== '' ? { description: d.description } : {}),
-  };
+  } as VariableDecl;
 }
 
 /** `d` without its default when the default does not fit the type any more. */
 function fitted(d: VariableDecl): VariableDecl {
-  if (checkDecl(d) !== 'badDefault') return d;
+  if (validateVariableDecl(d) !== 'badDefault') return d;
   const { default: _dropped, ...rest } = d;
-  return rest;
+  return rest as VariableDecl;
 }
 
 let nextId = 0;
@@ -88,9 +88,18 @@ export function mountVariablesSection(ctx: EditorContext, doc: Document): Variab
   const add = h(doc, 'button', { type: 'button', class: 'sw-btn sw-variables-add' }, [ui.addVariable]);
   // Says why "Add variable" did nothing (for example, the block is not a mapping).
   const addError = h(doc, 'p', { class: 'sw-field-error sw-variables-error', role: 'alert' });
-  const el = h(doc, 'div', { class: 'sw-variables' }, [empty, list, add, addError]);
+  // Announces what the section did on its own, such as dropping a default that no longer fits.
+  const status = h(doc, 'p', { class: 'sw-variables-status', role: 'status', 'aria-live': 'polite' });
+  const el = h(doc, 'div', { class: 'sw-variables' }, [empty, list, add, addError, status]);
 
   const disabled = (): boolean => ctx.readOnly() || !ctx.store.parsed.ok;
+  /** Whether "Add variable" would be accepted now: not read-only, the text parses and the block can take an entry. */
+  function canAdd(): boolean {
+    const vs = ctx.variables();
+    if (!vs || disabled()) return false;
+    if (vs.kind === 'external') return true;
+    return ctx.format()?.variables?.writeOps(ctx.store.parsed, { name: 'VAR_1', type: 'string' }) !== undefined;
+  }
   const names = (): string[] => ctx.variables()?.get().map((d) => d.name) ?? [];
 
   const field = (cls: string, label: string, control: HTMLElement): HTMLElement =>
@@ -112,7 +121,7 @@ export function mountVariablesSection(ctx: EditorContext, doc: Document): Variab
     if (r.ok) return '';
     if (r.reason === 'name-taken') return ui.variableNameTaken.replace('{name}', decl.name);
     if (r.reason === 'invalid') {
-      const issue = checkDecl(decl);
+      const issue = validateVariableDecl(decl);
       if (issue === 'badName') return ui.variableNameInvalid;
       if (issue === 'noEnumValues') return ui.variableEnumValuesRequired;
       if (issue === 'badDefault') return decl.type === 'port' ? ui.invalidInteger : ui.invalidNumber;
@@ -128,6 +137,7 @@ export function mountVariablesSection(ctx: EditorContext, doc: Document): Variab
    * controls go back to the stored declaration (in place, keeping focus) and `control` shows `editRefused`.
    */
   function commit(card: Card, next: VariableDecl, control: HTMLElement, replaces = card.key): boolean {
+    status.textContent = '';
     const d = clean(next);
     if (JSON.stringify(d) === JSON.stringify(clean(card.decl)) && !card.pendingEnum) {
       showError(card, undefined, '');
@@ -173,17 +183,28 @@ export function mountVariablesSection(ctx: EditorContext, doc: Document): Variab
     }
   }
 
+  /** Commits `retyped` without a default that no longer fits, and announces the removal. */
+  function commitFitted(card: Card, retyped: VariableDecl, control: HTMLElement): boolean {
+    const next = fitted(retyped);
+    const ok = commit(card, next, control);
+    if (ok && retyped.default !== undefined && next.default === undefined) {
+      status.textContent = ui.variableDefaultDropped.replace('{value}', String(retyped.default));
+    }
+    return ok;
+  }
+
   function onType(card: Card): void {
     const type = card.type.value as VariableType;
-    if (type === 'enum' && !card.decl.enumValues?.length) {
-      card.pendingEnum = true;
-      patch(card, card.decl);
+    if (type === 'enum') {
+      // Without values there is nothing to write yet: the card waits for the list.
+      card.pendingEnum = card.decl.type !== 'enum';
+      if (card.pendingEnum) patch(card, card.decl);
       return;
     }
     card.pendingEnum = false;
-    const { enumValues, ...rest } = card.decl;
-    const next = fitted(type === 'enum' ? { ...rest, type, enumValues } : { ...rest, type });
-    if (commit(card, next, card.type) && card.type.value !== card.decl.type) patch(card, card.decl);
+    const { name, default: value, description } = card.decl;
+    const retyped = { name, type, ...(value !== undefined ? { default: value } : {}), ...(description !== undefined ? { description } : {}) } as VariableDecl;
+    if (commitFitted(card, retyped, card.type) && card.type.value !== card.decl.type) patch(card, card.decl);
   }
 
   function onEnum(card: Card): void {
@@ -192,10 +213,10 @@ export function mountVariablesSection(ctx: EditorContext, doc: Document): Variab
       showError(card, card.enumInput, ui.variableEnumValuesRequired);
       return;
     }
-    const { default: _d, ...rest } = card.decl;
-    const withDefault = card.decl.default !== undefined ? { ...rest, default: card.decl.default } : rest;
+    const { name, default: value, description } = card.decl;
     const typed = card.enumInput.value;
-    if (commit(card, fitted({ ...withDefault, type: 'enum', enumValues: values }), card.enumInput)) card.pendingEnum = false;
+    const listed = { name, type: 'enum', enumValues: values, ...(value !== undefined ? { default: value } : {}), ...(description !== undefined ? { description } : {}) } as VariableDecl;
+    if (commitFitted(card, listed, card.enumInput)) card.pendingEnum = false;
     // A refused list stays as typed, like a rejected value (the stored one may be empty while the enum is pending).
     else card.enumInput.value = typed;
   }
@@ -284,11 +305,11 @@ export function mountVariablesSection(ctx: EditorContext, doc: Document): Variab
 
     if (effective === 'enum') {
       if (!card.enumField.isConnected) card.typeField.after(card.enumField);
-      setValue(card.enumInput, (decl.enumValues ?? []).join(', '));
+      setValue(card.enumInput, (decl.type === 'enum' ? decl.enumValues : []).join(', '));
     } else card.enumField.remove();
 
     const kind: DefaultKind = effective === 'boolean' ? 'boolean' : effective === 'enum' ? 'enum' : 'text';
-    const values = effective === 'enum' ? (decl.enumValues ?? []) : [];
+    const values = effective === 'enum' && decl.type === 'enum' ? decl.enumValues : [];
     const sig = `${kind}:${values.join('\u0000')}`;
     let control = card.defaultField.querySelector<HTMLInputElement | HTMLSelectElement>(':scope > .sw-variable-default');
     if (!control || card.defaultSig !== sig) {
@@ -331,6 +352,7 @@ export function mountVariablesSection(ctx: EditorContext, doc: Document): Variab
     });
     empty.hidden = decls.length > 0;
     add.disabled = disabled();
+    if (addError.textContent !== '' && canAdd()) addError.textContent = ''; // what refused the add is gone
     if (lostFocus && !add.disabled) add.focus();
   }
 
