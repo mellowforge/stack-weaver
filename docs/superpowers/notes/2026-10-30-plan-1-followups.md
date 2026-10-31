@@ -195,8 +195,3 @@ Each was found in a per-task review and judged not worth blocking the task. Grou
   visual tree; `renameKey` inside a flow map is still refused (`flow`); an enum change on a flow entry moves `enum:` last.
 - Finding F2 (Plan 1/2 behaviour, not a regression): with `format: 'auto'` the format detected from the initial text stays
   locked; `setValue` of a compose document into a Kubernetes-detected editor validates it as Kubernetes.
-
-**Found in the milestone fix wave (not fixed)**
-- When a field's type list holds `'string'` and other scalar types, `fieldTypes` drops `'string'`. So a compose
-  `environment` value (`string | number | boolean | null`) reports `variable-type` for a whole-value `string` or `enum`
-  variable (`LOG: ${MODE}`). Decide whether only a `[T, 'string']` pair should drop it.

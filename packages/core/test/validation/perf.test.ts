@@ -81,7 +81,7 @@ it('1000-line compose file with many placeholders validates under 50ms warm (bes
       '    ports:',
       `      - "\${P${i % 10}}:80"`,
       '    environment:',
-      '      LOG: "level-${MODE}"',
+      '      LOG: ${MODE}',
       '      DEBUG: "${FLAG}"',
       `      URL: "http://\${HOST:-localhost}:\${P${i % 10}}/x"`,
       '    labels:',

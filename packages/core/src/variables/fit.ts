@@ -3,6 +3,8 @@ import type { JsonSchema, VariableDecl, VariableType } from '../formats/types.js
 type FieldType = 'string' | 'number' | 'integer' | 'boolean';
 
 const SCALARS: readonly string[] = ['string', 'number', 'integer', 'boolean'];
+/** The types a `[T, 'string']` list stands for (compose interpolation; the widget registry's `baseType` reads it the same way). */
+const INTERPOLATED: readonly string[] = ['boolean', 'integer', 'number'];
 const isObj = (v: unknown): v is JsonSchema => v !== null && typeof v === 'object' && !Array.isArray(v);
 
 function collect(schema: JsonSchema, into: Set<FieldType>): void {
@@ -11,9 +13,11 @@ function collect(schema: JsonSchema, into: Set<FieldType>): void {
     if (SCALARS.includes(t)) into.add(t as FieldType);
   } else if (Array.isArray(t)) {
     // A list like ['integer', 'string'] is how a field takes a number or its placeholder text:
-    // the other type is the real one.
+    // the other type is the real one. Only that pair (one boolean, integer or number type next to
+    // 'string', 'null' aside) drops 'string'; a list such as an environment value's
+    // ['string', 'number', 'boolean', 'null'] takes strings too (R20).
     let kept = t.filter((x): x is string => typeof x === 'string' && x !== 'null');
-    if (kept.length > 1 && kept.includes('string')) kept = kept.filter((x) => x !== 'string');
+    if (kept.length === 2 && kept.includes('string') && kept.some((x) => INTERPOLATED.includes(x))) kept = kept.filter((x) => x !== 'string');
     for (const x of kept) if (SCALARS.includes(x)) into.add(x as FieldType);
   } else if (Array.isArray(schema['enum'])) {
     for (const v of schema['enum']) {
@@ -30,9 +34,10 @@ function collect(schema: JsonSchema, into: Set<FieldType>): void {
 
 /**
  * The scalar types a field accepts: its `type` (a string or a list), the branches of `anyOf` /
- * `oneOf`, or, when it has no `type`, the value types of its `enum`. In a type list that pairs a
- * type T with `'string'` (and optionally `'null'`), the `'string'` is dropped: `[T, 'string']`
- * gives `{T}`. Non-scalar types are left out, so an empty set means "no scalar constraint".
+ * `oneOf`, or, when it has no `type`, the value types of its `enum`. In a type list that is exactly
+ * one of `boolean`, `integer` or `number` plus `'string'` (and optionally `'null'`), the `'string'`
+ * is dropped: `[T, 'string']` gives `{T}`. Any other list keeps it. Non-scalar types are left out,
+ * so an empty set means "no scalar constraint".
  */
 export function fieldTypes(schema: JsonSchema): ReadonlySet<FieldType> {
   const out = new Set<FieldType>();
@@ -66,9 +71,14 @@ export function fitsField(decl: Pick<VariableDecl, 'type' | 'enumValues'>, schem
   }
 }
 
-/** The variable type a new variable for this field should have: boolean, number (for integer or number), else string. */
+/**
+ * The variable type a new variable for this field should have: string for a type list that keeps
+ * `'string'` next to other types (such as an environment value), else boolean, number (for integer
+ * or number), else string.
+ */
 export function inferVariableType(schema: JsonSchema): VariableType {
   const types = fieldTypes(schema);
+  if (Array.isArray(schema['type']) && types.has('string') && types.size > 1) return 'string';
   if (types.has('boolean')) return 'boolean';
   if (types.has('integer') || types.has('number')) return 'number';
   return 'string';

@@ -176,8 +176,21 @@ describe('variable-type', () => {
     const text = doc('boolean');
     const ps = rules(await run(text), 'variable-type');
     expect(ps.map((p) => [p.severity, p.message, slice(text, p)])).toEqual([
-      ['error', 'V is a boolean variable, but this field takes integer.', '${V}'],
+      ['error', 'V has type boolean, but this field takes integer.', '${V}'],
     ]);
     expect(rules(await run(doc('number')))).toEqual([]);
+  });
+
+  it('a string or enum variable fits an environment value, in mapping and list form (R20)', async () => {
+    const block = 'x-variables:\n  S:\n    type: string\n  M:\n    type: enum\n    enum: [a, b]\n  B:\n    type: boolean\n';
+    const mapping = `${block}services:\n  web:\n    image: nginx\n    environment:\n      KEY: \${S}\n      MODE: \${M}\n      ON: \${B}\n`;
+    const flow = `${block}services:\n  web:\n    image: nginx\n    environment: { KEY: "\${S}" }\n`;
+    const list = `${block}services:\n  web:\n    image: nginx\n    environment:\n      - \${S}\n      - KEY=\${S}\n`;
+    for (const text of [mapping, flow, list]) expect(await run(text)).toEqual([]);
+  });
+
+  it('the fix for an undeclared environment value declares a string (R20)', async () => {
+    const ps = rules(await run('services:\n  web:\n    image: nginx\n    environment:\n      KEY: ${S}\n'), 'undeclared-variable');
+    expect(ps.map((p) => p.fix?.action)).toEqual([{ kind: 'declareVariable', decl: { name: 'S', type: 'string' } }]);
   });
 });

@@ -188,7 +188,7 @@ const variableType: Rule = {
   id: 'variable-type',
   messages: {
     'rule.variable-type': (e) =>
-      `${String(e.params['name'])} is a ${String(e.params['type'])} variable, but this field takes ${String(e.params['expected'])}.`,
+      `${String(e.params['name'])} has type ${String(e.params['type'])}, but this field takes ${String(e.params['expected'])}.`,
   },
   check(input) {
     if (declarationsUnknown(input)) return [];
