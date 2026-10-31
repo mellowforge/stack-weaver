@@ -429,7 +429,8 @@ editor.ready; /* Promise<void>, see below */ editor.destroy();
     until the declarations change; `WidgetContext.locale`; `MessageParams` is exported.
   - **R11.** `PluralMessage.none` is the text for exactly 0; `zero` is only the CLDR plural category (Latvian selects it
     for 10). The default `problemCount` is `{ none, one, other }`.
-  - **R12.** Under `'auto'`, `'history'` changes (undo, redo) re-detect the format like `'api'` ones; typing does not.
+  - **R12.** Under `'auto'`, `'history'` changes (undo, redo) re-detect the format like `'api'` ones; typing does not
+    (refined by R16: only history steps whose original change was `'api'` re-detect; undoing typed text keeps the format).
   - **R13.** The editor's internal problem-list comparison also compares `path` (a same-length key rename
     republishes); the public `sameProblem` keeps P5.
 

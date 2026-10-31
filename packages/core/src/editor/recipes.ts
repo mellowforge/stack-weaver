@@ -20,12 +20,16 @@ function isEmptyText(ctx: EditorContext): boolean {
   return parsed.ok && allDocumentsEmpty(parsed);
 }
 
-const warnedFormats = new Set<string>();
+const warnedRecipes = new Set<string>();
 
-/** `console.warn`s `message` the first time `formatId` is seen (per page: a host's mistake is told once, not per click). */
-function warnOnce(message: string, formatId: string): void {
-  if (warnedFormats.has(formatId)) return;
-  warnedFormats.add(formatId);
+/**
+ * `console.warn`s `message` the first time `recipe` is chosen while its format is missing (per page and per recipe and
+ * format: a host's mistake is told once, not per click, and another recipe's is told too).
+ */
+function warnOnce(message: string, recipe: Recipe): void {
+  const key = `${recipe.id}\0${recipe.format}`;
+  if (warnedRecipes.has(key)) return;
+  warnedRecipes.add(key);
   console.warn(message);
 }
 
@@ -80,7 +84,7 @@ export function createRecipeCards(
     ctx.store.setText(recipe.yaml, 'api');
     const format = o.formats().find((f) => f.id === recipe.format);
     if (format) o.fixFormat(format);
-    else warnOnce(`stack-weaver: recipe "${recipe.id}" belongs to the format "${recipe.format}", which is not loaded; its text was inserted but the format was not fixed`, recipe.format);
+    else warnOnce(`stack-weaver: recipe "${recipe.id}" belongs to the format "${recipe.format}", which is not loaded; its text was inserted but the format was not fixed`, recipe);
     // One reveal: `select` shows the node in the code editor and the visual pane; in visual and
     // split mode the focus then lands on the field's widget, once the schema has loaded.
     if (recipe.focus && rangeForRef(ctx.store.parsed, recipe.focus)) {

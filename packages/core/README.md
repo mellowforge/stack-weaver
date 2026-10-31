@@ -103,7 +103,7 @@ CodeMirror. Give the host element a height: the editor fills it, with a 320px mi
 
 | Option | Meaning |
 | --- | --- |
-| `format` | `'kubernetes'`, `'compose'`, the id of one of your `formats`, or `'auto'` to detect it from the text. Under `'auto'` the format is detected again whenever you set the text (`setValue`, `update({ value })`) and on undo and redo; typing never switches a detected format. Change it later with `setFormat`. |
+| `format` | `'kubernetes'`, `'compose'`, the id of one of your `formats`, or `'auto'` to detect it from the text. Under `'auto'` the format is detected again whenever you set the text (`setValue`, `reset`, `update({ value })`) and on undo and redo of such API changes; typing, and undoing or redoing typed text, never switches a detected format. Change it later with `setFormat`. |
 | `value`, `mode` | The initial text, and `'visual'`, `'split'` (the default) or `'code'`. |
 | `readOnly` | Blocks edits in both panes. Change it later with `setReadOnly`. |
 | `theme` | `'light'`, `'dark'`, or `'auto'` (the default) to follow `prefers-color-scheme`. Change it later with `setTheme`. |
@@ -117,7 +117,7 @@ CodeMirror. Give the host element a height: the editor fills it, with a 320px mi
 | `onChange(value, { origin })` | Called after every change. `origin` is `'visual'`, `'code'`, `'api'` (`setValue`) or `'history'` (undo and redo). |
 | `onProblemsChange(problems)` | Called with the problems (a frozen array) when the validation result changes. |
 | `onModeChange(mode)` | Called when the mode changes: by the user, by `setMode`, or when an "Edit in code" or "Jump to error" link opens Split from Visual. |
-| `onFormatChange(activeFormat)` | Called with the id of the resolved format (or `undefined`) when it changes: by detection, `setFormat`, a recipe's format choice, and the first load. Not called when the option changes but the resolved format stays the same. |
+| `onFormatChange(activeFormat)` | Called with the id of the resolved format (or `undefined`) when it changes: by detection, `setFormat`, a recipe's format choice, and when the editor first resolves its format (not called at creation when no format resolves). Not called when the option changes but the resolved format stays the same. |
 | `onHistoryChange({ canUndo, canRedo })` | Called when either flag changes: after an edit, undo, redo, `clearHistory` or `reset`. The flags ignore read-only mode. |
 | `onVariablesChange(decls)` | Called when the effective variable declarations change. See [Compose variables](#compose-variables). |
 
@@ -139,7 +139,7 @@ and a later text change keeps the current one.
 `reset(text)` replaces the text as an `'api'` change and clears the undo history (no `onChange` when the text is equal);
 `clearHistory()` keeps the text and empties the history; `canUndo()` and `canRedo()` read the history flags, which
 ignore read-only mode. Under `format: 'auto'`, undo and redo re-detect the format only for steps that came from the API
-(`setValue`, `reset`); undoing or redoing typed text keeps the format.
+(`setValue`, `reset`, `update({ value })`, recipe insertion); undoing or redoing typed text keeps the format.
 
 Not every action can run: `applyFix` returns an `ActionResult`, `{ ok: true }` or `{ ok: false, reason }`.
 `reason` is an `ActionRefusal`: `'no-fix'`, `'read-only'`, `'destroyed'`, `'unavailable'` (no variables for this

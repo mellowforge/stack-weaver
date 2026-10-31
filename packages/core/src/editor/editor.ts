@@ -42,6 +42,14 @@ export type EditorMessages = {
   readonly locale?: string;
 };
 
+/** The undo and redo flags that `onHistoryChange` reports (as a frozen object). */
+export interface HistoryState {
+  /** Whether there is a step to undo. */
+  readonly canUndo: boolean;
+  /** Whether there is a step to redo. */
+  readonly canRedo: boolean;
+}
+
 /**
  * Options for {@link createManifestEditor}.
  *
@@ -57,8 +65,9 @@ export interface ManifestEditorOptions {
   /**
    * `'kubernetes'`, `'compose'`, the id of a host format, or `'auto'` to detect it from the text. Default `'auto'`.
    * An unknown id resolves to no format. Under `'auto'` the format is detected again whenever the text is set
-   * through the API (`setValue`, `update({ value })`) and on undo and redo; typing never switches a detected
-   * format. Change it with {@link ManifestEditorController.setFormat}.
+   * through the API (`setValue`, `reset`, `update({ value })`) and on undo and redo of such API changes; typing,
+   * and undoing or redoing typed text, never switches a detected format. Change it with
+   * {@link ManifestEditorController.setFormat}.
    */
   readonly format?: 'kubernetes' | 'compose' | 'auto' | (string & {});
   /** Initial YAML text. Default `''`. */
@@ -95,8 +104,9 @@ export interface ManifestEditorOptions {
   readonly onModeChange?: (mode: EditorMode) => void;
   /**
    * Called with the id of the resolved format (`undefined` when there is none) whenever it changes: by detection
-   * under `'auto'`, {@link ManifestEditorController.setFormat}, a recipe's format choice, and the first load.
-   * Not called when only the option changes and the resolved format stays the same. A throw is logged.
+   * under `'auto'`, {@link ManifestEditorController.setFormat}, a recipe's format choice, and when the editor first
+   * resolves its format (not called at creation when no format resolves). Not called when only the option changes
+   * and the resolved format stays the same. A throw is logged.
    */
   readonly onFormatChange?: (activeFormat: string | undefined) => void;
   /**
@@ -104,7 +114,7 @@ export interface ManifestEditorOptions {
    * {@link ManifestEditorController.clearHistory} or {@link ManifestEditorController.reset}. The flags ignore
    * read-only mode. A throw is logged.
    */
-  readonly onHistoryChange?: (state: { readonly canUndo: boolean; readonly canRedo: boolean }) => void;
+  readonly onHistoryChange?: (state: HistoryState) => void;
   /**
    * Where variable declarations live: `{ store: 'x-variables' }` (the default) keeps them in the
    * document's variables block; `{ store: 'external', value }` keeps them in a list the host owns
@@ -153,10 +163,14 @@ export interface ManifestEditorController {
   setValue(text: string): void;
   /**
    * Replaces the text as an `'api'` change (one `onChange`; none when it is equal) and clears the undo and redo
-   * history, so the new text is the starting point: nothing to undo. Under `'auto'` the format is detected again.
+   * history, so the new text is the starting point: nothing to undo. Under `'auto'` the format is detected again
+   * when the text changes. A no-op after {@link destroy}.
    */
   reset(text: string): void;
-  /** Empties the undo and redo history and keeps the text; calls `onHistoryChange` if a flag changed. */
+  /**
+   * Empties the undo and redo history and keeps the text; calls `onHistoryChange` if a flag changed. A no-op after
+   * {@link destroy}.
+   */
   clearHistory(): void;
   /** Whether there is a step to undo. The store's flag: it ignores read-only mode (`undo()` does not). */
   canUndo(): boolean;
@@ -483,7 +497,10 @@ export function createEditorWithContext(
   /**
    * Under `auto`: the format a new editor would detect for the text. Broken text keeps the current format, so
    * typing (or setting) text through a syntax error does not flicker. Returns false when a host `detect` threw
-   * (logged once per distinct message until a detection succeeds).
+   * (logged once per distinct message until a detection succeeds) and then leaves the format as it is: the caller
+   * decides. There are two policies. Resolving the option (`resolveOption`: the first load and `setFormat`) drops
+   * the format, so a newly applied option never shows a half-applied one. A text change (the store subscription)
+   * keeps the old format, so a `detect` that throws on some text does not clear the format on every keystroke.
    */
   function redetect(): boolean {
     const p = store.parsed;
@@ -558,7 +575,8 @@ export function createEditorWithContext(
           if (!redetect()) applyFormat(undefined);
         } else applyFormat(resolveFormat(opt, store.parsed, formatList));
       } catch (err) {
-        // A host format's `detect` threw: there is no format rather than a half-applied one.
+        // Not a throwing `detect` (`redetect` catches and logs those): applying the format threw. There is then no
+        // format rather than a half-applied one.
         console.error('stack-weaver: the format detection threw', err);
         applyFormat(undefined);
       }

@@ -273,4 +273,24 @@ describe('choosing a recipe whose format is not loaded', () => {
     expect(warn).toHaveBeenCalledWith(expect.stringContaining('"gone"'));
     root.remove();
   });
+
+  it('two recipes of the same missing format each warn once', async () => {
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
+    const { ctx } = await mount({ format: 'kubernetes' });
+    // Ids no other test uses: the warning is told once per page.
+    const vanished: FormatDefinition = { ...composeFormat, id: 'vanished', label: 'Vanished', recipes: [] };
+    let loaded: readonly FormatDefinition[] = [vanished];
+    const recipe = (id: string): Recipe => ({ id, format: 'vanished', title: id, description: 'D', yaml: 'x: 1\n' });
+    const root = document.createElement('div');
+    document.body.append(root);
+    const cards = createRecipeCards(ctx, { root, auto: () => true, formats: () => loaded, hostRecipes: [recipe('v1'), recipe('v2')], knownFormats: new Set(['vanished']), fixFormat: vi.fn(), focusCode: () => {} });
+    cards.refresh();
+    loaded = [];
+    for (const id of ['v1', 'v1', 'v2', 'v2']) {
+      root.querySelector<HTMLButtonElement>(`button[data-sw-recipe="${id}"]`)!.click();
+      ctx.store.setText('', 'api'); // empty again, so the cards come back
+    }
+    expect(warn.mock.calls.map(([message]) => String(message).match(/recipe "(\w+)"/)?.[1])).toEqual(['v1', 'v2']);
+    root.remove();
+  });
 });
