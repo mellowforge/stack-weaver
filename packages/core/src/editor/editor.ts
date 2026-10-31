@@ -178,6 +178,19 @@ export function createEditorWithContext(
   let problems: readonly Problem[] = [];
   const problemListeners = new Set<(p: readonly Problem[]) => void>();
 
+  // Created before any side effect (listeners, DOM): invalid initial declarations throw a TypeError here.
+  const variables = createVariables({
+    option: options.variables,
+    store,
+    format: () => format,
+    readOnly: () => readOnly,
+    isDestroyed: () => destroyed,
+    onChange: (decls) => {
+      if (options.onVariablesChange) guarded('an onVariablesChange callback', () => options.onVariablesChange?.(decls));
+    },
+    revalidate: () => void scheduler.run(), // the scheduler's staleness guard only sees text changes
+  });
+
   // Theme: 'auto' follows prefers-color-scheme. The media query is watched while the theme is 'auto'.
   let theme: EditorTheme = options.theme ?? 'auto';
   let mq: MediaQueryList | undefined;
@@ -194,17 +207,6 @@ export function createEditorWithContext(
   };
   watchScheme(theme === 'auto');
 
-  const variables = createVariables({
-    option: options.variables,
-    store,
-    format: () => format,
-    readOnly: () => readOnly,
-    isDestroyed: () => destroyed,
-    onChange: (decls) => {
-      if (options.onVariablesChange) guarded('an onVariablesChange callback', () => options.onVariablesChange?.(decls));
-    },
-    revalidate: () => void scheduler.run(), // the scheduler's staleness guard only sees text changes
-  });
   const cache = createBundleCache({ store, format: () => format, isDestroyed: () => destroyed });
   const ctx: EditorContext = {
     store,

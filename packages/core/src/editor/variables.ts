@@ -96,13 +96,14 @@ export function createVariables(deps: {
     if (deps.isDestroyed()) return;
     const decls = get();
     for (const fn of [...listeners]) {
+      if (deps.isDestroyed()) return; // a listener may have destroyed the editor
       try {
         fn(decls);
       } catch (err) {
         console.error('stack-weaver: a variables callback threw', err);
       }
     }
-    if (host) deps.onChange(decls);
+    if (host && !deps.isDestroyed()) deps.onChange(decls);
   };
   const check = (): void => {
     if (hold > 0) return;

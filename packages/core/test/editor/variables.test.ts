@@ -193,7 +193,71 @@ spec:
   });
 });
 
+describe('invalid initial declarations', () => {
+  it('throw before any listener or DOM is set up', () => {
+    const add = vi.fn();
+    const mq = { matches: false, addEventListener: add, removeEventListener: vi.fn() };
+    vi.spyOn(window, 'matchMedia').mockReturnValue(mq as unknown as MediaQueryList);
+    el.innerHTML = '<i id="keep"></i>';
+    expect(() => createEditorWithContext(el, { theme: 'auto', variables: { store: 'external', value: [{ name: '1x', type: 'string' }] } })).toThrow(TypeError);
+    expect(add).not.toHaveBeenCalled();
+    expect(el.querySelector('#keep')).not.toBeNull(); // the host element was not touched
+  });
+});
+
+describe('applyFix(edit) steps', () => {
+  const YAML = 'a: 1\n';
+  const fix = (ops: unknown[]) => ({ fix: { label: 'x', action: { kind: 'edit', ops } } }) as unknown as Problem;
+  const add = (key: string) => ({ op: 'add', at: { doc: 0, path: [] }, key, value: 'v' });
+
+  it('applies several ops as one undo step', async () => {
+    const { editor } = await mount({ format: 'kubernetes', value: YAML });
+    expect(editor.applyFix(fix([add('b'), add('c')]))).toBe(true);
+    expect(editor.getValue()).toBe('a: 1\nb: v\nc: v\n');
+    expect(editor.undo()).toBe(true);
+    expect(editor.getValue()).toBe(YAML);
+  });
+
+  it('on a refused op returns false, keeps the earlier ops, and one undo reverts them', async () => {
+    const { editor } = await mount({ format: 'kubernetes', value: YAML });
+    const bad = { op: 'set', at: { doc: 0, path: ['nope', 'deeper'] }, value: 1 };
+    expect(editor.applyFix(fix([add('b'), bad]))).toBe(false);
+    expect(editor.getValue()).toBe('a: 1\nb: v\n');
+    expect(editor.undo()).toBe(true);
+    expect(editor.getValue()).toBe(YAML);
+  });
+});
+
 describe('destroy and failures', () => {
+  it('a listener that destroys the editor stops the remaining callbacks', async () => {
+    const onVariablesChange = vi.fn();
+    const { editor, ctx } = await mount({ value: UNDECLARED, variables: { store: 'external', value: [] }, onVariablesChange });
+    const later = vi.fn();
+    ctx.onVariables(() => editor.destroy());
+    ctx.onVariables(later);
+    ctx.variables()!.set({ name: 'A', type: 'string' });
+    expect(later).not.toHaveBeenCalled();
+    expect(onVariablesChange).not.toHaveBeenCalled();
+  });
+
+  it('the external store is inert after destroy', async () => {
+    const onVariablesChange = vi.fn();
+    const { editor, ctx } = await mount({ value: UNDECLARED, variables: { store: 'external', value: [{ name: 'A', type: 'string' }] }, onVariablesChange });
+    const heard = vi.fn();
+    ctx.onVariables(heard);
+    const vs = ctx.variables()!;
+    const problem = find(editor.getProblems(), 'rule.undeclared-variable')!;
+    editor.destroy();
+    expect(() => editor.setVariables([{ name: 'B', type: 'string' }])).not.toThrow();
+    expect(() => editor.setVariables([{ name: 'B', type: 'string' }, { name: 'B', type: 'string' }])).not.toThrow(); // destroyed: not even validated
+    expect(vs.set({ name: 'C', type: 'string' })).toBe(false);
+    expect(vs.remove('A')).toBe(false);
+    expect(editor.applyFix(problem)).toBe(false);
+    expect(ctx.applyFix(problem)).toBe(false);
+    expect(onVariablesChange).not.toHaveBeenCalled();
+    expect(heard).not.toHaveBeenCalled();
+  });
+
   it('no variable callback after destroy', async () => {
     const onVariablesChange = vi.fn();
     const { editor, ctx, fake } = await mount({ value: WITH_BLOCK, onVariablesChange });
