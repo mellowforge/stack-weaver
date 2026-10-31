@@ -1,0 +1,66 @@
+{
+  "name": "@stack-weaver/react",
+  "version": "0.0.0",
+  "description": "React bindings for @stack-weaver/core: a visual and code editor for Kubernetes and docker-compose YAML.",
+  "license": "MIT",
+  "author": "Konstantin Penzin",
+  "homepage": "https://constantine-24.github.io/stack-weaver/",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/Constantine-24/stack-weaver.git",
+    "directory": "packages/react"
+  },
+  "bugs": {
+    "url": "https://github.com/Constantine-24/stack-weaver/issues"
+  },
+  "keywords": [
+    "kubernetes",
+    "docker-compose",
+    "yaml",
+    "editor",
+    "schema",
+    "react"
+  ],
+  "type": "module",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
+    }
+  },
+  "sideEffects": false,
+  "files": [
+    "dist",
+    "README.md",
+    "LICENSE",
+    "CHANGELOG.md"
+  ],
+  "scripts": {
+    "build": "tsc -p tsconfig.build.json",
+    "test": "vitest run",
+    "typecheck": "tsc --noEmit -p tsconfig.json",
+    "test:smoke": "pnpm build && node scripts/smoke.mjs"
+  },
+  "peerDependencies": {
+    "@stack-weaver/core": "workspace:0.x",
+    "react": "^19.0.0",
+    "react-dom": "^19.0.0"
+  },
+  "devDependencies": {
+    "@stack-weaver/core": "workspace:*",
+    "@stack-weaver/demo-kit": "workspace:*",
+    "@testing-library/dom": "^10.4.2",
+    "@testing-library/react": "^16.3.3",
+    "@types/react": "^19.3.0",
+    "@types/react-dom": "^19.3.0",
+    "happy-dom": "^21.0.4",
+    "react": "^19.3.1",
+    "react-dom": "^19.3.1",
+    "typescript": "^7.0.2",
+    "vitest": "^5.0.5"
+  },
+  "publishConfig": {
+    "access": "public"
+  }
+}
