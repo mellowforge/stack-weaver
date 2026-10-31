@@ -42,13 +42,23 @@ interface Located {
   readonly range: { readonly from: number; readonly to: number };
 }
 
+/** The first index of `literal` from `from` that is not preceded by an odd run of `$` (an escaped `$`). */
+function indexOfUnescaped(source: string, literal: string, from: number): number {
+  for (let at = source.indexOf(literal, from); at >= 0; at = source.indexOf(literal, at + 1)) {
+    let run = 0;
+    while (at - run > 0 && source[at - run - 1] === '$') run++;
+    if (run % 2 === 0) return at;
+  }
+  return -1;
+}
+
 /** Each placeholder of a site with its range in the source: its own text, else the whole scalar. */
 function located(input: RuleInput, site: Site): Located[] {
   const source = input.parsed.text.slice(site.range[0], site.range[1]);
   let cursor = 0;
   return site.holes.map((ph) => {
     const literal = site.value.slice(ph.start, ph.end);
-    const at = source.indexOf(literal, cursor);
+    const at = indexOfUnescaped(source, literal, cursor);
     if (at < 0) return { ph, range: { from: site.range[0], to: site.range[1] } };
     cursor = at + literal.length;
     return { ph, range: { from: site.range[0] + at, to: site.range[0] + cursor } };
@@ -161,7 +171,7 @@ const variableDeclaration: Rule = {
       severity: 'error' as const,
       doc: 0,
       path: issue.path,
-      params: { name: issue.name, reason: REASONS[issue.reason] ?? issue.reason },
+      params: { name: issue.name, reason: input.message(`variable-declaration.${issue.reason}`) },
     }));
   },
 };

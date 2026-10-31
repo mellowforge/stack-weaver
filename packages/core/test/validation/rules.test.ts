@@ -228,3 +228,27 @@ describe('rules in validateText', () => {
     ]);
   });
 });
+
+describe('RuleInput.message', () => {
+  const probe = async (messages?: Record<string, () => string>) => {
+    const seen: string[] = [];
+    const r: Rule = {
+      id: 'demo',
+      messages: { 'rule.demo': () => 'x', 'demo.part': (e) => `default ${String(e.params['v'])}` },
+      check: (input) => {
+        seen.push(input.message('demo.part', { v: 1 }), input.message('demo.missing'));
+        return [];
+      },
+    };
+    await validateText(parseText('a: 1\n'), fake({ rules: [r] }), messages ? { messages } : {});
+    return seen;
+  };
+
+  it('uses the rule default, and an unknown key gives the key', async () => {
+    expect(await probe()).toEqual(['default 1', 'demo.missing']);
+  });
+
+  it('a host override wins', async () => {
+    expect(await probe({ 'demo.part': () => 'host' })).toEqual(['host', 'demo.missing']);
+  });
+});

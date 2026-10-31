@@ -187,6 +187,11 @@ export interface RuleInput {
   readonly variables: readonly VariableDecl[];
   /** Where `variables` came from: the document itself, or the host (`validateText`'s `variables` option). */
   readonly variableSource: 'document' | 'host';
+  /**
+   * Formats an entry of the message table for this rule: the host's `messages` over the rule's own
+   * `messages`. An unknown key gives the key itself.
+   */
+  message(key: string, params?: Readonly<Record<string, unknown>>): string;
 }
 
 /** One problem a {@link Rule} found; `validateText` turns it into a `Problem`. */

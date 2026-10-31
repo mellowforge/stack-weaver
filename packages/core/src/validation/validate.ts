@@ -135,6 +135,8 @@ function runRule(
       bundles: ctx.bundles,
       variables: ctx.decls,
       variableSource: ctx.host ? 'host' : 'document',
+      message: (key, params = {}) =>
+        Object.hasOwn(table, key) ? messageFor({ instancePath: '', keyword: key, params: { ...params } }, table) : key,
     });
     return findings.map((f) => {
       let range: Range;

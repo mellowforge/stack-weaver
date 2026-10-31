@@ -45,6 +45,18 @@ describe('undeclared-variable', () => {
     expect(ps.map((p) => slice(text, p))).toEqual(['${ONE}', '${TWO}']);
   });
 
+  it.each([
+    ['plain', 'echo $${X} ${X}', '${X}'],
+    ['plain', 'echo $$HOME $HOME', '$HOME'],
+    ['double-quoted', '"echo $${X} ${X}"', '${X}'],
+    ['double-quoted', '"echo $$HOME $HOME"', '$HOME'],
+  ])('%s: an escaped placeholder before a real one does not steal the range (%s)', async (_k, value, want) => {
+    const text = `services:\n  web:\n    image: nginx\n    command: ${value}\n`;
+    const ps = rules(await run(text), 'undeclared-variable');
+    expect(ps.map((p) => slice(text, p))).toEqual([want]);
+    expect(ps[0]?.from).toBe(text.indexOf(value) + value.lastIndexOf(want));
+  });
+
   it('a placeholder inside x-variables is never reported', async () => {
     const text = 'x-variables:\n  A:\n    type: string\n    description: "use ${B}"\nservices:\n  web:\n    image: ${A}\n';
     expect(rules(await run(text))).toEqual([]);
@@ -99,9 +111,12 @@ describe('variable-declaration', () => {
     expect(ps).toEqual([]);
   });
 
-  it('reason texts are translatable through the rule messages', async () => {
-    const rule = composeFormat.rules?.find((r) => r.id === 'variable-declaration');
-    expect(Object.keys(rule?.messages ?? {})).toContain('variable-declaration.badType');
+  it('reason texts are translatable through the reason keys', async () => {
+    const ps = rules(await validateText(parseText(text), composeFormat, { messages: { 'variable-declaration.badType': () => 'Typ unbekannt' } }));
+    expect(ps.map((p) => p.message)).toEqual([
+      'Invalid declaration of BAD: Typ unbekannt.',
+      'Invalid declaration of S: must be a mapping.',
+    ]);
   });
 });
 
