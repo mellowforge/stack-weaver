@@ -1,0 +1,54 @@
+/* Page tokens shared by the Vanilla, React and Angular demos. Every text/background pair is >= 4.5:1
+   and every control border >= 3:1 (WCAG 2.2 AA) in both themes.
+   light: fg #0f172a on #fff 17.8; muted-strong #475569 on #fff 7.6 / on surface #f1f5f9 6.9;
+          accent #1d4ed8 on #fff 6.7 / on surface 5.9; border-strong #64748b on #fff 4.8
+   dark:  fg #e2e8f0 on #0f172a 14.6; muted-strong #94a3b8 on #0f172a 6.9 / on surface #1e293b 5.7;
+          accent #93c5fd on #0f172a 9.3 / on surface 7.5; border-strong #94a3b8 on #0f172a 6.9 */
+:root {
+  color-scheme: light;
+  --site-bg: #ffffff;
+  --site-surface: #f1f5f9;
+  --site-fg: #0f172a;
+  --site-muted-strong: #475569;
+  --site-border: #cbd5e1;
+  --site-border-strong: #64748b;
+  --site-accent: #1d4ed8;
+  --site-radius: 10px;
+  --site-font: system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
+  --site-mono: ui-monospace, 'SF Mono', Menlo, Consolas, monospace;
+}
+
+:root[data-theme='light'] {
+  color-scheme: light;
+}
+
+:root[data-theme='dark'] {
+  color-scheme: dark;
+  --site-bg: #0f172a;
+  --site-surface: #1e293b;
+  --site-fg: #e2e8f0;
+  --site-muted-strong: #94a3b8;
+  --site-border: #334155;
+  --site-border-strong: #94a3b8;
+  --site-accent: #93c5fd;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme]) {
+    color-scheme: dark;
+    --site-bg: #0f172a;
+    --site-surface: #1e293b;
+    --site-fg: #e2e8f0;
+    --site-muted-strong: #94a3b8;
+    --site-border: #334155;
+    --site-border-strong: #94a3b8;
+    --site-accent: #93c5fd;
+  }
+}
+
+body {
+  margin: 0;
+  font-family: var(--site-font);
+  color: var(--site-fg);
+  background: var(--site-bg);
+}
