@@ -172,6 +172,8 @@ export interface UiMessages {
   variableTypePort: string;
   /** Label of the one-of-a-list variable type. */
   variableTypeEnum: string;
+  /** Shown when the allowed values of a one-of-a-list variable are left empty. */
+  variableEnumValuesRequired: string;
 }
 
 /** The English UI strings. */
@@ -262,4 +264,5 @@ export const defaultUiMessages: UiMessages = {
   variableTypeBoolean: 'Yes/No',
   variableTypePort: 'Port',
   variableTypeEnum: 'One of a list',
+  variableEnumValuesRequired: 'List at least one value.',
 };

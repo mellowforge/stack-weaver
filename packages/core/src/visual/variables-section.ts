@@ -153,7 +153,6 @@ export function mountVariablesSection(ctx: EditorContext, doc: Document): Variab
     if (type === 'enum' && !card.decl.enumValues?.length) {
       card.pendingEnum = true;
       patch(card, card.decl);
-      card.enumInput.focus();
       return;
     }
     card.pendingEnum = false;
@@ -166,7 +165,7 @@ export function mountVariablesSection(ctx: EditorContext, doc: Document): Variab
   function onEnum(card: Card): void {
     const values = card.enumInput.value.split(',').map((v) => v.trim()).filter((v) => v !== '');
     if (values.length === 0) {
-      if (!card.pendingEnum) showError(card, card.enumInput, ui.editRefused);
+      showError(card, card.enumInput, ui.variableEnumValuesRequired);
       return;
     }
     const { default: _d, ...rest } = card.decl;

@@ -131,8 +131,12 @@ describe('cards', () => {
   it('changing type to enum shows allowed values; an incompatible default is dropped', async () => {
     const { editor } = await mount();
     expect(card('PORT').querySelector('.sw-variable-enum')).toBeNull();
+    ctl<HTMLSelectElement>('PORT', 'type').focus();
     type(ctl('PORT', 'type'), 'enum');
     expect(ctl('PORT', 'enum')).toBeTruthy();
+    expect(ctl('PORT', 'enum').isConnected).toBe(true);
+    expect(ctl('PORT', 'enum').closest('[hidden]')).toBeNull();
+    expect(focused()).toBe(ctl('PORT', 'type')); // WCAG 3.2.2: changing the select does not move focus
     expect(ctl<HTMLSelectElement>('PORT', 'type').value).toBe('enum');
     type(ctl('PORT', 'enum'), 'http, https , ');
     expect(editor.getVariables()[0]).toEqual({ name: 'PORT', type: 'enum', enumValues: ['http', 'https'] });
@@ -145,6 +149,17 @@ describe('cards', () => {
     type(ctl('PORT', 'type'), 'string');
     expect(editor.getVariables()[0]).toEqual({ name: 'PORT', type: 'string' });
     expect(card('PORT').querySelector('.sw-variable-enum')).toBeNull();
+  });
+
+  it('emptying the allowed values keeps the declaration and shows a message', async () => {
+    const { editor } = await mount();
+    type(ctl('PORT', 'type'), 'enum');
+    type(ctl('PORT', 'enum'), 'a, b');
+    const before = editor.getValue();
+    type(ctl('PORT', 'enum'), ' , ');
+    expect(ctl('PORT', 'enum').getAttribute('aria-invalid')).toBe('true');
+    expect(card('PORT').querySelector('.sw-field-error')!.textContent).toBe('List at least one value.');
+    expect(editor.getValue()).toBe(before);
   });
 
   it('a default that still fits the new type is kept', async () => {
