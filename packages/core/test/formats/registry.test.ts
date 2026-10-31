@@ -50,3 +50,37 @@ describe('format registry', () => {
     expect(detectFormat(p)?.id).toBe('first');
   });
 });
+
+describe('detectFormat input', () => {
+  beforeEach(() => resetFormats());
+  const spy = (seen: unknown[]): FormatDefinition => ({ ...make('spy', false), detect: (input) => (seen.push(input), false) });
+
+  it('builds the DetectInput once and gives every format the same object', () => {
+    const seen: unknown[] = [];
+    detectFormat(parseText('a: 1\n---\nb: 2\n'), [spy(seen), spy(seen)]);
+    expect(seen).toHaveLength(2);
+    expect(seen[0]).toBe(seen[1]);
+    expect(seen[0]).toEqual({ docs: [{ a: 1 }, { b: 2 }] });
+  });
+
+  it('gives undefined for empty or unbuildable documents and no documents for broken text', () => {
+    const seen: { docs: unknown[] }[] = [];
+    detectFormat(parseText('a: 1\n---\n---\nb: {<<: 5}\n'), [spy(seen)]);
+    expect(seen[0]!.docs).toEqual([{ a: 1 }, undefined, undefined]);
+    detectFormat(parseText('a: [\n'), [spy(seen)]);
+    expect(seen[1]!.docs).toEqual([]);
+  });
+
+  it('throws a TypeError for a look-alike ParsedText, even one claiming ok: false', () => {
+    const real = parseText('a: 1\n');
+    expect(() => detectFormat({ ...real }, [make('x', true)])).toThrow(TypeError);
+    expect(() => detectFormat({ ...real, ok: false }, [make('x', true)])).toThrow(TypeError);
+  });
+
+  it('registerFormat does not freeze a host format (P13)', () => {
+    const f = make('host', true);
+    registerFormat(f);
+    expect(Object.isFrozen(f)).toBe(false);
+    expect(getFormat('host')).toBe(f);
+  });
+});

@@ -9,6 +9,8 @@ import { createProblemScheduler } from '../../src/editor/problems.js';
 import type { ManifestEditorOptions } from '../../src/editor/editor.js';
 import type { FormatDefinition, SchemaBundle } from '../../src/formats/types.js';
 import type { Problem } from '../../src/validation/problems.js';
+import { validateText } from '../../src/validation/validate.js';
+import { parseText } from '../../src/document/parse.js';
 import { createFakeAdapter } from '../helpers/fake-adapter.js';
 
 let el: HTMLElement;
@@ -198,6 +200,27 @@ describe('validation scheduling', () => {
   });
 });
 
+describe('the editor validates like validateText', () => {
+  const kinded: FormatDefinition = {
+    ...twoErrors,
+    id: 'kinded',
+    rootModel: 'documents',
+    loadSchema: async (data) => ((data as { kind?: unknown } | undefined)?.kind === 'A' ? bundle('a', ['x']) : undefined),
+  };
+  const texts = {
+    'a keyless document after a kinded one': 'apiVersion: v1\nkind: A\nx: 1\n---\ny: 1\n',
+    'a merged apiVersion and kind': 'base: &b\n  apiVersion: v1\n  kind: A\n---\n<<: *b\nx: 1\n',
+  };
+  for (const [name, value] of Object.entries(texts)) {
+    it(name, async () => {
+      const { editor } = await mount({ format: 'kinded', formats: [kinded], value });
+      const direct = await validateText(parseText(value), kinded);
+      const shape = (ps: readonly Problem[]) => ps.map((x) => [x.code, x.from, x.path]);
+      expect(shape(editor.getProblems())).toEqual(shape(direct));
+    });
+  }
+});
+
 describe('the problem scheduler', () => {
   /** A scheduler over `store` whose schema loads wait until the test resolves them, in any order. */
   function setup(text: string) {
@@ -207,8 +230,8 @@ describe('the problem scheduler', () => {
       store,
       messages: { ui: defaultUiMessages, schema: {} },
       format: () => twoErrors,
-      loadBundle: () => new Promise<SchemaBundle | undefined>((r) => loads.push(r)),
-      bundleError: () => undefined,
+      loadBundleByKey: () => new Promise<SchemaBundle | undefined>((r) => loads.push(r)),
+      bundleErrorByKey: () => undefined,
       variables: () => undefined,
     } as unknown as EditorContext;
     const publish = vi.fn<(p: readonly Problem[]) => void>();

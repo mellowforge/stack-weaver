@@ -143,6 +143,7 @@ function runRule(
       message: (key, params = {}) =>
         Object.hasOwn(table, key) ? messageFor({ instancePath: '', keyword: key, params: { ...params } }, table) : key,
       locate: (doc, path, at) => {
+        if (!Number.isInteger(doc) || doc < 0 || doc >= p.docCount) return undefined;
         const [from, to] = pathRange(p, doc, path, at);
         return { from, to };
       },

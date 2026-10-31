@@ -1,9 +1,7 @@
-import type { ParsedText } from '../document/types.js';
-import { kindKey } from '../formats/guide.js';
 import type { FormatDefinition } from '../formats/types.js';
 import type { Problem } from '../validation/problems.js';
 import { validateText } from '../validation/validate.js';
-import { bundleKey } from './context.js';
+import { dataBundleKey } from './context.js';
 import type { EditorContext } from './context.js';
 import type { UiMessages } from './messages.js';
 
@@ -34,20 +32,6 @@ const NO_FORMAT: FormatDefinition = {
 };
 
 /**
- * The document the editor's bundle cache knows `data` as. `validateText` hands a format only the
- * document's data; the cache is keyed per document (per kind, for `documents` formats), so the
- * first document of that kind stands in. `0` for `mapping` formats, whose key is the format.
- */
-function docOf(format: FormatDefinition, parsed: ParsedText, data: unknown): number {
-  if (format.rootModel === 'mapping') return 0;
-  const rec = typeof data === 'object' && data !== null ? (data as Record<string, unknown>) : {};
-  const { apiVersion, kind } = rec;
-  const key = typeof apiVersion === 'string' && typeof kind === 'string' ? kindKey(apiVersion, kind) : undefined;
-  for (let i = 0; i < parsed.docCount; i++) if (key !== undefined && bundleKey(format, parsed, i) === key) return i;
-  return 0;
-}
-
-/**
  * Validates the current text, with schemas coming through the editor's bundle cache. A failed
  * load surfaces as the `schema.unavailable` error that `validateText` reports for a rejected load.
  */
@@ -58,9 +42,11 @@ async function validateCurrent(ctx: EditorContext): Promise<Problem[]> {
   const cached: FormatDefinition = {
     ...format,
     async loadSchema(data) {
-      const doc = docOf(format, ctx.store.parsed, data);
-      const bundle = await ctx.loadBundle(doc);
-      const failure = ctx.bundleError(doc);
+      const key = dataBundleKey(format, data);
+      // No key: nothing to cache under, so ask the format, as validateText does without the editor.
+      if (key === undefined) return format.loadSchema(data);
+      const bundle = await ctx.loadBundleByKey(key, data);
+      const failure = ctx.bundleErrorByKey(key);
       if (failure !== undefined) throw failure;
       return bundle;
     },

@@ -75,6 +75,13 @@ describe('locate', () => {
     expect(await run('key', ['pipeline', 'name'])).toBe('name');
   });
 
+  it('returns undefined for a document the text does not have', async () => {
+    let got: unknown;
+    const rule: Rule = { id: 'probe', messages: {}, check: (input) => ((got = [input.locate(1, []), input.locate(-1, []), input.locate(0, [])]), []) };
+    await validateText(parseText(TEXT), { ...pipelineFormat, rules: [rule] });
+    expect(got).toEqual([undefined, undefined, expect.objectContaining({ from: expect.any(Number) })]);
+  });
+
   it('maps a missing path to the nearest existing ancestor', async () => {
     expect(await run(undefined, ['pipeline', 'steps', 0, 'nope', 'deeper'])).toBe('run: make');
     expect(await run('key', ['pipeline', 'name', 'x'])).toBe('build');

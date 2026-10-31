@@ -226,6 +226,8 @@ export function createEditorWithContext(
     problems: () => problems,
     bundleFor: cache.bundleFor,
     loadBundle: cache.loadBundle,
+    loadBundleByKey: cache.loadBundleByKey,
+    bundleErrorByKey: cache.bundleErrorByKey,
     bundleError: cache.bundleError,
     revealRange: (r: TextRange) => codePane.revealRange(r),
     editInCode: (r: TextRange) => {

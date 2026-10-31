@@ -180,7 +180,8 @@ export interface DetectInput {
   /**
    * `toData` per document of the text: one entry per document, in order; `undefined` for an empty
    * or comment-only document and for one whose data cannot be built (for example `<<: 5`). Empty
-   * when the text does not parse.
+   * when the text does not parse. The data is merge-expanded (`<<` keys are applied), unlike the
+   * raw tree that validation's `apiVersion` / `kind` shape check reads.
    */
   readonly docs: readonly unknown[];
 }
@@ -212,7 +213,8 @@ export interface RuleInput {
   /**
    * The range of the value (or, with `at: 'key'`, the key) at `path` in document `doc`, for a
    * finding's `range`. A path that does not exist maps to its nearest existing ancestor, as a
-   * finding's own `path` does; `at` defaults to `'value'`.
+   * finding's own `path` does; `at` defaults to `'value'`. `undefined` when `doc` is not a
+   * document of the text.
    */
   locate(doc: number, path: YamlPath, at?: 'key' | 'value'): TextRange | undefined;
 }
@@ -297,7 +299,7 @@ export interface FormatDefinition {
   readonly rootModel: 'documents' | 'mapping';
   /**
    * True when the text looks like this format. `input.docs` holds the plain data of each
-   * document; empty and unbuildable documents are `undefined` and should not count.
+   * document, merge-expanded; empty and unbuildable documents are `undefined` and should not count.
    */
   detect(input: DetectInput): boolean;
   /**

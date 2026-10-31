@@ -134,6 +134,6 @@ export function getPairKey(p: ParsedText, ref: NodeRef): Scalar | undefined {
 export function ownMapValue(p: ParsedText, at: NodeRef, key: string): { readonly isMap: boolean } | undefined {
   const node = getNode(p, at);
   if (!isMap(node)) return undefined;
-  const own = node.items.find((pair) => isScalar(pair.key) && pair.key.value === key);
+  const own = findPair(node, key);
   return own ? { isMap: isMap(own.value) } : undefined;
 }
