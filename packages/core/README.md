@@ -83,7 +83,9 @@ CodeMirror. Give the host element a height: the editor fills it, with a 320px mi
 `value`, `mode`, `readOnly`, `theme` and `format` are initial values with setters (`setValue`, `setMode`,
 `setReadOnly`, `setTheme`, `setFormat`); `update({ format, value, variables, readOnly, mode, theme })` sets several
 at once, in that order. The other options are read once, when the editor is created. These setters do nothing
-(and call no callback) when the value is already current; `setFormat('auto')` always detects the format again. A callback that throws is logged and does not stop the editor.
+(and call no callback) when the value is already current, `setFormat('auto')` on an `'auto'` editor included; a
+`variables` list in `update` is applied (and re-validated) even when unchanged, as `setVariables` does. A callback
+that throws is logged and does not stop the editor.
 
 The controller (`ManifestEditorController`) also has `getFormat()`, `getMode()`, `getProblems()`, `getReadOnly()`, `undo()`, `redo()` and `reveal(ref)`, which
 selects a node (`{ doc, path }`) in both panes, and `getVariables()`, `setVariables(decls)` and `applyFix(problem)`

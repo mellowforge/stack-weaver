@@ -135,17 +135,19 @@ export interface ManifestEditorController {
   setValue(text: string): void;
   /**
    * Applies several changes at once, in this order: `format`, `value`, `variables`, `readOnly`, `mode`, `theme`.
-   * Each does what its setter does, and nothing when it is current; an empty patch does nothing.
+   * Each does what its setter does: nothing when it is current, except `variables`, which (like `setVariables`)
+   * replaces the list and re-validates even when it is unchanged. An empty patch does nothing.
    */
   update(patch: ManifestEditorUpdate): void;
   /** The id of the resolved format; `undefined` before it resolves, and when there is none. */
   getFormat(): string | undefined;
   /**
-   * Sets the format option. An id fixes the format (an unknown id resolves to no format, as the `format` option
-   * does); a no-op when it is the current option. `'auto'` (or `undefined`, the option's default) detects the
-   * format from the text now, and again on every later API text change. Built-in formats that were not needed
-   * so far load first, so the change can then land after a tick. `onVariablesChange` is called when the format
-   * change changes the declarations.
+   * Sets the format option; a no-op when it is the current option (`'auto'` included). An id fixes the format (an
+   * unknown id resolves to no format, as the `format` option does). `'auto'` (or `undefined`, the option's
+   * default) detects the format from the text now, and again on every later API text change. Built-in formats
+   * that were not needed so far load first, so the change can then land after a tick; if they fail to load, there
+   * is no format and the editor says so (setting the same id again is then a no-op: retry through another
+   * option first). `onVariablesChange` is called when the format change changes the declarations.
    */
   setFormat(format: ManifestEditorOptions['format']): void;
   /** The current mode. */
@@ -411,7 +413,10 @@ export function createEditorWithContext(
     if (p.ok || !format) applyFormat(resolveFormat('auto', p, formatList));
   }
 
-  /** Loads the built-in formats once, merged under the host's. A failure is logged and shown, and rejects; a later call retries. */
+  /**
+   * Loads the built-in formats once, merged under the host's. A failure is logged and rejects (a later call
+   * retries); the caller shows it, unless the option that needed the formats has been replaced since.
+   */
   function loadBuiltins(): Promise<void> {
     builtinsLoad ??= loaders.loadBuiltinFormats().then(
       (builtins) => {
@@ -422,21 +427,34 @@ export function createEditorWithContext(
       (err: unknown) => {
         builtinsLoad = undefined;
         if (destroyed) return; // nobody is left to tell
-        // Without formats the editor still edits text: say so where the format and the form would be.
         console.error('stack-weaver: loading the built-in formats failed', err);
-        shell.setBadge(ui.formatsFailed);
-        visualPane.setNotice(ui.formatsFailed);
         throw err;
       },
     );
     return builtinsLoad;
   }
 
+  /** Whether the badge and the visual pane say that the formats failed to load. */
+  let failureShown = false;
+  /** Without formats the editor still edits text: say so where the format and the form would be. */
+  function showLoadFailure(): void {
+    failureShown = true;
+    shell.setBadge(ui.formatsFailed);
+    visualPane.setNotice(ui.formatsFailed);
+  }
+  /** Takes back {@link showLoadFailure} once a format option has resolved. */
+  function clearLoadFailure(): void {
+    if (!failureShown) return;
+    failureShown = false;
+    shell.setBadge(format ? badgeText(format) : ui.formatNone);
+    visualPane.setNotice(undefined);
+  }
+
   /**
-   * Resolves `formatOption` once the first load is done (before that, the first load resolves the option it then
-   * finds). An option that needs the built-in formats when they are not loaded resolves after they load, unless
-   * a later `setFormat` superseded it; if they fail, there is no format. Returns a promise (that never rejects)
-   * only in that case.
+   * Resolves `formatOption` once the first load has settled (before that, the first load resolves the option it
+   * then finds). An option that needs the built-in formats when they are not loaded resolves after they load,
+   * unless a later `setFormat` replaced it; returns that load, which rejects when it fails for the option still
+   * current (there is then no format, and the failure is shown).
    */
   function resolveOption(): Promise<void> | undefined {
     if (!formatsLoaded) return undefined;
@@ -444,6 +462,7 @@ export function createEditorWithContext(
     const apply = (): void => {
       if (opt === 'auto') redetect();
       else applyFormat(resolveFormat(opt, store.parsed, formatList));
+      clearLoadFailure();
     };
     if (builtinsLoaded || !needsBuiltins(opt, hostFormats)) {
       apply();
@@ -453,16 +472,17 @@ export function createEditorWithContext(
       () => {
         if (!destroyed && opt === formatOption) apply();
       },
-      () => {
-        if (destroyed || opt !== formatOption) return;
+      (err: unknown) => {
+        if (destroyed || opt !== formatOption) return; // the option that wanted them is gone: nothing to tell
         applyFormat(undefined);
-        shell.setBadge(ui.formatsFailed); // over `applyFormat`'s "No format": say why
+        showLoadFailure();
+        throw err;
       },
     );
   }
 
   function setFormat(next: ManifestEditorOptions['format'] = 'auto'): void {
-    if (destroyed || (next === formatOption && next !== 'auto')) return;
+    if (destroyed || next === formatOption) return;
     formatOption = next;
     const loading = resolveOption();
     const settle = (): void => {
@@ -471,7 +491,8 @@ export function createEditorWithContext(
       refreshRecipes(); // auto offers every format's recipes, a fixed format only its own
     };
     settle();
-    void loading?.then(settle);
+    // A failed load was logged and shown: nobody awaits this one.
+    void loading?.then(settle, settle);
   }
 
   const unsubscribe = store.subscribe((e: StoreEvent) => {
@@ -518,18 +539,35 @@ export function createEditorWithContext(
     guarded('the code editor', () => codePane.instance()?.setTheme(themeNow()));
   }
 
-  const formatReady = (needsBuiltins(formatOption, hostFormats) ? loadBuiltins() : Promise.resolve()).then(() => {
+  const finishFirstLoad = (): void => {
     if (destroyed) return;
-    formatsLoaded = true;
-    const finish = (): void => {
+    variables.reseed(); // the declarations already in the text are not a change
+    refreshRecipes(); // `applyFormat` does nothing when the format stays unresolved
+  };
+  const formatReady = (needsBuiltins(formatOption, hostFormats) ? loadBuiltins() : Promise.resolve()).then(
+    () => {
       if (destroyed) return;
-      variables.reseed(); // the declarations already in the text are not a change
-      refreshRecipes(); // `applyFormat` does nothing when the format stays unresolved
-    };
-    // The option as it is now: a `setFormat` made while loading counts, and may need the built-in formats.
-    const loading = resolveOption();
-    return loading ? loading.then(finish) : finish();
-  });
+      formatsLoaded = true;
+      // The option as it is now: a `setFormat` made while loading counts, and may need the built-in formats,
+      // whose failure then rejects `ready` as it would for that option at creation.
+      const loading = resolveOption();
+      if (!loading) return finishFirstLoad();
+      return loading.then(finishFirstLoad, (err: unknown) => {
+        finishFirstLoad();
+        throw err;
+      });
+    },
+    (err: unknown) => {
+      if (destroyed) return;
+      // Settled all the same: a later `setFormat` to a host format (or a retry) resolves.
+      formatsLoaded = true;
+      showLoadFailure();
+      // A `setFormat` made while loading to a host format does not need the failed formats.
+      if (!needsBuiltins(formatOption, hostFormats)) resolveOption();
+      finishFirstLoad();
+      throw err;
+    },
+  );
   // Ready also means the first validation has been published (or dropped by a destroy). It runs
   // even when a load failed (the failure is already shown), and `ready` then rejects with it.
   const ready = Promise.allSettled([formatReady, codePane.ready]).then(async (results) => {

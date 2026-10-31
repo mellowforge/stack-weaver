@@ -3,6 +3,8 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { loaders } from '../../src/editor/context.js';
 import { createEditorWithContext, createManifestEditor } from '../../src/editor/editor.js';
 import type { ManifestEditorController, ManifestEditorOptions } from '../../src/editor/editor.js';
+import { composeFormat } from '../../src/formats/compose/index.js';
+import { kubernetesFormat } from '../../src/formats/kubernetes/index.js';
 import type { FormatDefinition, VariableDecl } from '../../src/formats/types.js';
 import { defaultUiMessages as ui } from '../../src/editor/messages.js';
 import { createFakeAdapter } from '../helpers/fake-adapter.js';
@@ -27,6 +29,21 @@ async function mount(options: ManifestEditorOptions = {}) {
   return { ...made, fake: adapter.last! };
 }
 const badge = () => el.querySelector('.sw-format-badge')!.textContent;
+const notice = () => el.querySelector('.sw-visual-empty')!.textContent;
+/** Lets every pending promise callback run (a macrotask runs after the microtask queue drains). */
+const flush = () => new Promise((r) => setTimeout(r, 0));
+
+/** A built-in formats loader the test settles by hand. */
+function deferredLoader() {
+  let resolve!: () => void;
+  let reject!: (err: unknown) => void;
+  const promise = new Promise<FormatDefinition[]>((res, rej) => {
+    resolve = () => res([kubernetesFormat, composeFormat]);
+    reject = rej;
+  });
+  const spy = vi.spyOn(loaders, 'loadBuiltinFormats').mockImplementation(() => promise);
+  return { spy, resolve, reject };
+}
 
 const fakeFormat = (over: Partial<FormatDefinition> = {}): FormatDefinition => ({
   id: 'mine',
@@ -166,7 +183,7 @@ describe('format at runtime (P8)', () => {
   });
 
   it('setFormat fixes the format; setFormat("auto") re-detects', async () => {
-    const { editor, fake } = await mount({ value: K8S });
+    const { editor } = await mount({ value: K8S });
     editor.setFormat('compose');
     expect(editor.getFormat()).toBe('compose');
     expect(badge()).toContain('Docker Compose');
@@ -175,15 +192,39 @@ describe('format at runtime (P8)', () => {
     editor.setValue('');
     expect(editor.getFormat()).toBe('compose');
     editor.setValue(K8S);
-    editor.setFormat('auto');
-    expect(editor.getFormat()).toBe('kubernetes');
-    // Auto again: typing keeps the format, setFormat('auto') re-detects the typed text.
-    fake.type(COMPOSE);
-    expect(editor.getFormat()).toBe('kubernetes');
-    editor.setFormat('auto');
     expect(editor.getFormat()).toBe('compose');
-    editor.update({ format: 'kubernetes' });
+    editor.setFormat('auto');
     expect(editor.getFormat()).toBe('kubernetes');
+    editor.update({ format: 'compose' });
+    expect(editor.getFormat()).toBe('compose');
+  });
+
+  it('setFormat with the current option is a no-op, auto included', async () => {
+    const onVariablesChange = vi.fn();
+    const { editor, fake } = await mount({ value: K8S, onVariablesChange });
+    // The user types a compose document with declarations: the auto editor keeps kubernetes.
+    fake.type('x-variables:\n  PORT:\n    type: port\n' + COMPOSE);
+    expect(editor.getFormat()).toBe('kubernetes');
+    // Re-passing the current option (as a wrapper would) does not re-detect.
+    editor.setFormat('auto');
+    editor.setFormat(undefined);
+    editor.update({ format: 'auto' });
+    expect(editor.getFormat()).toBe('kubernetes');
+    expect(editor.getVariables()).toEqual([]);
+    expect(onVariablesChange).not.toHaveBeenCalled();
+    // The same for a fixed id.
+    editor.setFormat('kubernetes');
+    editor.setFormat('kubernetes');
+    expect(editor.getFormat()).toBe('kubernetes');
+  });
+
+  it('undo does not re-detect the format', async () => {
+    const { editor } = await mount({ value: K8S });
+    editor.setValue(COMPOSE);
+    expect(editor.getFormat()).toBe('compose');
+    expect(editor.undo()).toBe(true);
+    expect(editor.getValue()).toBe(K8S);
+    expect(editor.getFormat()).toBe('compose');
   });
 
   it('setFormat with an unknown id resolves to no format, like the option', async () => {
@@ -224,26 +265,82 @@ describe('format at runtime (P8)', () => {
     editor.destroy();
   });
 
-  it('a later setFormat wins over one still waiting for the built-in formats', async () => {
-    const mine = fakeFormat();
-    const { editor } = await mount({ format: 'mine', formats: [mine], value: K8S });
+  it('ready rejects when built-in formats a setFormat made while loading needs fail to load', async () => {
+    vi.spyOn(console, 'error').mockImplementation(() => {});
+    const boom = new Error('chunk failed');
+    vi.spyOn(loaders, 'loadBuiltinFormats').mockRejectedValue(boom);
+    const editor = createManifestEditor(el, { codeEditor: createFakeAdapter(), format: 'mine', formats: [fakeFormat()], value: K8S });
     editor.setFormat('kubernetes');
-    editor.setFormat('mine');
-    await new Promise((r) => setTimeout(r, 0));
-    await vi.waitFor(() => expect(editor.getFormat()).toBe('mine'));
-    await new Promise((r) => setTimeout(r, 20));
-    expect(editor.getFormat()).toBe('mine');
+    await expect(editor.ready).rejects.toBe(boom);
+    expect(editor.getFormat()).toBeUndefined();
+    expect(badge()).toBe(ui.formatsFailed);
+    editor.destroy();
   });
 
-  it('the built-in formats failing to load for setFormat is logged and shown', async () => {
+  it('a later setFormat wins over one still waiting for the built-in formats', async () => {
+    const { editor } = await mount({ format: 'mine', formats: [fakeFormat()], value: K8S });
+    const load = deferredLoader();
+    editor.setFormat('kubernetes');
+    editor.setFormat('mine');
+    expect(editor.getFormat()).toBe('mine');
+    load.resolve();
+    await flush();
+    expect(editor.getFormat()).toBe('mine');
+    // The formats did load: kubernetes now resolves at once, without another load.
+    editor.setFormat('kubernetes');
+    expect(editor.getFormat()).toBe('kubernetes');
+    expect(load.spy).toHaveBeenCalledOnce();
+  });
+
+  it('a superseded load that fails leaves the working format as it is', async () => {
+    const log = vi.spyOn(console, 'error').mockImplementation(() => {});
+    const { editor } = await mount({ format: 'mine', formats: [fakeFormat()], value: K8S });
+    const load = deferredLoader();
+    editor.setFormat('kubernetes');
+    editor.setFormat('mine');
+    load.reject(new Error('chunk failed'));
+    await flush();
+    expect(log).toHaveBeenCalledWith('stack-weaver: loading the built-in formats failed', expect.any(Error));
+    expect(editor.getFormat()).toBe('mine');
+    expect(badge()).toBe('Mine 1');
+    expect(notice()).toBe(ui.visualEmpty);
+  });
+
+  it('the built-in formats failing to load for setFormat is logged and shown; another option recovers', async () => {
     const log = vi.spyOn(console, 'error').mockImplementation(() => {});
     const boom = new Error('chunk failed');
     const { editor } = await mount({ format: 'mine', formats: [fakeFormat()], value: K8S });
-    vi.spyOn(loaders, 'loadBuiltinFormats').mockRejectedValue(boom);
+    const failing = vi.spyOn(loaders, 'loadBuiltinFormats').mockRejectedValue(boom);
     editor.setFormat('kubernetes');
-    await vi.waitFor(() => expect(log).toHaveBeenCalledWith('stack-weaver: loading the built-in formats failed', boom));
+    await flush();
+    expect(log).toHaveBeenCalledWith('stack-weaver: loading the built-in formats failed', boom);
     expect(editor.getFormat()).toBeUndefined();
     expect(badge()).toBe(ui.formatsFailed);
+    expect(notice()).toBe(ui.formatsFailed);
+    // A host format still resolves, and takes the failure back.
+    editor.setFormat('mine');
+    expect(editor.getFormat()).toBe('mine');
+    expect(badge()).toBe('Mine 1');
+    expect(notice()).toBe(ui.visualEmpty);
+    // The load is tried again.
+    failing.mockRestore();
+    editor.setFormat('kubernetes');
+    await vi.waitFor(() => expect(editor.getFormat()).toBe('kubernetes'));
+    expect(badge()).toContain('Kubernetes');
+  });
+
+  it('after the first load failed, setFormat to a host format resolves it', async () => {
+    vi.spyOn(console, 'error').mockImplementation(() => {});
+    const boom = new Error('chunk failed');
+    vi.spyOn(loaders, 'loadBuiltinFormats').mockRejectedValue(boom);
+    const editor = createManifestEditor(el, { codeEditor: createFakeAdapter(), formats: [fakeFormat()], value: K8S });
+    await expect(editor.ready).rejects.toBe(boom);
+    expect(badge()).toBe(ui.formatsFailed);
+    editor.setFormat('mine');
+    expect(editor.getFormat()).toBe('mine');
+    expect(badge()).toBe('Mine 1');
+    expect(notice()).toBe(ui.visualEmpty);
+    editor.destroy();
   });
 
   it('a format change reports the declarations it changes', async () => {
