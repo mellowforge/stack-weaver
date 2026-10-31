@@ -134,6 +134,12 @@ The panel findings triaged IN landed in one fix wave (ruling P5-5: R1 is fixed i
 - The reserved rule id `'failed'` warning is deduped per page, not per format. Done (Plan 5 Task 2: keyed by format id).
 
 ## Parked, low priority
+- **Wrappers: a recreation that throws behaves differently in each wrapper.**
+  - Angular keeps no controller and retries the recreation on the next input change.
+  - React lets the error reach the nearest error boundary, which unmounts the editor.
+  - React leaves no choice here. Neither README says so yet; add one line to each.
+- Angular: a retry that still fails can be logged twice in one tick, when an init-only input and a settable input change together. The effect is bounded: no state corruption and no second editor.
+- Core `resolveOption`: the outer catch still logs "the format detection threw", although it now catches failures to apply the format. Only the log text is wrong.
 - Plan 5 review X2/X8: test-name symmetry between the wrappers (unmount vs destroy before ready, `onHistoryChange` vs
   `historyChange` drives undo buttons), and the React demo's missing counterparts of the Angular demo's "recreates the
   editor for another variables store" and "removes its DOM and editor on destroy".
