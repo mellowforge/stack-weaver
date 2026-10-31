@@ -291,8 +291,6 @@ the widget-host code that logs `widgetFailed` (find it with `grep -rn widgetFail
 - Create: `packages/demo-kit/{package.json,tsconfig.json,tsconfig.build.json,vitest.config.ts,scripts/copy-css.mjs}`
 - Create: `packages/demo-kit/src/{index.ts,examples.ts,theme.ts,site.ts,status.ts,textarea-adapter.ts,theme.css,controls.css}`
 - Create: `packages/demo-kit/test/demo-kit.test.ts`
-- Create: `docs/superpowers/notes/2026-10-31-grid-master-survey.md`, copied verbatim from
-  `/private/tmp/claude-501/-Users-konstantinpenzin-Developer-kube-composer/62fc86e2-faa0-4fe3-b2c7-cc19e9270067/scratchpad/grid-master-survey.md`.
   The controller does this copy before dispatching, if the scratchpad is gone.
 
 **Interfaces:**
@@ -366,7 +364,7 @@ the widget-host code that logs `widgetFailed` (find it with `grep -rn widgetFail
 - [ ] **Step 2: Run `pnpm --filter @stack-weaver/demo-kit test`.** Expected: FAIL (no sources).
 - [ ] **Step 3: Implement** the sources listed above.
 - [ ] **Step 4: Run `pnpm -r build && pnpm --filter @stack-weaver/demo-kit test && pnpm --filter @stack-weaver/demo-kit typecheck`.** Expected: PASS.
-- [ ] **Step 5: Commit** `feat(demo-kit): shared demo examples, theme and status helpers, textarea test adapter` (with the survey note).
+- [ ] **Step 5: Commit** `feat(demo-kit): shared demo examples, theme and status helpers, textarea test adapter`.
 
 ### Task 4: `@stack-weaver/react`
 
