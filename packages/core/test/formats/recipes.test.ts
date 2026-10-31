@@ -16,11 +16,11 @@ describe('built-in recipes', () => {
     );
   });
 
-  it('every built-in recipe validates with zero errors', async () => {
+  it('every built-in recipe validates with zero problems', async () => {
     for (const r of all) {
       const format = formats.find((f) => f.id === r.format)!;
       const problems = await validateText(parseText(r.yaml), format);
-      expect(problems.filter((p) => p.severity === 'error'), r.id).toEqual([]);
+      expect(problems, r.id).toEqual([]);
     }
   });
 

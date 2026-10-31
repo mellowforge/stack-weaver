@@ -108,6 +108,12 @@ spec:
             - name: nightly
               image: busybox:1.37
               command: ["sh", "-c", "echo running the nightly job"]
+              resources:
+                requests:
+                  cpu: 50m
+                  memory: 64Mi
+                limits:
+                  memory: 128Mi
 `;
 
 const CONFIG = `apiVersion: v1

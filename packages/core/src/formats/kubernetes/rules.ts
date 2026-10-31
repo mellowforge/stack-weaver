@@ -1,4 +1,7 @@
-import type { YamlPath } from '../../document/types.js';
+import { isMap, isScalar } from 'yaml';
+import type { EditOp } from '../../document/edit.js';
+import { getNode } from '../../document/paths.js';
+import type { NodeRef, YamlPath } from '../../document/types.js';
 import type { Rule, RuleFinding, RuleInput } from '../types.js';
 
 type Rec = Record<string, unknown>;
@@ -136,6 +139,30 @@ const selectorMismatch: Rule = {
 
 const DEFAULT_RESOURCES = { requests: { cpu: '100m', memory: '128Mi' }, limits: { memory: '256Mi' } };
 
+/**
+ * The ops that give a container default resources, or `undefined` when none is safe. An empty or null
+ * `resources` is replaced; a mapping with other keys (for example `claims`) keeps them and gains
+ * `requests` and `limits`. A `resources` that the container only inherits (a `<<` merge) gets no fix.
+ */
+function fixOps(input: RuleInput, at: NodeRef, container: Rec, res: unknown): readonly EditOp[] | undefined {
+  if (!Object.hasOwn(container, 'resources')) return [{ op: 'add', at, key: 'resources', value: DEFAULT_RESOURCES }];
+  const node = getNode(input.parsed, at);
+  const own = isMap(node) ? node.items.find((pair) => isScalar(pair.key) && pair.key.value === 'resources') : undefined;
+  if (!own) return undefined;
+  if (res === null || (isRec(res) && Object.keys(res).length === 0)) {
+    return [
+      { op: 'delete', at: { doc: at.doc, path: [...at.path, 'resources'] } },
+      { op: 'add', at, key: 'resources', value: DEFAULT_RESOURCES },
+    ];
+  }
+  if (!isRec(res) || !isMap(own.value)) return undefined;
+  const target = { doc: at.doc, path: [...at.path, 'resources'] };
+  return [
+    { op: 'add', at: target, key: 'requests', value: DEFAULT_RESOURCES.requests },
+    { op: 'add', at: target, key: 'limits', value: DEFAULT_RESOURCES.limits },
+  ];
+}
+
 const missingResources: Rule = {
   id: 'missing-resources',
   messages: {
@@ -153,17 +180,13 @@ const missingResources: Rule = {
         if (isRec(res) && (res['requests'] !== undefined || res['limits'] !== undefined)) continue;
         const at = { doc: w.doc, path: [...base, j] };
         const name = typeof c['name'] === 'string' ? c['name'] : undefined;
-        // An existing `resources` (empty, null or without requests/limits) goes first: `add` refuses a duplicate key.
-        const ops = [
-          ...(Object.hasOwn(c, 'resources') ? [{ op: 'delete' as const, at: { doc: w.doc, path: [...at.path, 'resources'] } }] : []),
-          { op: 'add' as const, at, key: 'resources', value: DEFAULT_RESOURCES },
-        ];
+        const ops = fixOps(input, at, c, res);
         out.push({
           severity: 'warning',
           doc: w.doc,
           path: name !== undefined ? [...at.path, 'name'] : at.path,
           params: { name: name ?? String(j) },
-          fix: { key: 'fix.add-resources', action: { kind: 'edit', ops } },
+          ...(ops ? { fix: { key: 'fix.add-resources', action: { kind: 'edit' as const, ops } } } : {}),
         });
       }
     }

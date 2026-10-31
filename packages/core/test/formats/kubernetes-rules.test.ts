@@ -127,6 +127,41 @@ describe('missing-resources', () => {
   });
 });
 
+describe('missing-resources fix safety', () => {
+  const pod = (res: string) =>
+    `apiVersion: v1\nkind: Pod\nmetadata:\n  name: p\nspec:\n  containers:\n    - name: app\n      image: x\n${res}`;
+
+  it('a non-empty resources keeps its other keys: claims survive and the rule is silent', async () => {
+    let text = pod('      resources:\n        claims:\n          - name: gpu\n');
+    const [p] = await rules(text, 'missing-resources');
+    const action = p?.fix?.action;
+    expect(action?.kind).toBe('edit');
+    if (action?.kind !== 'edit') return;
+    expect(action.ops.map((o) => o.op)).toEqual(['add', 'add']);
+    for (const op of action.ops) {
+      const r = applyEdit(parseText(text), op);
+      expect(r.ok).toBe(true);
+      if (r.ok) text = r.text;
+    }
+    expect(text).toContain('- name: gpu');
+    expect(text).toContain('memory: 256Mi');
+    expect(await rules(text, 'missing-resources')).toEqual([]);
+  });
+
+  it('resources: null is replaced (delete then add)', async () => {
+    const [p] = await rules(pod('      resources:\n'), 'missing-resources');
+    expect(p?.fix?.action.kind === 'edit' && p.fix.action.ops.map((o) => o.op)).toEqual(['delete', 'add']);
+  });
+
+  it('resources inherited through a merge key: warning without a fix', async () => {
+    const text =
+      'apiVersion: v1\nkind: Pod\nmetadata:\n  name: p\nspec:\n  containers:\n    - name: app\n      image: x\n      <<:\n        resources: {}\n';
+    const ps = await rules(text, 'missing-resources');
+    expect(ps).toHaveLength(1);
+    expect(ps[0]?.fix).toBeUndefined();
+  });
+});
+
 describe('target-port', () => {
   const dep = (n: string, port: string) =>
     deployment(n, ['app: a'], { ports: `          ports:\n            - name: ${port}\n              containerPort: 80\n` });
