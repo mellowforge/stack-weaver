@@ -67,6 +67,20 @@ describe('message templates', () => {
     expect(panelHost.querySelector('.sw-problems-toggle')!.textContent).toBe('1 problem <- Problems');
   });
 
+  it('each problem button in the panel uses problemPrefix', () => {
+    const panelHost = document.createElement('div');
+    host.append(panelHost);
+    const panel = createProblemsPanel(panelHost, {
+      ui: { ...defaultUiMessages, problemPrefix: '<{severity}> ' },
+      locale: 'en',
+      onSelect() {},
+      onFix: () => true,
+      restoreFocus() {},
+    });
+    panel.update([{ doc: 0, path: ['a'], from: 0, to: 1, severity: 'warning', code: 'x', message: 'm', source: 'schema' } as never]);
+    expect(panelHost.querySelector('.sw-problem .sw-visually-hidden')!.textContent).toBe('<Warning> ');
+  });
+
   it('breadcrumbAt takes a document label template', () => {
     const p = parseText('a: 1\n---\nb: 2\n');
     expect(breadcrumbAt(p, p.text.indexOf('b'))[0]).toBe('Document 2');

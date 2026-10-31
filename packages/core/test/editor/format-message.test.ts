@@ -35,6 +35,12 @@ describe('formatPlural', () => {
     expect(formatPlural(ru, n, 'ru')).toBe(text);
   });
 
+  it('an invalid locale tag falls back to English rules', () => {
+    const m: PluralMessage = { one: 'one', other: 'other' };
+    expect(formatPlural(m, 1, 'x')).toBe('one');
+    expect(formatPlural(m, 2, '')).toBe('other');
+  });
+
   it('uses other when the category is missing', () => {
     expect(formatPlural({ other: '{count} items' }, 1)).toBe('1 items');
   });

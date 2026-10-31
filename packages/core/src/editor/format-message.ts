@@ -24,14 +24,14 @@ const rulesByLocale = new Map<string, Intl.PluralRules>();
 /** The plural rules of `locale`; English for a tag `Intl` rejects. */
 function pluralRules(locale: string): Intl.PluralRules {
   let rules = rulesByLocale.get(locale);
-  if (!rules) {
-    try {
-      rules = new Intl.PluralRules(locale);
-    } catch {
-      rules = pluralRules('en');
-    }
-    rulesByLocale.set(locale, rules);
+  if (rules) return rules;
+  try {
+    rules = new Intl.PluralRules(locale);
+  } catch {
+    // Not cached under the bad tag: a host cannot grow the map with junk.
+    return locale === 'en' ? new Intl.PluralRules() : pluralRules('en');
   }
+  rulesByLocale.set(locale, rules);
   return rules;
 }
 

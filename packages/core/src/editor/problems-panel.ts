@@ -75,7 +75,7 @@ export function createProblemsPanel(
       const items = problems.map((p, i) => {
         const button = h(doc, 'button', { type: 'button', class: 'sw-problem', 'data-sw-severity': p.severity }, [
           h(doc, 'span', { class: 'sw-problem-icon', 'aria-hidden': 'true' }, [ICONS[p.severity]]),
-          h(doc, 'span', { class: 'sw-visually-hidden' }, [`${label[p.severity]}: `]),
+          h(doc, 'span', { class: 'sw-visually-hidden' }, [formatMessage(o.ui.problemPrefix, { severity: label[p.severity] })]),
           h(doc, 'span', { class: 'sw-problem-message', id: `${listId}-msg-${i}` }, [p.message]),
           h(doc, 'span', { class: 'sw-problem-pos' }, [`${p.line}:${p.col}`]),
         ]);
