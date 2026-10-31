@@ -89,6 +89,7 @@ describe('rules in validateText', () => {
     const opts = { messages: { 'rule.demo': (e: SchemaError) => `host ${String(e.params['x'])}` } };
     const [p] = await validateText(parseText('a: 5\n'), fake({ rules: [r] }), opts);
     expect(p!.message).toBe('host 1');
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => undefined);
     const [q] = await validateText(parseText('a: 5\n'), fake({ rules: [r] }), {
       messages: {
         'rule.demo': () => {
@@ -97,6 +98,7 @@ describe('rules in validateText', () => {
       },
     });
     expect(q!.message).toBe('bad 1'); // a throwing override falls back to the rule default
+    expect(warn).toHaveBeenCalledWith('stack-weaver: the message override for "rule.demo" threw; using the default message', expect.any(Error));
   });
 
   it('turns fix into Problem.fix with a label from the fix key', async () => {
@@ -261,6 +263,7 @@ describe('RuleInput.message', () => {
         return [];
       },
     };
+    vi.spyOn(console, 'warn').mockImplementation(() => undefined); // the missing key warns (once per rule and key)
     await validateText(parseText('a: 1\n'), fake({ rules: [r] }), messages ? { messages } : {});
     return seen;
   };
@@ -296,6 +299,55 @@ describe('rule message hygiene', () => {
       'stack-weaver: rule "hygiene-missing" has no message for "rule.hygiene-missing"',
       'stack-weaver: rule "hygiene-missing" has no message for "fix.hygiene-missing"',
     ]);
+  });
+
+  it('RuleInput.message with a key missing from the table warns once per rule and key', async () => {
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => undefined);
+    const r: Rule = {
+      id: 'hygiene-input',
+      messages: {},
+      check: (input) => {
+        input.message('hygiene-input.gone');
+        input.message('hygiene-input.gone');
+        return [];
+      },
+    };
+    await validateText(parseText('a: 1\n'), fake({ rules: [r] }));
+    await validateText(parseText('a: 1\n'), fake({ rules: [r] }));
+    expect(warn.mock.calls.map((c) => c[0])).toEqual(['stack-weaver: rule "hygiene-input" has no message for "hygiene-input.gone"']);
+  });
+
+  it("a rule with the reserved id 'failed' is warned about once (R9)", async () => {
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => undefined);
+    const r: Rule = { id: 'failed', messages: { 'rule.failed': () => 'mine' }, check: () => [] };
+    await validateText(parseText('a: 1\n'), fake({ rules: [r] }));
+    await validateText(parseText('a: 1\n'), fake({ rules: [r] }));
+    expect(warn.mock.calls.map((c) => c[0])).toEqual([
+      'stack-weaver: rule id "failed" is reserved (a rule that throws reports rule.failed); give the rule another id',
+    ]);
+  });
+
+  it('a throwing host message override falls back to the default and warns once per key', async () => {
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => undefined);
+    const r: Rule = { id: 'override-throw', messages: { 'rule.override-throw': (e) => `bad ${String(e.params['x'])}` }, check: () => [{ severity: 'error', doc: 0, path: ['a'], params: { x: 1 } }] };
+    const messages = {
+      'rule.override-throw': () => {
+        throw new Error('bad override');
+      },
+      type: () => {
+        throw new Error('bad type override');
+      },
+    };
+    const format = fake({ rules: [r] }, 'mapping', bundle({ properties: { a: { type: 'integer' } } }));
+    for (let i = 0; i < 2; i++) {
+      const probs = await validateText(parseText('a: 1.5\n'), format, { messages });
+      expect(probs.map((p) => p.message)).toEqual(['Must be an integer', 'bad 1']);
+    }
+    expect(warn.mock.calls.map((c) => c[0])).toEqual([
+      'stack-weaver: the message override for "type" threw; using the default message',
+      'stack-weaver: the message override for "rule.override-throw" threw; using the default message',
+    ]);
+    expect(warn.mock.calls.map((c) => c[1])).toEqual([expect.any(Error), expect.any(Error)]);
   });
 
   it('a rule with all its messages does not warn', async () => {

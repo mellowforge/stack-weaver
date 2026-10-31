@@ -98,8 +98,9 @@ export interface CodeEditorInstance {
 }
 
 /**
- * A {@link CodeEditorAdapter} known to mount synchronously, so callers need not await.
- * @internal
+ * A {@link CodeEditorAdapter} known to mount synchronously, so callers need not await: `mount` returns the
+ * instance itself, never a promise. `codemirrorAdapter()` returns one. It is still a `CodeEditorAdapter`, so it can
+ * be passed as the `codeEditor` option as is.
  */
 export type SyncCodeEditorAdapter = Omit<CodeEditorAdapter, 'mount'> & {
   mount(el: HTMLElement, init: CodeEditorInit): CodeEditorInstance;

@@ -206,6 +206,7 @@ function createFieldRow(ctx: EditorContext, registry: WidgetRegistry, envFor: (p
                     ...(picked.param !== undefined && { param: picked.param }),
                     ...(options !== undefined && { options }),
                     messages: ui,
+                    locale: ctx.locale,
                     guide: ctx.guide,
                   },
                   () => readOnlyNow,

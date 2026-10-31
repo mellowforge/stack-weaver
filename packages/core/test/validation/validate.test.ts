@@ -1,5 +1,5 @@
 import { readFileSync } from 'node:fs';
-import { describe, expect, it } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 import { toData } from '../../src/document/data.js';
 import { parseText } from '../../src/document/parse.js';
 import { getNode, yamlDocs } from '../../src/document/internal.js';
@@ -9,6 +9,10 @@ import { composeFormat } from '../../src/formats/compose/index.js';
 import { kubernetesFormat } from '../../src/formats/kubernetes/index.js';
 import { defaultMessages } from '../../src/validation/messages.js';
 import { validateText } from '../../src/validation/validate.js';
+
+afterEach(() => {
+  vi.restoreAllMocks();
+});
 
 const fixture = (n: string) => readFileSync(new URL(`../fixtures/corpus/${n}`, import.meta.url), 'utf8');
 const deployment = (meta = '', replicas = '3', spec = '') => `apiVersion: apps/v1
@@ -200,11 +204,13 @@ describe('validateText never rejects: third-party code', () => {
     ]);
   });
 
-  it('a throwing message override falls back to the default text', async () => {
+  it('a throwing message override falls back to the default text, with a warning', async () => {
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => undefined);
     const probs = await validateText(parseText(deployment('', '"x"')), kubernetesFormat, {
       messages: { type: () => { throw new Error('oops'); } },
     });
     expect(probs.map((x) => x.message)).toEqual(['Must be an integer']);
+    expect(warn).toHaveBeenCalledWith('stack-weaver: the message override for "type" threw; using the default message', expect.any(Error));
   });
 });
 

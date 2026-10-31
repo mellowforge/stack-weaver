@@ -4,7 +4,10 @@ export const NAME_PATTERN: RegExp = /^[A-Za-z_][A-Za-z0-9_]*$/;
 /** The variable types, in the order the Variables section lists them. */
 export const VARIABLE_TYPES = ['string', 'number', 'boolean', 'port', 'enum'] as const;
 
-/** What is wrong with a variable declaration (see {@link validateVariableDecl}). */
+/**
+ * What is wrong with a variable declaration (see {@link validateVariableDecl}). May grow in later versions; treat
+ * an unknown value as an invalid declaration (like `'badField'`).
+ */
 export type VariableDeclIssue = 'badName' | 'badType' | 'noEnumValues' | 'badDefault' | 'badField';
 
 const KEYS: readonly string[] = ['name', 'type', 'enumValues', 'default', 'description'];

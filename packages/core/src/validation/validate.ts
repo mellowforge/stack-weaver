@@ -68,7 +68,8 @@ export async function validateText(
     messages[k] = (e) => {
       try {
         return fn(e);
-      } catch {
+      } catch (err) {
+        warnOverride(k, err);
         return messageFor(e);
       }
     };
@@ -107,6 +108,7 @@ export async function validateText(
     }
   }
   for (const rule of format.rules ?? []) {
+    if (rule.id === 'failed') warnOnce('rule\u0000failed', 'stack-weaver: rule id "failed" is reserved (a rule that throws reports rule.failed); give the rule another id');
     out.push(...runRule(p, rule, { data, bundles, decls, host: opts.variables !== undefined }, messages, opts.messages ?? {}));
   }
   return sortProblems(out);
@@ -114,13 +116,22 @@ export async function validateText(
 
 const warnedKeys = new Set<string>();
 
+/** `console.warn`s `args` the first time `id` is seen (per page: a host's mistake is told once, not per validation). */
+function warnOnce(id: string, ...args: unknown[]): void {
+  if (warnedKeys.has(id)) return;
+  warnedKeys.add(id);
+  console.warn(...args);
+}
+
 /** Warns, once per rule and key, that the rule's merged message table lacks `key` (the problem then shows the key itself). */
 function warnMissingKey(ruleId: string, key: string, table: SchemaMessages): void {
   if (Object.hasOwn(table, key)) return;
-  const id = `${ruleId}\u0000${key}`;
-  if (warnedKeys.has(id)) return;
-  warnedKeys.add(id);
-  console.warn(`stack-weaver: rule "${ruleId}" has no message for "${key}"`);
+  warnOnce(`${ruleId}\u0000${key}`, `stack-weaver: rule "${ruleId}" has no message for "${key}"`);
+}
+
+/** Warns, once per key, that the host's message override for `key` threw (the default message is used instead). */
+function warnOverride(key: string, err: unknown): void {
+  warnOnce(`override\u0000${key}`, `stack-weaver: the message override for "${key}" threw; using the default message`, err);
 }
 
 /** Runs one rule; a throw (from `check` or from a message) becomes a single `rule.failed` error. */
@@ -138,7 +149,8 @@ function runRule(
     table[k] = (e) => {
       try {
         return fn(e);
-      } catch {
+      } catch (err) {
+        warnOverride(k, err);
         return messageFor(e, rule.messages);
       }
     };
@@ -151,8 +163,11 @@ function runRule(
       bundles: ctx.bundles,
       variables: ctx.decls,
       variableSource: ctx.host ? 'host' : 'document',
-      message: (key, params = {}) =>
-        Object.hasOwn(table, key) ? messageFor({ instancePath: '', keyword: key, params: { ...params } }, table) : key,
+      message: (key, params = {}) => {
+        if (Object.hasOwn(table, key)) return messageFor({ instancePath: '', keyword: key, params: { ...params } }, table);
+        warnMissingKey(rule.id, key, table);
+        return key;
+      },
       locate: (doc, path, at) => {
         if (!Number.isInteger(doc) || doc < 0 || doc >= p.docCount) return undefined;
         const [from, to] = pathRange(p, doc, path, at);

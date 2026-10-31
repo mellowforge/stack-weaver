@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { formatMessage, formatPlural } from '../../src/editor/format-message.js';
 import type { PluralMessage } from '../../src/editor/format-message.js';
+import { defaultUiMessages } from '../../src/editor/messages.js';
 
 describe('formatMessage', () => {
   it('fills every occurrence of a parameter', () => {
@@ -45,10 +46,33 @@ describe('formatPlural', () => {
     expect(formatPlural({ other: '{count} items' }, 1)).toBe('1 items');
   });
 
-  it('zero is used for 0 when given', () => {
-    const m: PluralMessage = { zero: 'None', one: '{count} problem', other: '{count} problems' };
+  it('none is used for 0 when given (R11)', () => {
+    const m: PluralMessage = { none: 'None', one: '{count} problem', other: '{count} problems' };
     expect(formatPlural(m, 0)).toBe('None');
     expect(formatPlural({ one: '{count} problem', other: '{count} problems' }, 0)).toBe('0 problems');
+  });
+
+  it('zero is only the CLDR category: English never selects it, so 0 without none is other (R11)', () => {
+    expect(formatPlural({ zero: 'Zero', other: '{count} problems' }, 0)).toBe('0 problems');
+  });
+
+  it.each([
+    [0, 'nav'],
+    [10, '10 zero'],
+    [1, '1 one'],
+    [2, '2 other'],
+    [21, '21 one'],
+  ])('lv with none and zero: %i picks %s (R11)', (n, text) => {
+    const lv: PluralMessage = { none: 'nav', zero: '{count} zero', one: '{count} one', other: '{count} other' };
+    expect(formatPlural(lv, n, 'lv')).toBe(text);
+  });
+
+  it('lv without none: 0 takes the CLDR zero category', () => {
+    expect(formatPlural({ zero: '{count} zero', other: '{count} other' }, 0, 'lv')).toBe('0 zero');
+  });
+
+  it('the default problemCount reads No problems / 1 problem / 2 problems in English', () => {
+    expect([0, 1, 2].map((n) => formatPlural(defaultUiMessages.problemCount, n))).toEqual(['No problems', '1 problem', '2 problems']);
   });
 
   it('passes extra params and lets count win', () => {

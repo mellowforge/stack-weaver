@@ -53,7 +53,7 @@ export function createAddResource(ctx: EditorContext, doc: Document = document):
   function open(): void {
     const format = ctx.format();
     if (!format || close) return;
-    const catalog: KindCatalog = kindCatalog(format);
+    const catalog: KindCatalog = kindCatalog(format, ctx.guide());
     const curatedByKey = new Map<string, Card>();
     for (const g of catalog.curated) for (const k of g.kinds) curatedByKey.set(kindKey(k.apiVersion, k.kind), { entry: k, label: k.label, description: k.description });
     const cardFor = (entry: KindEntry): Card =>

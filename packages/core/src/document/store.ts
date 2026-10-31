@@ -4,7 +4,10 @@ import type { EditOp, EditResult } from './edit.js';
 import { parseText } from './parse.js';
 import type { ParsedText, TextChange } from './types.js';
 
-/** Who caused a change: the visual editor, the code editor, the public API, or undo/redo. */
+/**
+ * Who caused a change: the visual editor, the code editor, the public API, or undo/redo. May grow in later
+ * versions; treat an unknown value like `'api'` (a change that did not come from typing).
+ */
 export type ChangeOrigin = 'visual' | 'code' | 'api' | 'history';
 
 /** Emitted to subscribers after every text change. */
@@ -185,7 +188,9 @@ export class DocumentStore {
 
   /**
    * Subscribes to changes; returns an unsubscribe function. Listeners run in subscription order; a
-   * listener that throws is logged (`console.error`) and the rest still run.
+   * listener that throws is logged (`console.error`) and the rest still run. Only text changes are
+   * reported: {@link clearHistory}, and {@link reset} to the current text, change `canUndo` / `canRedo`
+   * without an event.
    */
   subscribe(fn: (e: StoreEvent) => void): () => void {
     this.#listeners.add(fn);

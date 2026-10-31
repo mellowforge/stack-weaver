@@ -3,9 +3,9 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { breadcrumbAt } from '../../src/assist/hover.js';
 import { DocumentStore } from '../../src/document/store.js';
 import type { EditorContext } from '../../src/editor/context.js';
-import { createEditorWithContext } from '../../src/editor/editor.js';
+import { createEditorWithContext, createManifestEditor } from '../../src/editor/editor.js';
 import { defaultUiMessages } from '../../src/editor/messages.js';
-import { createProblemScheduler } from '../../src/editor/problems.js';
+import { createProblemScheduler, VALIDATION_DELAY_MS } from '../../src/editor/problems.js';
 import type { ManifestEditorOptions } from '../../src/editor/editor.js';
 import type { FormatDefinition, SchemaBundle } from '../../src/formats/types.js';
 import type { Problem } from '../../src/validation/problems.js';
@@ -62,6 +62,17 @@ describe('validation scheduling', () => {
     await vi.advanceTimersByTimeAsync(1);
     expect(onProblemsChange).toHaveBeenCalledTimes(1);
     expect(onProblemsChange.mock.calls[0]![0].some((p: Problem) => p.code === 'yaml.syntax')).toBe(true);
+  });
+
+  it('the published problems array is frozen: getProblems and onProblemsChange (R9)', async () => {
+    const onProblemsChange = vi.fn();
+    const editor = createManifestEditor(el, { codeEditor: createFakeAdapter(), format: 'two', formats: [twoErrors], value: 'a: 1\nb: 2\n', onProblemsChange });
+    expect(Object.isFrozen(editor.getProblems())).toBe(true); // the initial empty list too
+    await editor.ready;
+    expect(editor.getProblems()).toHaveLength(2);
+    expect(Object.isFrozen(editor.getProblems())).toBe(true);
+    expect(onProblemsChange.mock.calls[0]![0]).toBe(editor.getProblems());
+    editor.destroy();
   });
 
   it('ready waits for the first validation', async () => {
@@ -390,5 +401,24 @@ describe('code assist', () => {
     const { fake } = await mount({ format: 'kubernetes', value: text, messages: { ui: { documentLabel: '{n}. Dokument' } } });
     fake.setCaret(text.indexOf('b'));
     expect(el.querySelector('.sw-breadcrumb')!.textContent).toBe('1. Dokument › a › b');
+  });
+});
+
+describe('a same-length key rename (R13)', () => {
+  it('republishes the problems with the new path: the row and the problems panel follow it', async () => {
+    const value = 'services:\n  web:\n    image: 5\n';
+    const { editor, ctx } = await mount({ format: 'compose', mode: 'visual', value });
+    expect(editor.getProblems().map((p) => p.path)).toEqual([['services', 'web', 'image']]);
+    vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout'] });
+    // The visual pane's key rename: one renameKey op; offsets, message and range stay the same.
+    expect(ctx.store.edit({ op: 'renameKey', at: { doc: 0, path: ['services', 'web'] }, key: 'api' }).ok).toBe(true);
+    await vi.advanceTimersByTimeAsync(VALIDATION_DELAY_MS);
+    await vi.waitFor(() => expect(editor.getProblems().map((p) => p.path)).toEqual([['services', 'api', 'image']]));
+    // The problems panel reveals the new path in the visual pane, whose image row shows the error.
+    el.querySelector<HTMLButtonElement>('.sw-problem')!.click();
+    expect(el.querySelector('.sw-section-title')!.textContent).toContain('api');
+    const shown = el.querySelector<HTMLElement>('.sw-row[data-sw-key="image"] .sw-row-problems')!;
+    expect(shown.hidden).toBe(false);
+    expect(shown.textContent).toContain(editor.getProblems()[0]!.message);
   });
 });

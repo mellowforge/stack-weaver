@@ -56,8 +56,8 @@ export interface ManifestEditorOptions {
   /**
    * `'kubernetes'`, `'compose'`, the id of a host format, or `'auto'` to detect it from the text. Default `'auto'`.
    * An unknown id resolves to no format. Under `'auto'` the format is detected again whenever the text is set
-   * through the API (`setValue`, `update({ value })`); typing never switches a detected format. Change it with
-   * {@link ManifestEditorController.setFormat}.
+   * through the API (`setValue`, `update({ value })`) and on undo and redo; typing never switches a detected
+   * format. Change it with {@link ManifestEditorController.setFormat}.
    */
   readonly format?: 'kubernetes' | 'compose' | 'auto' | (string & {});
   /** Initial YAML text. Default `''`. */
@@ -85,7 +85,7 @@ export interface ManifestEditorOptions {
    * and {@link ManifestEditorController.setValue} (`origin: 'api'`). A throw is logged and does not stop the editor.
    */
   readonly onChange?: (value: string, meta: { readonly origin: ChangeOrigin }) => void;
-  /** Called when the problems change. A throw is logged and does not stop the editor. */
+  /** Called with the problems (a frozen array) when they change. A throw is logged and does not stop the editor. */
   readonly onProblemsChange?: (problems: readonly Problem[]) => void;
   /**
    * Called when the mode changes: by the mode switch, by {@link ManifestEditorController.setMode}, and when an
@@ -119,7 +119,7 @@ export interface ManifestEditorUpdate {
   readonly readOnly?: boolean;
   /** As {@link ManifestEditorController.setTheme}. */
   readonly theme?: EditorTheme;
-  /** As {@link ManifestEditorController.setFormat}. */
+  /** As {@link ManifestEditorController.setFormat}; {@link ManifestEditorController.getFormat} reads it back. */
   readonly format?: ManifestEditorOptions['format'];
   /**
    * The declarations of an `external` variables store, as {@link ManifestEditorController.setVariables} (with the
@@ -135,7 +135,7 @@ export interface ManifestEditorController {
   /**
    * Replaces the text (origin `'api'`) as a minimal diff, so the code caret survives, and as one undo step; a
    * no-op (no `onChange`) when it is equal. Under format `'auto'` the format is detected again (broken text keeps
-   * the current one).
+   * the current one), as it is on undo and redo.
    */
   setValue(text: string): void;
   /**
@@ -144,12 +144,19 @@ export interface ManifestEditorController {
    * replaces the list and re-validates even when it is unchanged. An empty patch does nothing.
    */
   update(patch: ManifestEditorUpdate): void;
+  /**
+   * The format option: `'auto'` or a format id, as given to the `format` option or {@link setFormat}, so
+   * `setFormat(getFormat())` is a no-op (as `setMode(getMode())` is). The format it resolves to is
+   * {@link getActiveFormat}.
+   */
+  getFormat(): string;
   /** The id of the resolved format; `undefined` before it resolves, and when there is none. */
-  getFormat(): string | undefined;
+  getActiveFormat(): string | undefined;
   /**
    * Sets the format option; a no-op when it is the current option (`'auto'` included). An id fixes the format (an
    * unknown id resolves to no format, as the `format` option does). `'auto'` (or `undefined`, the option's
-   * default) detects the format from the text now, and again on every later API text change. Built-in formats
+   * default) detects the format from the text now, and again on every later API text change and on undo and
+   * redo. Built-in formats
    * that were not needed so far load first, so the change can then land after a tick; if they fail to load, there
    * is no format and the editor says so (setting the same id again is then a no-op: retry through another
    * option first). `onVariablesChange` is called when the format change changes the declarations.
@@ -159,7 +166,7 @@ export interface ManifestEditorController {
   getMode(): EditorMode;
   /** Switches mode and calls `onModeChange`; a no-op (no `onModeChange`) when it is the current mode. */
   setMode(mode: EditorMode): void;
-  /** The current problems. */
+  /** The current problems: a frozen array, the one `onProblemsChange` was last called with. */
   getProblems(): readonly Problem[];
   /** Whether user edits are blocked. */
   getReadOnly(): boolean;
@@ -176,6 +183,7 @@ export interface ManifestEditorController {
   /**
    * The declared variables: from the document's block, or the host's list for the `external`
    * store; `[]` when there are none. Deep-frozen: change them through the store or `setVariables`.
+   * The same array until the declarations change, so it can be compared by identity.
    */
   getVariables(): readonly VariableDecl[];
   /**
@@ -251,7 +259,7 @@ export function createEditorWithContext(
   /** The built-in formats are in `formatList`; they load only when an option needs them (see `needsBuiltins`). */
   let builtinsLoaded = false;
   let builtinsLoad: Promise<void> | undefined;
-  let problems: readonly Problem[] = [];
+  let problems: readonly Problem[] = Object.freeze([]);
   const problemListeners = new Set<(p: readonly Problem[]) => void>();
 
   // Created before any side effect (listeners, DOM): invalid initial declarations throw a TypeError here.
@@ -288,6 +296,7 @@ export function createEditorWithContext(
   const ctx: EditorContext = {
     store,
     messages: { ui, schema: options.messages?.schema ?? {} },
+    locale,
     format: () => format,
     guide() {
       if (!format) return EMPTY_GUIDE;
@@ -378,7 +387,9 @@ export function createEditorWithContext(
   const updatePanes = (e: StoreEvent | null): void => {
     for (const p of panes) guarded(p === codePane ? 'the code pane' : 'the visual pane', () => p.update(e));
   };
-  const scheduler = createProblemScheduler(ctx, (next) => {
+  const scheduler = createProblemScheduler(ctx, (list) => {
+    // One frozen array for getProblems, the panes and every callback: nobody can change what the others see.
+    const next = Object.freeze(list);
     problems = next;
     shell.setProblemCount(problemCountText(ui, next.length, locale));
     panel.update(next);
@@ -525,10 +536,12 @@ export function createEditorWithContext(
       guarded('the format detection', () => {
         const p = store.parsed;
         // Under `auto` the format follows the text: it is detected once there is some, again whenever the host
-        // sets the text (origin 'api'), and dropped when the text is cleared (else the badge, guide and problems
-        // would keep describing a document that is gone). Typing keeps the format: a half-typed document must
-        // not switch it. Broken text keeps the last format, so typing through a syntax error does not flicker.
-        if (!format || e.origin === 'api') redetect();
+        // sets the text (origin 'api') or undo / redo brings back an earlier one (origin 'history', so undoing a
+        // format-switching `setValue` switches back), and dropped when the text is cleared (else the badge, guide
+        // and problems would keep describing a document that is gone). Typing keeps the format: a half-typed
+        // document must not switch it. Broken text keeps the last format, so typing through a syntax error does
+        // not flicker.
+        if (!format || e.origin === 'api' || e.origin === 'history') redetect();
         else if (p.ok && allDocumentsEmpty(p)) applyFormat(undefined);
       });
     }
@@ -635,7 +648,8 @@ export function createEditorWithContext(
       if (patch.mode !== undefined) setMode(patch.mode);
       if (patch.theme !== undefined) setTheme(patch.theme);
     },
-    getFormat: () => format?.id,
+    getFormat: () => formatOption,
+    getActiveFormat: () => format?.id,
     setFormat,
     getMode: () => mode,
     setMode,

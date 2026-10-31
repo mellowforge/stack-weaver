@@ -93,7 +93,7 @@ describe('update and setValue', () => {
     editor.update({});
     expect(onChange).not.toHaveBeenCalled();
     expect(onModeChange).not.toHaveBeenCalled();
-    expect(editor.getFormat()).toBe('kubernetes');
+    expect(editor.getActiveFormat()).toBe('kubernetes');
   });
 
   it('update applies several fields at once in the documented order', async () => {
@@ -105,7 +105,7 @@ describe('update and setValue', () => {
       value: K8S,
       theme: 'light',
       variables: { store: 'external', value: [] },
-      onChange: () => seen.push(`value format=${editor.getFormat()} vars=${editor.getVariables().length} ro=${editor.getReadOnly()}`),
+      onChange: () => seen.push(`value format=${editor.getActiveFormat()} vars=${editor.getVariables().length} ro=${editor.getReadOnly()}`),
       onModeChange: () =>
         seen.push(`mode vars=${editor.getVariables().length} ro=${editor.getReadOnly()} theme=${el.querySelector('.sw-editor')!.getAttribute('data-sw-theme')}`),
     });
@@ -113,7 +113,7 @@ describe('update and setValue', () => {
     editor.update({ theme: 'dark', mode: 'code', readOnly: true, variables: [decl], value: COMPOSE, format: 'kubernetes' });
     // `format` came first: the compose text did not switch the (now fixed) format.
     expect(seen).toEqual(['value format=kubernetes vars=0 ro=false', 'mode vars=1 ro=true theme=light']);
-    expect(editor.getFormat()).toBe('kubernetes');
+    expect(editor.getActiveFormat()).toBe('kubernetes');
     expect(editor.getValue()).toBe(COMPOSE);
     expect(editor.getVariables()).toEqual([decl]);
     expect(editor.getReadOnly()).toBe(true);
@@ -141,37 +141,37 @@ describe('update and setValue', () => {
 });
 
 describe('format at runtime (P8)', () => {
-  it('getFormat is undefined until the format resolves', async () => {
+  it('getActiveFormat is undefined until the format resolves', async () => {
     const editor = createManifestEditor(el, { codeEditor: createFakeAdapter(), value: K8S });
-    expect(editor.getFormat()).toBeUndefined();
+    expect(editor.getActiveFormat()).toBeUndefined();
     await editor.ready;
-    expect(editor.getFormat()).toBe('kubernetes');
+    expect(editor.getActiveFormat()).toBe('kubernetes');
     editor.destroy();
   });
 
   it('update({ value }) with a compose text switches an auto editor from kubernetes to compose', async () => {
     const { editor, ctx } = await mount({ value: K8S });
-    expect(editor.getFormat()).toBe('kubernetes');
+    expect(editor.getActiveFormat()).toBe('kubernetes');
     editor.update({ value: COMPOSE });
-    expect(editor.getFormat()).toBe('compose');
+    expect(editor.getActiveFormat()).toBe('compose');
     expect(ctx.format()?.id).toBe('compose');
     expect(badge()).toContain('Docker Compose');
     editor.setValue(K8S);
-    expect(editor.getFormat()).toBe('kubernetes');
+    expect(editor.getActiveFormat()).toBe('kubernetes');
   });
 
   it('a store reset re-detects under auto', async () => {
     const { editor, ctx } = await mount({ value: K8S });
     ctx.store.reset(COMPOSE);
-    expect(editor.getFormat()).toBe('compose');
+    expect(editor.getActiveFormat()).toBe('compose');
   });
 
   it('an api text that detects as no format drops the format; broken text keeps it', async () => {
     const { editor } = await mount({ value: K8S });
     editor.setValue(K8S + 'bad: [unclosed\n');
-    expect(editor.getFormat()).toBe('kubernetes');
+    expect(editor.getActiveFormat()).toBe('kubernetes');
     editor.setValue('just: data\n');
-    expect(editor.getFormat()).toBeUndefined();
+    expect(editor.getActiveFormat()).toBeUndefined();
     expect(badge()).toBe(ui.formatNone);
   });
 
@@ -179,24 +179,24 @@ describe('format at runtime (P8)', () => {
     const { editor, fake } = await mount({ value: K8S });
     fake.type(COMPOSE);
     expect(editor.getValue()).toBe(COMPOSE);
-    expect(editor.getFormat()).toBe('kubernetes');
+    expect(editor.getActiveFormat()).toBe('kubernetes');
   });
 
   it('setFormat fixes the format; setFormat("auto") re-detects', async () => {
     const { editor } = await mount({ value: K8S });
     editor.setFormat('compose');
-    expect(editor.getFormat()).toBe('compose');
+    expect(editor.getActiveFormat()).toBe('compose');
     expect(badge()).toContain('Docker Compose');
     // Fixed: neither an api text nor clearing the text changes it.
     editor.setValue(K8S.replace('x', 'y'));
     editor.setValue('');
-    expect(editor.getFormat()).toBe('compose');
+    expect(editor.getActiveFormat()).toBe('compose');
     editor.setValue(K8S);
-    expect(editor.getFormat()).toBe('compose');
+    expect(editor.getActiveFormat()).toBe('compose');
     editor.setFormat('auto');
-    expect(editor.getFormat()).toBe('kubernetes');
+    expect(editor.getActiveFormat()).toBe('kubernetes');
     editor.update({ format: 'compose' });
-    expect(editor.getFormat()).toBe('compose');
+    expect(editor.getActiveFormat()).toBe('compose');
   });
 
   it('setFormat with the current option is a no-op, auto included', async () => {
@@ -204,41 +204,82 @@ describe('format at runtime (P8)', () => {
     const { editor, fake } = await mount({ value: K8S, onVariablesChange });
     // The user types a compose document with declarations: the auto editor keeps kubernetes.
     fake.type('x-variables:\n  PORT:\n    type: port\n' + COMPOSE);
-    expect(editor.getFormat()).toBe('kubernetes');
+    expect(editor.getActiveFormat()).toBe('kubernetes');
     // Re-passing the current option (as a wrapper would) does not re-detect.
     editor.setFormat('auto');
     editor.setFormat(undefined);
     editor.update({ format: 'auto' });
-    expect(editor.getFormat()).toBe('kubernetes');
+    expect(editor.getActiveFormat()).toBe('kubernetes');
     expect(editor.getVariables()).toEqual([]);
     expect(onVariablesChange).not.toHaveBeenCalled();
     // The same for a fixed id.
     editor.setFormat('kubernetes');
     editor.setFormat('kubernetes');
-    expect(editor.getFormat()).toBe('kubernetes');
+    expect(editor.getActiveFormat()).toBe('kubernetes');
   });
 
-  it('undo does not re-detect the format', async () => {
+  it('getFormat returns the option and round-trips with setFormat; getActiveFormat is the resolved id (R8)', async () => {
+    const { editor, fake } = await mount({ value: K8S });
+    expect(editor.getFormat()).toBe('auto');
+    expect(editor.getActiveFormat()).toBe('kubernetes');
+    // Typed compose text keeps kubernetes; re-passing the option read back does not re-detect.
+    fake.type(COMPOSE);
+    editor.setFormat(editor.getFormat());
+    editor.update({ format: editor.getFormat() });
+    expect(editor.getFormat()).toBe('auto');
+    expect(editor.getActiveFormat()).toBe('kubernetes');
+    editor.setFormat('compose');
+    expect(editor.getFormat()).toBe('compose');
+    expect(editor.getActiveFormat()).toBe('compose');
+    editor.setFormat(undefined);
+    expect(editor.getFormat()).toBe('auto');
+    editor.setFormat('nope');
+    expect(editor.getFormat()).toBe('nope');
+    expect(editor.getActiveFormat()).toBeUndefined();
+  });
+
+  it('getFormat is the option before the format resolves', async () => {
+    const editor = createManifestEditor(el, { codeEditor: createFakeAdapter(), value: K8S, format: 'kubernetes' });
+    expect(editor.getFormat()).toBe('kubernetes');
+    expect(editor.getActiveFormat()).toBeUndefined();
+    await editor.ready;
+    expect(editor.getActiveFormat()).toBe('kubernetes');
+    editor.destroy();
+  });
+
+  it('undo and redo of an api text re-detect the format under auto (R12)', async () => {
     const { editor } = await mount({ value: K8S });
     editor.setValue(COMPOSE);
-    expect(editor.getFormat()).toBe('compose');
+    expect(editor.getActiveFormat()).toBe('compose');
     expect(editor.undo()).toBe(true);
     expect(editor.getValue()).toBe(K8S);
-    expect(editor.getFormat()).toBe('compose');
+    expect(editor.getActiveFormat()).toBe('kubernetes');
+    expect(badge()).toContain('Kubernetes');
+    expect(editor.redo()).toBe(true);
+    expect(editor.getValue()).toBe(COMPOSE);
+    expect(editor.getActiveFormat()).toBe('compose');
+  });
+
+  it('undo under a fixed format does not switch it', async () => {
+    const { editor } = await mount({ value: K8S, format: 'kubernetes' });
+    editor.setValue(COMPOSE);
+    expect(editor.undo()).toBe(true);
+    expect(editor.redo()).toBe(true);
+    expect(editor.getActiveFormat()).toBe('kubernetes');
   });
 
   it('setFormat with an unknown id resolves to no format, like the option', async () => {
     const { editor } = await mount({ value: K8S });
     editor.setFormat('nope');
     await vi.waitFor(() => expect(badge()).toBe(ui.formatNone));
-    expect(editor.getFormat()).toBeUndefined();
+    expect(editor.getActiveFormat()).toBeUndefined();
   });
 
   it('setFormat before the formats load is honoured when they do', async () => {
     const editor = createManifestEditor(el, { codeEditor: createFakeAdapter(), value: K8S });
     editor.setFormat('compose');
     await editor.ready;
-    expect(editor.getFormat()).toBe('compose');
+    expect(editor.getActiveFormat()).toBe('compose');
     editor.destroy();
   });
 
@@ -247,21 +288,21 @@ describe('format at runtime (P8)', () => {
     const mine = fakeFormat();
     const { editor } = await mount({ format: 'mine', formats: [mine], value: K8S });
     expect(load).not.toHaveBeenCalled();
-    expect(editor.getFormat()).toBe('mine');
+    expect(editor.getActiveFormat()).toBe('mine');
     editor.setFormat('kubernetes');
-    await vi.waitFor(() => expect(editor.getFormat()).toBe('kubernetes'));
+    await vi.waitFor(() => expect(editor.getActiveFormat()).toBe('kubernetes'));
     expect(load).toHaveBeenCalledOnce();
     editor.setFormat('auto');
-    expect(editor.getFormat()).toBe('kubernetes');
+    expect(editor.getActiveFormat()).toBe('kubernetes');
     editor.setFormat('mine');
-    expect(editor.getFormat()).toBe('mine');
+    expect(editor.getActiveFormat()).toBe('mine');
   });
 
   it('ready waits for built-in formats a setFormat made while loading needs', async () => {
     const editor = createManifestEditor(el, { codeEditor: createFakeAdapter(), format: 'mine', formats: [fakeFormat()], value: K8S });
     editor.setFormat('kubernetes');
     await editor.ready;
-    expect(editor.getFormat()).toBe('kubernetes');
+    expect(editor.getActiveFormat()).toBe('kubernetes');
     editor.destroy();
   });
 
@@ -272,7 +313,7 @@ describe('format at runtime (P8)', () => {
     const editor = createManifestEditor(el, { codeEditor: createFakeAdapter(), format: 'mine', formats: [fakeFormat()], value: K8S });
     editor.setFormat('kubernetes');
     await expect(editor.ready).rejects.toBe(boom);
-    expect(editor.getFormat()).toBeUndefined();
+    expect(editor.getActiveFormat()).toBeUndefined();
     expect(badge()).toBe(ui.formatsFailed);
     editor.destroy();
   });
@@ -282,13 +323,13 @@ describe('format at runtime (P8)', () => {
     const load = deferredLoader();
     editor.setFormat('kubernetes');
     editor.setFormat('mine');
-    expect(editor.getFormat()).toBe('mine');
+    expect(editor.getActiveFormat()).toBe('mine');
     load.resolve();
     await flush();
-    expect(editor.getFormat()).toBe('mine');
+    expect(editor.getActiveFormat()).toBe('mine');
     // The formats did load: kubernetes now resolves at once, without another load.
     editor.setFormat('kubernetes');
-    expect(editor.getFormat()).toBe('kubernetes');
+    expect(editor.getActiveFormat()).toBe('kubernetes');
     expect(load.spy).toHaveBeenCalledOnce();
   });
 
@@ -301,7 +342,7 @@ describe('format at runtime (P8)', () => {
     load.reject(new Error('chunk failed'));
     await flush();
     expect(log).toHaveBeenCalledWith('stack-weaver: loading the built-in formats failed', expect.any(Error));
-    expect(editor.getFormat()).toBe('mine');
+    expect(editor.getActiveFormat()).toBe('mine');
     expect(badge()).toBe('Mine 1');
     expect(notice()).toBe(ui.visualEmpty);
   });
@@ -314,18 +355,18 @@ describe('format at runtime (P8)', () => {
     editor.setFormat('kubernetes');
     await flush();
     expect(log).toHaveBeenCalledWith('stack-weaver: loading the built-in formats failed', boom);
-    expect(editor.getFormat()).toBeUndefined();
+    expect(editor.getActiveFormat()).toBeUndefined();
     expect(badge()).toBe(ui.formatsFailed);
     expect(notice()).toBe(ui.formatsFailed);
     // A host format still resolves, and takes the failure back.
     editor.setFormat('mine');
-    expect(editor.getFormat()).toBe('mine');
+    expect(editor.getActiveFormat()).toBe('mine');
     expect(badge()).toBe('Mine 1');
     expect(notice()).toBe(ui.visualEmpty);
     // The load is tried again.
     failing.mockRestore();
     editor.setFormat('kubernetes');
-    await vi.waitFor(() => expect(editor.getFormat()).toBe('kubernetes'));
+    await vi.waitFor(() => expect(editor.getActiveFormat()).toBe('kubernetes'));
     expect(badge()).toContain('Kubernetes');
   });
 
@@ -337,7 +378,7 @@ describe('format at runtime (P8)', () => {
     await expect(editor.ready).rejects.toBe(boom);
     expect(badge()).toBe(ui.formatsFailed);
     editor.setFormat('mine');
-    expect(editor.getFormat()).toBe('mine');
+    expect(editor.getActiveFormat()).toBe('mine');
     expect(badge()).toBe('Mine 1');
     expect(notice()).toBe(ui.visualEmpty);
     editor.destroy();
@@ -359,6 +400,6 @@ describe('format at runtime (P8)', () => {
     const { editor } = await mount({ value: K8S });
     editor.destroy();
     editor.setFormat('compose');
-    expect(editor.getFormat()).toBe('kubernetes');
+    expect(editor.getActiveFormat()).toBe('kubernetes');
   });
 });

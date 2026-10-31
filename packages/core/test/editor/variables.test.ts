@@ -271,6 +271,24 @@ describe('declarations handed out are frozen', () => {
     expect(editor.getVariables()).toEqual([ENUM, { name: 'B', type: 'boolean' }]);
   });
 
+  it.each(['x-variables', 'external'] as const)('%s store: getVariables is the same array until the declarations change (R9)', async (store) => {
+    const { editor, ctx, fake } =
+      store === 'external'
+        ? await mount({ value: 'services: {}\n', variables: { store: 'external', value: [ENUM] } })
+        : await mount({ value: 'x-variables:\n  MODE:\n    type: enum\n    enum: [a, b]\n    default: a\nservices: {}\n' });
+    const first = editor.getVariables();
+    expect(editor.getVariables()).toBe(first);
+    expect(ctx.variables()!.get()).toBe(first);
+    // A text change that leaves the declarations alone keeps the array.
+    fake.type(editor.getValue().replace('services: {}', 'services: { }'));
+    expect(editor.getVariables()).toBe(first);
+    expect(ctx.variables()!.set({ name: 'B', type: 'boolean' }).ok).toBe(true);
+    const second = editor.getVariables();
+    expect(second).not.toBe(first);
+    expect(second.map((d) => d.name)).toEqual(['MODE', 'B']);
+    expect(editor.getVariables()).toBe(second);
+  });
+
   it('the host list is copied: changing it afterwards changes nothing', async () => {
     const value: VariableDecl[] = [{ name: 'A', type: 'string' }];
     const { editor } = await mount({ variables: { store: 'external', value } });

@@ -83,6 +83,7 @@ export type {
   CodeEditorInit,
   CodeEditorInstance,
   CodeEditorAdapter,
+  SyncCodeEditorAdapter,
 } from './editors/adapter.js';
 
 // Widgets
@@ -92,9 +93,9 @@ export { pickWidget, defaultWidgets } from './visual/widgets/registry.js';
 // Editor
 export { createManifestEditor } from './editor/editor.js';
 export type { ManifestEditorController, ManifestEditorOptions, ManifestEditorUpdate, EditorMode, EditorMessages } from './editor/editor.js';
-export type { ActionRefusal, ActionResult, VariableStore, VariablesOption } from './editor/variables.js';
+export type { ActionRefusal, ActionResult, VariablesOption } from './editor/variables.js';
 export type { EditorTheme, ResolvedTheme } from './editor/theme.js';
 export { defaultUiMessages } from './editor/messages.js';
 export type { UiMessages } from './editor/messages.js';
 export { formatMessage, formatPlural } from './editor/format-message.js';
-export type { PluralMessage } from './editor/format-message.js';
+export type { MessageParams, PluralMessage } from './editor/format-message.js';

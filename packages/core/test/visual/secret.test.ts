@@ -38,6 +38,7 @@ function mount(text: string, readOnly = false) {
     schema: { type: 'object', additionalProperties: { type: 'string', format: 'byte' } },
     readOnly,
     messages: defaultUiMessages,
+    locale: 'en',
     guide: () => ({ groups: [], kinds: {}, fields: {} }),
   });
   const w = defaultWidgets['secret-data']!.create(ctx);

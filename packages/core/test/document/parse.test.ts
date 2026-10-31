@@ -60,6 +60,21 @@ describe('parseText', () => {
     expect(parseText('a: 1\n').warnings).toEqual([]);
   });
 
+  it('the handle and its errors and warnings are frozen, and still work with the API (R9)', () => {
+    for (const text of ['name: !foo a\n', 'a: [\n']) {
+      const p = parseText(text);
+      expect(Object.isFrozen(p)).toBe(true);
+      expect(Object.isFrozen(p.errors)).toBe(true);
+      expect(Object.isFrozen(p.warnings)).toBe(true);
+      expect(() => {
+        (p as { text: string }).text = 'x';
+      }).toThrow(TypeError);
+    }
+    const p = parseText('a: 1\n');
+    expect(refAtOffset(p, 3)).toEqual({ doc: 0, path: ['a'] });
+    expect(applyEdit(p, { op: 'set', at: { doc: 0, path: ['a'] }, value: 2 })).toMatchObject({ ok: true, text: 'a: 2\n' });
+  });
+
   it('detects CRLF eol', () => {
     expect(parseText(corpus('k8s-web-app-crlf.yaml')).eol).toBe('\r\n');
     expect(parseText('a: 1\nb: 2\n').eol).toBe('\n');

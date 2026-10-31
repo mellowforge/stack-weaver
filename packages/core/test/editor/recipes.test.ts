@@ -165,9 +165,9 @@ describe('recipe cards', () => {
     const { editor } = await mount({ format: 'auto' });
     for (const recipe of [...kubernetesFormat.recipes!, ...composeFormat.recipes!]) {
       editor.setValue(recipe.format === 'kubernetes' ? 'services: {}\n' : 'apiVersion: v1\nkind: Namespace\n');
-      expect(editor.getFormat()).not.toBe(recipe.format);
+      expect(editor.getActiveFormat()).not.toBe(recipe.format);
       editor.setValue(recipe.yaml);
-      expect(editor.getFormat(), recipe.id).toBe(recipe.format);
+      expect(editor.getActiveFormat(), recipe.id).toBe(recipe.format);
     }
   });
 

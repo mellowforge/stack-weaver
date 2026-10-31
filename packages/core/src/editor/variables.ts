@@ -1,6 +1,7 @@
 import type { EditOp, EditRefusal } from '../document/edit.js';
 import type { DocumentStore } from '../document/store.js';
-import type { FormatDefinition, VariableDecl } from '../formats/types.js';
+import type { ParsedText } from '../document/types.js';
+import type { FormatDefinition, FormatVariables, VariableDecl } from '../formats/types.js';
 import type { Problem } from '../validation/problems.js';
 import { deepFreeze } from '../formats/freeze.js';
 import { validateVariableDecl } from '../variables/decl.js';
@@ -11,7 +12,8 @@ import { validateVariableDecl } from '../variables/decl.js';
  * or the format could not write the change), `invalid` (the declaration fails validation),
  * `name-taken` (a rename onto an existing name), `not-found` (no such declaration),
  * `already-declared` (a declaration fix for a name that is already declared) and `edit-refused`
- * (the text edit was refused; see {@link ActionResult.edit}).
+ * (the text edit was refused; the result's `edit` says why). May grow in later versions; treat an
+ * unknown value like `unavailable` (the action cannot run now).
  */
 export type ActionRefusal =
   | 'no-fix'
@@ -24,13 +26,17 @@ export type ActionRefusal =
   | 'already-declared'
   | 'edit-refused';
 
-/** The result of a refusable editor action: done, or refused with a reason (and, for `edit-refused`, the edit's own reason in `edit`). Nothing changes when refused. */
+/**
+ * The result of a refusable editor action: done, or refused with a reason; an `edit-refused` refusal (and only
+ * that one) carries the edit's own reason in `edit`. Nothing changes when refused.
+ */
 export type ActionResult =
   | { readonly ok: true }
-  | { readonly ok: false; readonly reason: ActionRefusal; readonly edit?: EditRefusal };
+  | { readonly ok: false; readonly reason: 'edit-refused'; readonly edit: EditRefusal }
+  | { readonly ok: false; readonly reason: Exclude<ActionRefusal, 'edit-refused'> };
 
 const OK: ActionResult = Object.freeze({ ok: true });
-const refuse = (reason: ActionRefusal): ActionResult => ({ ok: false, reason });
+const refuse = (reason: Exclude<ActionRefusal, 'edit-refused'>): ActionResult => ({ ok: false, reason });
 
 /**
  * Where declarations live: in the document's variables block, or in a list the host owns.
@@ -43,7 +49,10 @@ export type VariablesOption =
   | { readonly store: 'x-variables' }
   | { readonly store: 'external'; readonly value: readonly VariableDecl[] };
 
-/** Where declarations live; the editor creates one per instance. */
+/**
+ * Where declarations live; the editor creates one per instance.
+ * @internal No public value produces one: hosts read and write declarations through the controller.
+ */
 export interface VariableStore {
   /**
    * `'x-variables'` for the block in the document (the one named by the format's
@@ -134,13 +143,24 @@ export function createVariables(deps: {
   let hold = 0;
 
   const fv = () => deps.format()?.variables;
-  /** The declarations, deep-frozen (a fresh read of the block each time for `x-variables`). */
+  const sigOf = (d: readonly VariableDecl[]): string => JSON.stringify(d);
+  /** The last `x-variables` read: the parse and format it came from, its signature and the array handed out. */
+  let memo: { parsed: ParsedText; format: FormatVariables | undefined; sig: string; decls: readonly VariableDecl[] } | undefined;
+  /**
+   * The declarations, deep-frozen. The same array until they change (a host's `useSyncExternalStore`
+   * compares by identity): `x-variables` reads the block again only for a new parse or format, and keeps
+   * the array it handed out when the read is equal.
+   */
   const get = (): readonly VariableDecl[] => {
     if (kind === 'external') return external;
     const f = fv();
-    return deepFreeze(f ? f.read(store.parsed.ok ? store.parsed : (store.lastGood ?? store.parsed)) : []);
+    const parsed = store.parsed.ok ? store.parsed : (store.lastGood ?? store.parsed);
+    if (memo?.parsed === parsed && memo.format === f) return memo.decls;
+    const read = f ? f.read(parsed) : [];
+    const sig = sigOf(read);
+    memo = { parsed, format: f, sig, decls: memo?.sig === sig ? memo.decls : deepFreeze(read) };
+    return memo.decls;
   };
-  const sigOf = (d: readonly VariableDecl[]): string => JSON.stringify(d);
   let last = sigOf(get());
 
   const emit = (host: boolean): void => {

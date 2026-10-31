@@ -22,7 +22,7 @@ export interface UiMessages {
   readonly visualLabel: string;
   /** Format badge text while no format is resolved. */
   readonly formatNone: string;
-  /** The problem count, by plural category of `messages.locale`; `zero` is used for none and `{count}` is the number. */
+  /** The problem count, by plural category of `messages.locale`; `none` is used for 0 and `{count}` is the number. */
   readonly problemCount: PluralMessage;
   /** Heading and accessible name of the problems panel. */
   readonly problemsLabel: string;
@@ -210,7 +210,7 @@ export const defaultUiMessages: UiMessages = {
   codeLabel: 'YAML code',
   visualLabel: 'Visual editor',
   formatNone: 'No format',
-  problemCount: { zero: 'No problems', one: '{count} problem', other: '{count} problems' },
+  problemCount: { none: 'No problems', one: '{count} problem', other: '{count} problems' },
   problemsLabel: 'Problems',
   problemPrefix: '{severity}: ',
   severityError: 'Error',

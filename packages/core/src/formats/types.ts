@@ -5,7 +5,7 @@ import type { MessageFn } from '../validation/messages.js';
 import type { VARIABLE_TYPES } from '../variables/decl.js';
 import type { WidgetRef } from '../visual/widgets/types.js';
 
-/** A JSON Schema document as plain data. Read-only: copy it to change it. */
+/** A JSON Schema document as plain data. Shallowly read-only (nested values are not typed read-only): copy it to change it. */
 export type JsonSchema = Readonly<Record<string, unknown>>;
 
 /** One schema validation error, in ajv's shape. */
@@ -248,8 +248,8 @@ export interface QuickFix {
 export interface DetectInput {
   /**
    * `toData` per document of the text: one entry per document, in order; `undefined` for an empty
-   * or comment-only document and for one whose data cannot be built (for example `<<: 5`). Empty
-   * when the text does not parse. The data is merge-expanded (`<<` keys are applied), unlike the
+   * or comment-only document and for one whose data cannot be built (for example `<<: 5`), so
+   * `docs[i]` may be `undefined` for any `i`. Empty when the text does not parse. The data is merge-expanded (`<<` keys are applied), unlike the
    * raw tree that validation's `apiVersion` / `kind` shape check reads.
    */
   readonly docs: readonly unknown[];
@@ -276,7 +276,7 @@ export interface RuleInput {
   readonly variableSource: 'document' | 'host';
   /**
    * Formats an entry of the message table for this rule: the host's `messages` over the rule's own
-   * `messages`. An unknown key gives the key itself.
+   * `messages`. An unknown key gives the key itself (and a `console.warn`, once per rule and key).
    */
   message(key: string, params?: Readonly<Record<string, unknown>>): string;
   /**
@@ -318,7 +318,10 @@ export interface RuleFix {
 
 /** A semantic check run after schema validation. Reports problems with code `rule.<id>`. */
 export interface Rule {
-  /** Stable id; problems carry the code `rule.${id}`. */
+  /**
+   * Stable id; problems carry the code `rule.${id}`. `'failed'` is reserved (a throwing rule reports
+   * `rule.failed`): a rule with that id is warned about once with `console.warn`.
+   */
   readonly id: string;
   /** Default messages for `rule.${id}` and every fix key the rule uses; hosts override by key. */
   readonly messages: Readonly<Record<string, MessageFn>>;
@@ -380,7 +383,9 @@ export interface FormatDefinition {
   /**
    * Loads the schema for a document, given its plain data (`toData`); `undefined` means unknown
    * kind. Called with whatever the document holds, so `data` may be any value. May reject
-   * (reported as `schema.unavailable`).
+   * (reported as `schema.unavailable`). Choose the schema from the document-shape keys only
+   * (`apiVersion` and `kind` for a `'documents'` format): the visual picker calls it with a
+   * synthesised `{ apiVersion, kind }` stub to build a new document.
    */
   loadSchema(data: unknown): Promise<SchemaBundle | undefined>;
   /** The format's guide overlay. */

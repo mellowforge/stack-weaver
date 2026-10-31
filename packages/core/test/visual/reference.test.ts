@@ -80,6 +80,7 @@ function mountWidget(name: string, param: string | undefined, text: string, doc:
     readOnly: false,
     ...(param !== undefined && { param }),
     messages: defaultUiMessages,
+    locale: 'en',
     guide: () => guide,
   });
   const w = defaultWidgets[name]!.create(ctx);

@@ -50,6 +50,7 @@ export interface AliasView extends NodeViewBase {
 /**
  * A plain description of a node for views: kind, source ranges, content summary and editability.
  * Discriminated by `type`: only a map has `keys`, only a sequence `length`, only a scalar `value`.
+ * `type` is closed: these are the YAML node kinds, and no other is added.
  */
 export type NodeView = MapView | SeqView | ScalarView | AliasView;
 

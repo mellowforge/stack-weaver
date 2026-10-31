@@ -107,7 +107,7 @@ $<HTMLSelectElement>('mode').addEventListener('change', (e) => editor?.setMode((
 // The format is settable at runtime: no need to recreate the editor.
 $<HTMLSelectElement>('format').addEventListener('change', (e) => {
   editor?.setFormat((e.target as HTMLSelectElement).value);
-  log(`setFormat -> getFormat()=${String(editor?.getFormat())}`);
+  log(`setFormat -> getFormat()=${String(editor?.getFormat())} getActiveFormat()=${String(editor?.getActiveFormat())}`);
 });
 // A store is fixed when the editor is created, so changing it recreates the editor over the same text.
 $<HTMLSelectElement>('variables-store').addEventListener('change', () => mount($<HTMLSelectElement>('format').value, editor?.getValue() ?? ''));

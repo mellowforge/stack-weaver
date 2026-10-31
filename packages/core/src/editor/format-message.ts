@@ -1,11 +1,13 @@
 /** Values a message template can take for its `{name}` placeholders. */
-type MessageParams = Readonly<Record<string, string | number>>;
+export type MessageParams = Readonly<Record<string, string | number>>;
 
 /**
- * A message that depends on a count. `other` is required; `zero` (used for a count of 0 when present) and the
- * CLDR categories (`one`, `two`, `few`, `many`) are optional. Every text may use `{count}`.
+ * A message that depends on a count. `other` is required; the rest are optional: `none`, the text for exactly 0
+ * (such as "No problems"), and the CLDR plural categories (`zero`, `one`, `two`, `few`, `many`) that the locale's
+ * plural rules select. `zero` is only that category: some languages select it for more than 0 (Latvian for 10, say)
+ * and English never selects it. Every text may use `{count}`.
  */
-export type PluralMessage = { readonly other: string } & Readonly<Partial<Record<'zero' | Intl.LDMLPluralRule, string>>>;
+export type PluralMessage = { readonly other: string } & Readonly<Partial<Record<'none' | Intl.LDMLPluralRule, string>>>;
 
 /**
  * Fills the `{name}` placeholders of `template` from `params`, in one pass: every occurrence is filled, a
@@ -36,8 +38,9 @@ function pluralRules(locale: string): Intl.PluralRules {
 }
 
 /**
- * Picks the text of `message` for `count` and fills it. A count of 0 uses `zero` when it is given; otherwise the
- * plural category of `locale` decides, falling back to `other`. `{count}` is always available as a parameter.
+ * Picks the text of `message` for `count` and fills it. A count of 0 uses `none` when it is given; otherwise the
+ * plural category of `locale` decides (which may be `zero`), falling back to `other`. `{count}` is always available
+ * as a parameter.
  * @param message - The texts by plural category.
  * @param count - The number the message is about.
  * @param locale - A BCP 47 language tag; an invalid one counts as `'en'`. Default `'en'`.
@@ -46,7 +49,7 @@ function pluralRules(locale: string): Intl.PluralRules {
  */
 export function formatPlural(message: PluralMessage, count: number, locale = 'en', params: MessageParams = {}): string {
   let template: string | undefined;
-  if (count === 0) template = message.zero;
+  if (count === 0) template = message.none;
   if (template === undefined) {
     template = message[pluralRules(locale).select(count)];
   }

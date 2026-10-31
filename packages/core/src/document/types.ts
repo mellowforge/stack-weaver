@@ -57,8 +57,9 @@ export interface YamlProblem {
  * `toData`, `describeNode` and `refAtOffset`. Pass it on as returned: a copy (`{ ...p }`) or an
  * object literal of the same shape is not a `ParsedText`. Passing one is a programmer error, not
  * a document problem: the functions that read it (`toData`, `describeNode`, `refAtOffset`,
- * `toLineCol`, `breadcrumbAt`, `hoverAt`, `detectFormat`) throw a `TypeError`, `validateText`
- * rejects with one, and `applyEdit` / `canEdit` refuse with `unsupported`.
+ * `toLineCol`, `breadcrumbAt`, `detectFormat`, and `hoverAt` once it is given a bundle) throw a
+ * `TypeError`, `validateText` rejects with one, and `applyEdit` / `canEdit` refuse with
+ * `unsupported`. The handle and its `errors` and `warnings` arrays are frozen.
  */
 export interface ParsedText {
   /** The exact source text that was parsed. */

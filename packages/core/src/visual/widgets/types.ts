@@ -25,6 +25,8 @@ export interface WidgetContext {
   readonly options?: readonly string[];
   /** The editor's UI strings. */
   readonly messages: UiMessages;
+  /** The editor's locale (`messages.locale`, or `'en'` when it is not given or not valid), for formatting values. */
+  readonly locale: string;
   /** The format's guide with the host override merged in; `references` tell the reference widgets what to suggest. */
   guide(): Guide;
   /** The current parse, for widgets that suggest values from the document. */
@@ -38,7 +40,7 @@ export interface WidgetContext {
    * Applies an edit to the document (for composite widgets). A `set` joins the undo group of its
    * node unless `opts.group` says otherwise. Refused with `unsupported` while the field is read-only.
    */
-  edit(op: EditOp, opts?: { group?: string }): EditResult;
+  edit(op: EditOp, opts?: { readonly group?: string }): EditResult;
 }
 
 /** A mounted widget. */

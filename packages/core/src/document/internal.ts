@@ -15,7 +15,8 @@ interface YamlInternals {
 
 /**
  * Builds a {@link ParsedText} from `fields`, adding `docCount` and carrying `docs` and
- * `lineCounter` under the private symbol (non-enumerable).
+ * `lineCounter` under the private symbol (non-enumerable). The handle and its `errors` and
+ * `warnings` arrays are frozen.
  * @internal Called by `parseText` only.
  */
 export function makeParsed(
@@ -23,10 +24,10 @@ export function makeParsed(
   docs: readonly Document.Parsed[],
   lineCounter: LineCounter,
 ): ParsedText {
-  const p: ParsedText = { ...fields, docCount: docs.length };
+  const p: ParsedText = { ...fields, errors: Object.freeze(fields.errors), warnings: Object.freeze(fields.warnings), docCount: docs.length };
   const internals: YamlInternals = { docs, lineCounter };
   Object.defineProperty(p, YAML, { value: internals, enumerable: false });
-  return p;
+  return Object.freeze(p);
 }
 
 function internalsOf(p: ParsedText): YamlInternals {

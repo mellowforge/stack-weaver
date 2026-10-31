@@ -1,5 +1,5 @@
 import { kindKey } from '../formats/guide.js';
-import type { FormatDefinition, KindEntry } from '../formats/types.js';
+import type { FormatDefinition, Guide, KindEntry } from '../formats/types.js';
 
 /** One intent group of the "Add resource" picker. */
 export interface CatalogGroup {
@@ -21,16 +21,18 @@ export interface KindCatalog {
 
 /**
  * Builds the "Add resource" catalog for a format.
- * @param format - The format whose kinds and guide are used.
+ * @param format - The format whose kinds are used.
+ * @param guide - The guide whose groups and kind cards are used, such as the format's guide with a host
+ *   override merged in (see `mergeGuide`). Default: the format's own guide.
  * @returns `curated`: guide groups in `order`, each with its guide-listed kinds in `order` (groups
  * without any known kind are omitted); `all`: every kind the format knows, curated or not.
  */
-export function kindCatalog(format: FormatDefinition): KindCatalog {
+export function kindCatalog(format: FormatDefinition, guide: Guide = format.guide): KindCatalog {
   const all = [...format.kinds()];
   const byKey = new Map(all.map((k) => [kindKey(k.apiVersion, k.kind), k]));
   const curated: CatalogGroup[] = [];
-  for (const group of [...format.guide.groups].sort((a, b) => a.order - b.order)) {
-    const kinds = Object.entries(format.guide.kinds)
+  for (const group of [...guide.groups].sort((a, b) => a.order - b.order)) {
+    const kinds = Object.entries(guide.kinds)
       .filter(([, v]) => v.group === group.id)
       .sort(([ka, a], [kb, b]) => (a.order ?? Number.POSITIVE_INFINITY) - (b.order ?? Number.POSITIVE_INFINITY) || ka.localeCompare(kb))
       .flatMap(([key, v]) => {

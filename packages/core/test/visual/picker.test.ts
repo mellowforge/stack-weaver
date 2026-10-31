@@ -100,6 +100,31 @@ describe('Add resource picker', () => {
     );
   });
 
+  it('the host guide override renames groups and rewrites kind cards', async () => {
+    await mount({
+      guide: {
+        kubernetes: {
+          groups: [{ id: 'run', label: 'Ausführen', order: 1 }],
+          kinds: { 'apps/v1/Deployment': { label: 'Bereitstellung', description: 'Eine zustandslose App' } },
+        },
+      },
+    });
+    await open();
+    const first = dialog()!.querySelector<HTMLElement>('.sw-picker-group')!;
+    expect(first.querySelector('h3')!.textContent).toBe('Ausführen');
+    const card = first.querySelector<HTMLElement>('.sw-picker-card[data-sw-kind="apps/v1/Deployment"]')!;
+    expect(card.querySelector('.sw-picker-card-name')!.textContent).toBe('Bereitstellung');
+    expect(card.querySelector('.sw-picker-card-desc')!.textContent).toBe('Eine zustandslose App');
+    // Search shows the curated card text too.
+    typeSearch('deployment');
+    expect(dialog()!.querySelector('.sw-picker-card[data-sw-kind="apps/v1/Deployment"] .sw-picker-card-name')!.textContent).toBe('Bereitstellung');
+  });
+
+  it('kindCatalog takes a guide in place of the format guide', () => {
+    const guide = { ...kubernetesFormat.guide, groups: [{ id: 'run', label: 'Mine', order: 1 }] };
+    expect(kindCatalog(kubernetesFormat, guide).curated.map((g) => g.label)).toEqual(['Mine']);
+  });
+
   it('search filters all kinds by kind name and description', async () => {
     await mount();
     await open();

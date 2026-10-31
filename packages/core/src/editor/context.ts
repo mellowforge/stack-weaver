@@ -22,6 +22,8 @@ export interface EditorContext {
   readonly store: DocumentStore;
   /** Resolved UI and schema messages. */
   readonly messages: { readonly ui: UiMessages; readonly schema: Partial<SchemaMessages> };
+  /** The validated locale: `messages.locale`, or `'en'` when it is not given or `Intl` rejects it. */
+  readonly locale: string;
   /** The resolved format; `undefined` while none is resolved. */
   format(): FormatDefinition | undefined;
   /** The format's guide with the host override merged in; empty without a format. */

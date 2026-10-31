@@ -26,7 +26,10 @@ export interface ValueCursor extends CursorBase {
   readonly key?: string;
 }
 
-/** Where the cursor is in the text, as far as completion needs to know. Discriminated by `position`. */
+/**
+ * Where the cursor is in the text, as far as completion needs to know. Discriminated by `position`, which is
+ * closed: a cursor types either a key or a value.
+ */
 export type CursorContext = KeyCursor | ValueCursor;
 
 const KEY_LINE = /^(\s*)((?:-\s+)*)([\w.\-/]*)$/;

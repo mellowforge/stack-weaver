@@ -3,6 +3,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { createEditorWithContext } from '../../src/editor/editor.js';
 import type { ManifestEditorOptions } from '../../src/editor/editor.js';
 import { defaultUiMessages } from '../../src/editor/messages.js';
+import type { ActionRefusal, ActionResult } from '../../src/editor/variables.js';
 import { parseText } from '../../src/document/parse.js';
 import { readBlock } from '../../src/formats/compose/variables/block.js';
 import type { Problem } from '../../src/validation/problems.js';
@@ -391,9 +392,15 @@ describe('refusal messages', () => {
     ['invalid', defaultUiMessages.editRefused], // a declaration the UI built is valid, so the generic message
     ['unavailable', defaultUiMessages.editRefused],
     ['edit-refused', defaultUiMessages.editRefused],
-  ] as const)('a store refusal %s shows its message on the control, which keeps the focus', async (reason, message) => {
+    ['read-only', defaultUiMessages.editRefused],
+    ['destroyed', defaultUiMessages.editRefused],
+    ['not-found', defaultUiMessages.editRefused],
+    ['already-declared', defaultUiMessages.editRefused],
+    ['no-fix', defaultUiMessages.editRefused],
+  ] as const satisfies readonly (readonly [ActionRefusal, string])[])('a store refusal %s shows its message on the control, which keeps the focus', async (reason, message) => {
     const { ctx } = await mount();
-    const set = vi.spyOn(ctx.variables()!, 'set').mockReturnValue({ ok: false, reason });
+    const result: ActionResult = reason === 'edit-refused' ? { ok: false, reason, edit: 'flow' } : { ok: false, reason };
+    const set = vi.spyOn(ctx.variables()!, 'set').mockReturnValue(result);
     const input = ctl<HTMLInputElement>('PORT', 'default');
     input.focus();
     type(input, '9090');

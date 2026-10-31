@@ -15,7 +15,7 @@ export function createWidgetContext(
   init: Omit<WidgetContext, 'parsed' | 'commit' | 'edit'>,
   isReadOnly: () => boolean = () => init.readOnly,
 ): WidgetContext {
-  const edit = (op: EditOp, opts?: { group?: string }): EditResult => {
+  const edit = (op: EditOp, opts?: { readonly group?: string }): EditResult => {
     if (isReadOnly()) return { ok: false, reason: 'unsupported' };
     const group = opts?.group ?? (op.op === 'set' ? groupKey(op.at) : undefined);
     return store.edit(op, group === undefined ? undefined : { group });

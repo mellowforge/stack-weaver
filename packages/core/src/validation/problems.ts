@@ -1,10 +1,13 @@
 import type { YamlPath } from '../document/types.js';
 import type { QuickFix } from '../formats/types.js';
 
-/** How serious a problem is. Problems are ordered error, warning, info at the same position. */
+/** How serious a problem is. Problems are ordered error, warning, info at the same position. Closed: no other value is added. */
 export type Severity = 'error' | 'warning' | 'info';
 
-/** Where a problem comes from: the YAML parser, the schema and document-shape checks, or a custom rule. */
+/**
+ * Where a problem comes from: the YAML parser, the schema and document-shape checks, or a custom rule. May grow in
+ * later versions; treat an unknown value like `'schema'` (a check of the content).
+ */
 export type ProblemSource = 'yaml' | 'schema' | 'rule';
 
 /**
@@ -79,9 +82,13 @@ export function sameProblem(a: Problem, b: Problem): boolean {
 }
 
 /**
- * Whether two problem lists hold the same problems in the same order, by {@link sameProblem}.
+ * Whether two problem lists hold the same problems in the same order, by {@link sameProblem} and, unlike it, the
+ * same `path`: a key renamed to one of the same length keeps every range, but the problems below it now belong
+ * to other nodes (the editor's rows and reveal go by path).
  * @internal
  */
 export function sameProblemList(a: readonly Problem[], b: readonly Problem[]): boolean {
-  return a.length === b.length && a.every((p, i) => sameProblem(p, b[i]!));
+  return a.length === b.length && a.every((p, i) => sameProblem(p, b[i]!) && samePath(p.path, b[i]!.path));
 }
+
+const samePath = (a: YamlPath, b: YamlPath): boolean => a.length === b.length && a.every((seg, i) => seg === b[i]);

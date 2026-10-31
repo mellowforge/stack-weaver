@@ -14,6 +14,8 @@ import type { TextChange } from '../../document/types.js';
 import type { ResolvedTheme } from '../../editor/theme.js';
 import type { CodeDiagnostic, SyncCodeEditorAdapter, CodeEditorInit, CodeEditorInstance } from '../adapter.js';
 
+export type { SyncCodeEditorAdapter } from '../adapter.js';
+
 /** Options for {@link codemirrorAdapter}. */
 export interface CodemirrorAdapterOptions {
   /** Extra CodeMirror extensions added after the built-in ones. */
