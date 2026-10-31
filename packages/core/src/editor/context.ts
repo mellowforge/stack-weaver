@@ -9,6 +9,8 @@ import type { SchemaMessages } from '../validation/messages.js';
 import type { Problem } from '../validation/problems.js';
 import { loadBuiltinFormats } from './formats.js';
 import type { UiMessages } from './messages.js';
+import type { VariableStore } from './variables.js';
+import type { VariableDecl } from '../formats/types.js';
 
 /**
  * What every pane and feature of the editor shares.
@@ -51,6 +53,12 @@ export interface EditorContext {
   focusField(ref: NodeRef): void;
   /** Subscribes to problem changes; returns an unsubscribe function. */
   onProblems(fn: (problems: readonly Problem[]) => void): () => void;
+  /** The variable store; `undefined` while the format has no `variables`. */
+  variables(): VariableStore | undefined;
+  /** Subscribes to changes of the declarations (including the host's `setVariables`); returns an unsubscribe function. */
+  onVariables(fn: (decls: readonly VariableDecl[]) => void): () => void;
+  /** Applies the quick fix of `problem`; false when it has none, the editor is read-only, or an edit is refused. */
+  applyFix(problem: Problem): boolean;
 }
 
 /**

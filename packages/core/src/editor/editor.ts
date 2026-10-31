@@ -4,7 +4,7 @@ import type { ChangeOrigin, StoreEvent } from '../document/store.js';
 import type { NodeRef, TextRange } from '../document/types.js';
 import type { CodeEditorAdapter } from '../editors/adapter.js';
 import { mergeGuide } from '../formats/guide.js';
-import type { FormatDefinition, Guide, GuideOverride, Recipe } from '../formats/types.js';
+import type { FormatDefinition, Guide, GuideOverride, Recipe, VariableDecl } from '../formats/types.js';
 import type { SchemaMessages } from '../validation/messages.js';
 import type { Problem } from '../validation/problems.js';
 import { createCodePane } from './code-pane.js';
@@ -17,6 +17,8 @@ import { createProblemScheduler, problemCountText } from './problems.js';
 import { createProblemsPanel } from './problems-panel.js';
 import { createRecipeCards } from './recipes.js';
 import { createShell } from './shell.js';
+import { createVariables } from './variables.js';
+import type { VariablesOption } from './variables.js';
 import type { EditorTheme, ResolvedTheme } from './theme.js';
 import { createVisualPane } from '../visual/visual-pane.js';
 import { defaultWidgets } from '../visual/widgets/registry.js';
@@ -40,7 +42,7 @@ export type EditorMessages = {
  * `value`, `mode`, `readOnly` and `theme` are initial values: change them later with
  * {@link ManifestEditor.setValue}, {@link ManifestEditor.setMode}, {@link ManifestEditor.setReadOnly}
  * and {@link ManifestEditor.setTheme}. The other options (`format`, `formats`, `guide`, `recipes`,
- * `widgets`, `messages`, `codeEditor` and the callbacks) are read once, when the editor is created;
+ * `widgets`, `messages`, `codeEditor`, `variables` and the callbacks) are read once, when the editor is created;
  * to change them, create a new editor.
  */
 export interface ManifestEditorOptions {
@@ -78,6 +80,18 @@ export interface ManifestEditorOptions {
    * "Edit in code" or "Jump to error" control opens Split from Visual. A throw is logged.
    */
   readonly onModeChange?: (mode: EditorMode) => void;
+  /**
+   * Where variable declarations live: `{ store: 'x-variables' }` (the default) keeps them in the
+   * document's variables block; `{ store: 'external', value }` keeps them in a list the host owns
+   * (change it with {@link ManifestEditor.setVariables}). Invalid initial declarations throw a
+   * `TypeError`. Init-only.
+   */
+  readonly variables?: VariablesOption;
+  /**
+   * Called with the declarations when they change: by a text edit of the block, undo and redo, the
+   * variable controls and quick fixes. Not called for {@link ManifestEditor.setVariables}. A throw is logged.
+   */
+  readonly onVariablesChange?: (decls: readonly VariableDecl[]) => void;
 }
 
 /** A mounted manifest editor. */
@@ -104,6 +118,20 @@ export interface ManifestEditor {
   redo(): boolean;
   /** Scrolls to and selects the node. */
   reveal(ref: NodeRef): void;
+  /** The declared variables: from the document's block, or the host's list for the `external` store; `[]` when there are none. */
+  getVariables(): readonly VariableDecl[];
+  /**
+   * Replaces the declarations of an `external` store and re-validates; does not call
+   * `onVariablesChange`. Throws a `TypeError` for an invalid declaration or a duplicate name. With
+   * the `x-variables` store it warns and changes nothing.
+   */
+  setVariables(decls: readonly VariableDecl[]): void;
+  /**
+   * Applies the quick fix of `problem` (declaring a variable, or edits) as one undo step. False when
+   * the problem has no fix, the editor is read-only or destroyed, or an edit is refused (edits made
+   * before the refusal stay, in the same undo step).
+   */
+  applyFix(problem: Problem): boolean;
   /**
    * Resolves once the format is resolved, the code editor is mounted and the first validation has
    * finished. Rejects if the code editor or built-in formats fail to load (the failure is also
@@ -166,6 +194,17 @@ export function createEditorWithContext(
   };
   watchScheme(theme === 'auto');
 
+  const variables = createVariables({
+    option: options.variables,
+    store,
+    format: () => format,
+    readOnly: () => readOnly,
+    isDestroyed: () => destroyed,
+    onChange: (decls) => {
+      if (options.onVariablesChange) guarded('an onVariablesChange callback', () => options.onVariablesChange?.(decls));
+    },
+    revalidate: () => void scheduler.run(), // the scheduler's staleness guard only sees text changes
+  });
   const cache = createBundleCache({ store, format: () => format, isDestroyed: () => destroyed });
   const ctx: EditorContext = {
     store,
@@ -206,6 +245,9 @@ export function createEditorWithContext(
         problemListeners.delete(fn);
       };
     },
+    variables: () => variables.store(),
+    onVariables: (fn) => variables.on(fn),
+    applyFix: (problem) => variables.applyFix(problem),
   };
 
   const shell = createShell(el, {
@@ -302,6 +344,7 @@ export function createEditorWithContext(
     recipes.refresh();
     refreshHistory();
     if (options.onChange) guarded('an onChange callback', () => options.onChange?.(e.text, { origin: e.origin }));
+    variables.check();
   });
 
   // One undo history: Mod-z / Mod-Shift-z / Mod-y go to the store from anywhere except the code
@@ -332,6 +375,7 @@ export function createEditorWithContext(
       formatList = mergeFormats(builtins, hostFormats);
       formatsLoaded = true;
       applyFormat(resolveFormat(formatOption, store.parsed, formatList));
+      variables.reseed(); // the declarations already in the text are not a change
       recipes.refresh(); // `applyFormat` does nothing when the format stays unresolved
     },
     (err: unknown) => {
@@ -384,10 +428,14 @@ export function createEditorWithContext(
     reveal: (ref) => {
       if (!destroyed) ctx.select(ref);
     },
+    getVariables: () => variables.get(),
+    setVariables: (decls) => variables.setAll(decls),
+    applyFix: (problem) => !destroyed && variables.applyFix(problem),
     ready,
     destroy() {
       if (destroyed) return;
       destroyed = true;
+      variables.destroy();
       unsubscribe();
       scheduler.destroy();
       shell.root.removeEventListener('keydown', onKeydown, true);

@@ -47,7 +47,11 @@ async function validateCurrent(ctx: EditorContext): Promise<Problem[]> {
       return bundle;
     },
   };
-  return validateText(parsed, cached, { messages: ctx.messages.schema });
+  const vs = ctx.variables();
+  return validateText(parsed, cached, {
+    messages: ctx.messages.schema,
+    ...(vs?.kind === 'external' ? { variables: vs.get() } : {}),
+  });
 }
 
 /**

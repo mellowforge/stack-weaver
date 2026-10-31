@@ -209,6 +209,7 @@ describe('the problem scheduler', () => {
       format: () => twoErrors,
       loadBundle: () => new Promise<SchemaBundle | undefined>((r) => loads.push(r)),
       bundleError: () => undefined,
+      variables: () => undefined,
     } as unknown as EditorContext;
     const publish = vi.fn<(p: readonly Problem[]) => void>();
     return { store, loads, publish, scheduler: createProblemScheduler(ctx, publish) };
