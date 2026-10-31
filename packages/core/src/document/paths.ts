@@ -1,10 +1,6 @@
-import { isAlias, isMap, isNode, isPair, isScalar, isSeq } from 'yaml';
-import { lineCounterOf, yamlDocs } from './internal.js';
+import { isAlias, isMap, isNode, isPair, isSeq } from 'yaml';
+import { keyOf, lineCounterOf, yamlDocs } from './internal.js';
 import type { NodeRef, ParsedText, Position } from './types.js';
-
-function keyOf(k: unknown): unknown {
-  return isScalar(k) ? k.value : k;
-}
 
 /**
  * True when `n`'s range holds `offset`. The end is inclusive, so a cursor just after a scalar
@@ -45,6 +41,7 @@ function descend(text: string, node: unknown, offset: number, path: (string | nu
  * @param p - The parsed text.
  * @param offset - UTF-16 offset into `p.text`.
  * @returns The reference, or `undefined` when the offset is outside every document's content.
+ * @throws {TypeError} When `p` was not made by `parseText`.
  */
 export function refAtOffset(p: ParsedText, offset: number): NodeRef | undefined {
   const docs = yamlDocs(p);
@@ -62,6 +59,7 @@ export function refAtOffset(p: ParsedText, offset: number): NodeRef | undefined 
  * @param p - The parsed text.
  * @param offset - UTF-16 offset into `p.text`.
  * @returns The 1-based position.
+ * @throws {TypeError} When `p` was not made by `parseText`.
  */
 export function toLineCol(p: ParsedText, offset: number): Position {
   return lineCounterOf(p).linePos(offset);

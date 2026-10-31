@@ -37,6 +37,7 @@ function dataOf(p: ParsedText, doc: number): unknown {
  * @param bundle - Schema of the document's kind; without it there is nothing to say.
  * @param guide - Guide overlay supplying labels and descriptions.
  * @returns The hover, or `undefined` when `offset` is not on a map key the schema knows.
+ * @throws {TypeError} When `p` was not made by `parseText` (only checked once there is a `bundle`).
  */
 export function hoverAt(p: ParsedText, offset: number, bundle: SchemaBundle | undefined, guide: Guide): HoverInfo | undefined {
   if (!bundle) return undefined;
@@ -71,6 +72,7 @@ export function hoverAt(p: ParsedText, offset: number, bundle: SchemaBundle | un
  * @param p - The parsed text.
  * @param offset - UTF-16 offset into `p.text`.
  * @returns The segments; empty when `offset` is outside every document.
+ * @throws {TypeError} When `p` was not made by `parseText`.
  */
 export function breadcrumbAt(p: ParsedText, offset: number): readonly string[] {
   const ref = refAtOffset(p, offset);

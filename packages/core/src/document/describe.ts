@@ -43,6 +43,7 @@ function rangeOf(n: Node): TextRange {
  * @param p - The parsed text.
  * @param ref - The node to describe.
  * @returns The description, or `undefined` when there is no node at `ref`.
+ * @throws {TypeError} When `p` was not made by `parseText`.
  */
 export function describeNode(p: ParsedText, ref: NodeRef): NodeView | undefined {
   const node = getNode(p, ref);

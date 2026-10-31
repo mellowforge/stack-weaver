@@ -1,7 +1,7 @@
 import { isMap, isNode, isScalar, isSeq } from 'yaml';
 import type { Node, Scalar } from 'yaml';
 import { isEmptyDocument, toData } from '../document/data.js';
-import { getNode, getPairKey, yamlDocs } from '../document/internal.js';
+import { assertParsed, getNode, getPairKey, yamlDocs } from '../document/internal.js';
 import { toLineCol } from '../document/paths.js';
 import type { ParsedText, YamlPath, YamlProblem } from '../document/types.js';
 import { resolveAt } from '../engine/resolve.js';
@@ -18,8 +18,9 @@ const UNKNOWN_KEY = new Set(['additionalProperties', 'unevaluatedProperties']);
 type Declares = (path: YamlPath, key: string) => boolean;
 
 /**
- * Validates parsed text against a format and maps every problem to a source range. Never rejects
- * and never drops a problem: anything that fails along the way becomes a problem itself.
+ * Validates parsed text against a format and maps every problem to a source range. Problems in the
+ * text never reject and no problem is dropped: anything that fails along the way becomes a problem
+ * itself. The only rejection is a programmer error: `p` not made by `parseText` (see below).
  *
  * - YAML warnings (such as an unresolved tag) are `yaml.warning` warnings, always.
  * - Parse errors (including aliases with no anchor) are `yaml.syntax` errors, and schema
@@ -51,12 +52,15 @@ type Declares = (path: YamlPath, key: string) => boolean;
  *   declarations in effect, replacing those the document declares (rules then see
  *   `variableSource: 'host'`).
  * @returns The problems, sorted.
+ * @throws {TypeError} Rejects with a `TypeError` when `p` was not made by `parseText`: the only case
+ *   it rejects; problems in the text never reject.
  */
 export async function validateText(
   p: ParsedText,
   format: FormatDefinition,
   opts: { messages?: Partial<SchemaMessages>; variables?: readonly VariableDecl[] } = {},
 ): Promise<Problem[]> {
+  assertParsed(p);
   const messages: SchemaMessages = { ...defaultMessages };
   for (const [k, fn] of Object.entries(opts.messages ?? {})) {
     if (!fn) continue;

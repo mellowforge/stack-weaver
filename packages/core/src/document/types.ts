@@ -55,7 +55,10 @@ export interface YamlProblem {
  * The result of parsing YAML text, made only by `parseText`. The original text is kept verbatim;
  * it is never regenerated. An opaque handle: the parsed documents stay inside it, read through
  * `toData`, `describeNode` and `refAtOffset`. Pass it on as returned: a copy (`{ ...p }`) or an
- * object literal of the same shape is not a `ParsedText` that those functions accept.
+ * object literal of the same shape is not a `ParsedText`. Passing one is a programmer error, not
+ * a document problem: the functions that read it (`toData`, `describeNode`, `refAtOffset`,
+ * `toLineCol`, `breadcrumbAt`, `hoverAt`, `detectFormat`) throw a `TypeError`, `validateText`
+ * rejects with one, and `applyEdit` / `canEdit` refuse with `unsupported`.
  */
 export interface ParsedText {
   /** The exact source text that was parsed. */

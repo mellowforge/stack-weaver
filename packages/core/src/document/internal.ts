@@ -36,6 +36,14 @@ function internalsOf(p: ParsedText): YamlInternals {
 }
 
 /**
+ * Checks that `p` was made by `parseText`.
+ * @throws A `TypeError` when it was not.
+ */
+export function assertParsed(p: ParsedText): void {
+  internalsOf(p);
+}
+
+/**
  * The parsed documents of `p`, with source tokens kept for range-based edits.
  * @throws A `TypeError` when `p` was not made by `parseText`.
  */
@@ -51,7 +59,8 @@ export function lineCounterOf(p: ParsedText): LineCounter {
   return internalsOf(p).lineCounter;
 }
 
-function keyOf(k: unknown): unknown {
+/** A map key's value: the scalar's value, or the key itself when it is not a scalar. */
+export function keyOf(k: unknown): unknown {
   return isScalar(k) ? k.value : k;
 }
 

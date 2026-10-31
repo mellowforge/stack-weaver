@@ -23,6 +23,7 @@ export function getFormat(id: string): FormatDefinition | undefined {
  * Returns the first format whose `detect` accepts `p`.
  * @param p - The parsed text.
  * @param formats - Formats to try, in order; defaults to the registered formats in registration order.
+ * @throws {TypeError} When `p` was not made by `parseText` (the built-in formats' `detect` reads it).
  */
 export function detectFormat(p: ParsedText, formats?: readonly FormatDefinition[]): FormatDefinition | undefined {
   for (const f of formats ?? registry.values()) if (f.detect(p)) return f;

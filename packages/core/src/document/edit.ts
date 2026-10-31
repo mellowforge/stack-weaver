@@ -1,7 +1,7 @@
 import { Scalar, isAlias, isMap, isNode, isScalar, isSeq, visit } from 'yaml';
 import type { CST, Node, YAMLMap, YAMLSeq } from 'yaml';
 import { parseText } from './parse.js';
-import { getNode, getPairKey, yamlDocs } from './internal.js';
+import { assertParsed, getNode, getPairKey, yamlDocs } from './internal.js';
 import { renderBlockScalar, renderScalar, renderValue } from './render.js';
 import type { NodeRef, ParsedText, ScalarValue, TextChange, YamlPath, YamlValue } from './types.js';
 
@@ -256,10 +256,12 @@ function hasIndentIndicator(p: ParsedText, n: Node): boolean {
  *
  * @param p - The parsed text.
  * @param ref - The node to check.
- * @returns `undefined` when the node is editable, otherwise the reason edits are refused.
+ * @returns `undefined` when the node is editable, otherwise the reason edits are refused;
+ *   `unsupported` when `p` was not made by `parseText`.
  */
 export function canEdit(p: ParsedText, ref: NodeRef): EditRefusal | undefined {
   try {
+    assertParsed(p);
     const t = locate(p, ref);
     if (typeof t === 'string') return t;
     if (isScalar(t.node)) return hasIndentIndicator(p, t.node) ? 'block-scalar' : undefined;
@@ -884,8 +886,8 @@ function dispatch(p: ParsedText, op: EditOp): EditResult {
  * intended change (for `renameKey`, also with the pair at its old index). A splice that would not read back as intended is refused as `unsupported`. New line
  * breaks use the text's own line ending.
  *
- * Never throws: a value that is not a {@link YamlValue} (or, for `set`, a {@link ScalarValue}), a
- * malformed operation, or any internal failure gives `unsupported`.
+ * Never throws: a `p` not made by `parseText`, a value that is not a {@link YamlValue} (or, for
+ * `set`, a {@link ScalarValue}), a malformed operation, or any internal failure gives `unsupported`.
  *
  * @param p - The parsed text.
  * @param op - The edit.
@@ -893,6 +895,7 @@ function dispatch(p: ParsedText, op: EditOp): EditResult {
  */
 export function applyEdit(p: ParsedText, op: EditOp): EditResult {
   try {
+    assertParsed(p);
     return dispatch(p, op);
   } catch {
     return refuse('unsupported');

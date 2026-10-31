@@ -11,10 +11,11 @@ import type { ParsedText } from './types.js';
  * @param p - The parsed text.
  * @param doc - Zero-based index of the document within `p`.
  * @returns The document as plain JS data, with `<<` merges applied.
- * @throws A `RangeError` when `doc` is not a document of `p`, and a `TypeError` when `p` was not
- *   made by `parseText`. Also throws when the data cannot be built: a merge source that is not a
- *   map (such as `<<: 5`), or more alias expansions than `yaml`'s limit of 100 allows (a guard
- *   against alias bombs). `validateText` reports these as `yaml.data` problems.
+ * @throws {TypeError} When `p` was not made by `parseText`.
+ * @throws {RangeError} When `doc` is not a document of `p`.
+ * @throws When the data cannot be built: a merge source that is not a map (such as `<<: 5`), or
+ *   more alias expansions than `yaml`'s limit of 100 allows (a guard against alias bombs).
+ *   `validateText` reports these as `yaml.data` problems.
  */
 export function toData(p: ParsedText, doc: number): unknown {
   const d = yamlDocs(p)[doc];

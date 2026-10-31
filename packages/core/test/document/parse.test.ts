@@ -1,8 +1,14 @@
 import { readdirSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
+import { toData } from '../../src/document/data.js';
+import { describeNode } from '../../src/document/describe.js';
+import { applyEdit, canEdit } from '../../src/document/edit.js';
 import { getNode, lineCounterOf, yamlDocs } from '../../src/document/internal.js';
 import { parseText } from '../../src/document/parse.js';
+import { refAtOffset, toLineCol } from '../../src/document/paths.js';
+import { composeFormat } from '../../src/formats/compose/index.js';
+import { validateText } from '../../src/validation/validate.js';
 
 const corpusDir = join(import.meta.dirname, '..', 'fixtures', 'corpus');
 const corpus = (name: string): string => readFileSync(join(corpusDir, name), 'utf8');
@@ -105,6 +111,24 @@ describe('parseText', () => {
     expect(() => yamlDocs(fake)).toThrow(new TypeError(message));
     expect(() => lineCounterOf(fake)).toThrow(new TypeError(message));
     expect(() => getNode(fake, { doc: 0, path: ['a'] })).toThrow(new TypeError(message));
+  });
+
+  it('public functions given a copy of a ParsedText: readers throw, validateText rejects, edits refuse', async () => {
+    const copy = { ...parseText('a: 1\n') };
+    // A look-alike that claims to be broken must not slip through the ok-false shortcuts either.
+    const broken = { text: 'a: [\n', ok: false, docCount: 1, errors: [], warnings: [], eol: '\n' } as const;
+    const ref = { doc: 0, path: ['a'] };
+    const typeError = new TypeError('stack-weaver: not a ParsedText from parseText');
+    expect(() => toData(copy, 0)).toThrow(typeError);
+    expect(() => describeNode(copy, ref)).toThrow(typeError);
+    expect(() => refAtOffset(copy, 0)).toThrow(typeError);
+    expect(() => toLineCol(copy, 0)).toThrow(typeError);
+    await expect(validateText(copy, composeFormat)).rejects.toThrow(typeError);
+    await expect(validateText(broken, composeFormat)).rejects.toThrow(typeError);
+    for (const p of [copy, broken]) {
+      expect(applyEdit(p, { op: 'set', at: ref, value: 2 })).toEqual({ ok: false, reason: 'unsupported' });
+      expect(canEdit(p, ref)).toBe('unsupported');
+    }
   });
 
   it('keeps CRLF and missing trailing newline bytes in fixtures', () => {
