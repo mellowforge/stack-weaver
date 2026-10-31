@@ -283,10 +283,11 @@ export class SwManifestEditor {
     this.create(from);
     this.carried = undefined;
     // The core reports changes only from the empty state a new editor starts with, so it never says that the
-    // outgoing editor's undo steps, problems or format are gone. Say it here, with the core's frozen payloads.
-    // A listener that throws is reported to Angular's ErrorHandler by the output itself and does not stop the others.
+    // outgoing editor's undo steps, problems or format are gone. Say it here, with the core's frozen payloads (and the
+    // new editor's own empty problem list, so it is the one `getProblems()` returns). A listener that throws is
+    // reported to Angular's ErrorHandler by the output itself and does not stop the others.
     if (from.stale.history) this.historyChange.emit(Object.freeze({ canUndo: false, canRedo: false }));
-    if (from.stale.problems) this.problemsChange.emit(Object.freeze([]));
+    if (from.stale.problems) this.problemsChange.emit(this.editor!.getProblems());
     if (from.stale.format) this.activeFormatChange.emit(undefined);
     if (retry) this.push(this.settable(), untracked(this.variables));
   }

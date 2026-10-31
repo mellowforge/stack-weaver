@@ -444,6 +444,7 @@ describe.each([
     expect(ref.current).toBe(next);
     expect(problems).toEqual([[]]);
     expect(Object.isFrozen(problems[0])).toBe(true);
+    expect(problems[0]).toBe(next.getProblems()); // the list the controller holds, as the core reports it
     expect(formats).toEqual([undefined]);
     expect(seen).toEqual([next, next]);
     // Recreating again with nothing to empty reports nothing.

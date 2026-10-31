@@ -241,15 +241,17 @@ export function ManifestEditor(props: ManifestEditorProps): JSX.Element {
   useImperativeHandle<ManifestEditorController | null, ManifestEditorController | null>(ref, () => editor.current, initDeps);
 
   // The core reports changes only from the empty state a new editor starts with, so it never says that the outgoing
-  // editor's undo steps, problems or format are gone. Say it here, as the core would (frozen payloads; a throw is
-  // logged). Declared after useImperativeHandle, so a callback that reads the ref gets the new editor.
+  // editor's undo steps, problems or format are gone. Say it here, as the core would (frozen payloads, and the new
+  // editor's own empty problem list, so it is the one `getProblems()` returns; a throw is logged). Declared after
+  // useImperativeHandle, so a callback that reads the ref gets the new editor.
   useLayoutEffect(() => {
     const gone = stale.current;
     stale.current = undefined;
-    if (!gone) return;
+    const ed = editor.current;
+    if (!gone || !ed) return;
     const host = latest.current;
     if (gone.history) tell('onHistoryChange', () => host.onHistoryChange?.(Object.freeze({ canUndo: false, canRedo: false })));
-    if (gone.problems) tell('onProblemsChange', () => host.onProblemsChange?.(Object.freeze([])));
+    if (gone.problems) tell('onProblemsChange', () => host.onProblemsChange?.(ed.getProblems()));
     if (gone.format) tell('onFormatChange', () => host.onFormatChange?.(undefined));
   }, initDeps);
 

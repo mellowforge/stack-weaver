@@ -1,4 +1,4 @@
-import { Component, NgZone, Type, signal, viewChild } from '@angular/core';
+import { Component, ErrorHandler, NgZone, Type, signal, viewChild } from '@angular/core';
 import { ComponentFixture, TestBed } from '@angular/core/testing';
 import type { MockInstance } from 'vitest';
 import type {
@@ -496,6 +496,7 @@ describe('sw-manifest-editor', () => {
     expect(h.editor().controller()).toBe(next);
     expect(h.problems).toEqual([[]]);
     expect(Object.isFrozen(h.problems[0])).toBe(true);
+    expect(h.problems[0]).toBe(next.getProblems()); // the list the controller holds, as the core reports it
     expect(h.formats).toEqual([undefined]);
     // Every listener (also historyChange, for the pushed text) already sees the new controller.
     expect(h.seen.length).toBeGreaterThanOrEqual(2);
@@ -555,6 +556,28 @@ describe('sw-manifest-editor', () => {
     h.guide.set({});
     await f.whenStable();
     expect(h.editor().controller()).not.toBe(next);
+    await settle(f);
+  });
+
+  it('a recreation that throws is reported once to the ErrorHandler', async () => {
+    // As in an application: the ErrorHandler is told and the tick goes on (TestBed rethrows by default).
+    const handleError = vi.fn();
+    TestBed.configureTestingModule({
+      rethrowApplicationErrors: false,
+      providers: [{ provide: ErrorHandler, useValue: { handleError } }],
+    });
+    const dup: VariableDecl = { name: 'A', type: 'string' };
+    const f = await create(Host);
+    const h = f.componentInstance;
+    await settle(f);
+    h.variables.set({ store: 'external', value: [dup, dup] });
+    await f.whenStable();
+    expect(handleError).toHaveBeenCalledTimes(1);
+    expect(h.editor().controller()).toBeUndefined();
+    h.variables.set({ store: 'external', value: [dup] });
+    await f.whenStable();
+    expect(handleError).toHaveBeenCalledTimes(1);
+    expect(h.editor().controller()!.getVariables().map((d) => d.name)).toEqual(['A']);
     await settle(f);
   });
 
