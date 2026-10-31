@@ -52,8 +52,8 @@ export const stringListWidget: WidgetFactory = (ctx) => {
   const f = frame(ctx, 'string-list');
   const rows: ListItem[] = [];
 
-  const input = h(f.doc, 'input', { type: 'text', class: 'sw-input', 'aria-label': `${ctx.label} ${ui.newItem}`, autocomplete: 'off' });
-  const addBtn = h(f.doc, 'button', { type: 'button', class: 'sw-btn sw-list-add-btn', 'aria-label': `${ui.addItem} ${ctx.label}` }, [ui.addItem]);
+  const input = h(f.doc, 'input', { type: 'text', class: 'sw-input', 'aria-label': formatMessage(ui.newItemLabel, { label: ctx.label }), autocomplete: 'off' });
+  const addBtn = h(f.doc, 'button', { type: 'button', class: 'sw-btn sw-list-add-btn', 'aria-label': formatMessage(ui.addItemLabel, { label: ctx.label }) }, [ui.addItem]);
   f.adder.append(input, addBtn);
   // The guide's suggested values, offered on every input; any other text is still accepted.
   const suggestions = ctx.options ?? [];
@@ -133,9 +133,9 @@ export const keyValueWidget: WidgetFactory = (ctx) => {
   let readOnlyNow = ctx.readOnly;
   const at = (key: string): { doc: number; path: (string | number)[] } => ({ doc: ctx.ref.doc, path: [...ctx.ref.path, key] });
 
-  const keyInput = h(f.doc, 'input', { type: 'text', class: 'sw-input sw-kv-key', 'aria-label': `${ctx.label}, ${ui.entryKey}`, autocomplete: 'off' });
-  const valueInput = h(f.doc, 'input', { type: 'text', class: 'sw-input sw-kv-value', 'aria-label': `${ctx.label}, ${ui.entryValue}`, autocomplete: 'off' });
-  const addBtn = h(f.doc, 'button', { type: 'button', class: 'sw-btn sw-list-add-btn', 'aria-label': `${ui.addEntry} ${ctx.label}` }, [ui.addEntry]);
+  const keyInput = h(f.doc, 'input', { type: 'text', class: 'sw-input sw-kv-key', 'aria-label': formatMessage(ui.entryKeyLabel, { label: ctx.label }), autocomplete: 'off' });
+  const valueInput = h(f.doc, 'input', { type: 'text', class: 'sw-input sw-kv-value', 'aria-label': formatMessage(ui.entryValueLabel, { label: ctx.label }), autocomplete: 'off' });
+  const addBtn = h(f.doc, 'button', { type: 'button', class: 'sw-btn sw-list-add-btn', 'aria-label': formatMessage(ui.addEntryLabel, { label: ctx.label }) }, [ui.addEntry]);
   f.adder.append(keyInput, valueInput, addBtn);
   const add = (): void => {
     const key = keyInput.value.trim();
@@ -196,8 +196,8 @@ export const keyValueWidget: WidgetFactory = (ctx) => {
       if (row.key.value !== name) row.key.value = name;
       const text = textOf(v);
       if (row.value.value !== text) row.value.value = text;
-      row.key.setAttribute('aria-label', `${ctx.label}, ${name}, ${ui.entryKey}`);
-      row.value.setAttribute('aria-label', `${ctx.label}, ${name}, ${ui.entryValue}`);
+      row.key.setAttribute('aria-label', formatMessage(ui.namedEntryKeyLabel, { label: ctx.label, name }));
+      row.value.setAttribute('aria-label', formatMessage(ui.namedEntryValueLabel, { label: ctx.label, name }));
       row.key.disabled = readOnlyNow;
       row.value.disabled = readOnlyNow || !isScalar(v);
       row.remove.disabled = readOnlyNow;

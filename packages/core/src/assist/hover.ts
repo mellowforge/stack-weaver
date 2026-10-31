@@ -1,3 +1,4 @@
+import { formatMessage } from '../editor/format-message.js';
 import { toData } from '../document/data.js';
 import { getPairKey } from '../document/internal.js';
 import { refAtOffset } from '../document/paths.js';
@@ -71,21 +72,22 @@ export function hoverAt(p: ParsedText, offset: number, bundle: SchemaBundle | un
  *
  * @param p - The parsed text.
  * @param offset - UTF-16 offset into `p.text`.
+ * @param documentLabel - Template for a document without a kind; `{n}` is its 1-based number. Default `'Document {n}'`.
  * @returns The segments; empty when `offset` is outside every document.
  * @throws {TypeError} When `p` was not made by `parseText`.
  */
-export function breadcrumbAt(p: ParsedText, offset: number): readonly string[] {
+export function breadcrumbAt(p: ParsedText, offset: number, documentLabel = 'Document {n}'): readonly string[] {
   const ref = refAtOffset(p, offset);
   if (!ref) return [];
-  return [documentTitle(dataOf(p, ref.doc), ref.doc), ...ref.path.map(String)];
+  return [documentTitle(dataOf(p, ref.doc), ref.doc, documentLabel), ...ref.path.map(String)];
 }
 
-function documentTitle(data: unknown, doc: number): string {
+function documentTitle(data: unknown, doc: number, documentLabel: string): string {
   const obj = (v: unknown): Record<string, unknown> | undefined =>
     typeof v === 'object' && v !== null && !Array.isArray(v) ? (v as Record<string, unknown>) : undefined;
   const root = obj(data);
   const kind = root?.['kind'];
-  if (typeof kind !== 'string' || kind === '') return `Document ${doc + 1}`;
+  if (typeof kind !== 'string' || kind === '') return formatMessage(documentLabel, { n: doc + 1 });
   const name = obj(root?.['metadata'])?.['name'];
   return typeof name === 'string' && name !== '' ? `${kind} ${name}` : kind;
 }

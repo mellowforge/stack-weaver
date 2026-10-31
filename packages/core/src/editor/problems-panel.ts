@@ -1,5 +1,6 @@
 import type { Problem, Severity } from '../validation/problems.js';
 import { h } from './dom.js';
+import { formatMessage } from './format-message.js';
 import type { UiMessages } from './messages.js';
 import { problemCountText } from './problems.js';
 
@@ -70,7 +71,7 @@ export function createProblemsPanel(
       const hiding = problems.length === 0;
       if (hiding && !host.hidden && host.contains(doc.activeElement)) o.restoreFocus();
       host.hidden = hiding;
-      toggle.textContent = `${o.ui.problemsLabel}: ${problemCountText(o.ui, problems.length, o.locale)}`;
+      toggle.textContent = formatMessage(o.ui.problemsSummary, { label: o.ui.problemsLabel, count: problemCountText(o.ui, problems.length, o.locale) });
       const items = problems.map((p, i) => {
         const button = h(doc, 'button', { type: 'button', class: 'sw-problem', 'data-sw-severity': p.severity }, [
           h(doc, 'span', { class: 'sw-problem-icon', 'aria-hidden': 'true' }, [ICONS[p.severity]]),

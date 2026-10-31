@@ -1,5 +1,6 @@
 import type { YamlValue } from '../../document/types.js';
 import { h } from '../../editor/dom.js';
+import { formatMessage } from '../../editor/format-message.js';
 import { frame, removeButton } from './collections.js';
 import type { WidgetFactory } from './types.js';
 
@@ -94,7 +95,7 @@ export const secretDataWidget: WidgetFactory = (ctx) => {
       row.warning.textContent = decoded === undefined ? ui.secretInvalidBase64 : lossy ? ui.secretCarriageReturn : '';
       row.warning.hidden = !invalid;
       row.name.textContent = key;
-      row.input.setAttribute('aria-label', `${ctx.label}, ${key}, ${ui.entryValue}`);
+      row.input.setAttribute('aria-label', formatMessage(ui.namedEntryValueLabel, { label: ctx.label, name: key }));
       if (invalid) row.input.setAttribute('aria-describedby', row.warning.id);
       else row.input.removeAttribute('aria-describedby');
       row.input.disabled = readOnlyNow;

@@ -86,12 +86,22 @@ export interface UiMessages {
   readonly addItem: string;
   /** Text of the button that adds an entry to a key-value list. */
   readonly addEntry: string;
-  /** Accessible name of the key input of a key-value list. */
-  readonly entryKey: string;
-  /** Accessible name of the value input of a key-value list. */
-  readonly entryValue: string;
-  /** Accessible name of the input that holds a new list item. */
-  readonly newItem: string;
+  /** Accessible name of the key input that adds an entry to a key-value list; `{label}` is the list's name. */
+  readonly entryKeyLabel: string;
+  /** Accessible name of the value input that adds an entry to a key-value list; `{label}` is the list's name. */
+  readonly entryValueLabel: string;
+  /** Accessible name of the key input of an existing entry; `{label}` is the list's name, `{name}` the entry's key. */
+  readonly namedEntryKeyLabel: string;
+  /** Accessible name of the value input of an existing entry; `{label}` is the list's name, `{name}` the entry's key. */
+  readonly namedEntryValueLabel: string;
+  /** Accessible name of the input that holds a new list item; `{label}` is the list's name. */
+  readonly newItemLabel: string;
+  /** Accessible name of the button that adds an item to a list; `{label}` is the list's name. */
+  readonly addItemLabel: string;
+  /** Accessible name of the button that adds an entry to a key-value list; `{label}` is the list's name. */
+  readonly addEntryLabel: string;
+  /** Text of the problems panel toggle; `{label}` is `problemsLabel`, `{count}` the problem count text. */
+  readonly problemsSummary: string;
   /** Shown when renaming a key to one that already exists. */
   readonly keyExists: string;
   /** Accessible name of the region that adds fields, keys or items to a section. */
@@ -230,9 +240,14 @@ export const defaultUiMessages: UiMessages = {
   editRefused: 'This value cannot be changed here. Edit it in code.',
   addItem: 'Add',
   addEntry: 'Add',
-  entryKey: 'Key',
-  entryValue: 'Value',
-  newItem: 'New item',
+  entryKeyLabel: '{label}, Key',
+  entryValueLabel: '{label}, Value',
+  namedEntryKeyLabel: '{label}, {name}, Key',
+  namedEntryValueLabel: '{label}, {name}, Value',
+  newItemLabel: '{label} New item',
+  addItemLabel: 'Add {label}',
+  addEntryLabel: 'Add {label}',
+  problemsSummary: '{label}: {count}',
   keyExists: 'That key already exists.',
   addSlotLabel: 'Add to this section',
   showAdvanced: 'Show advanced',
