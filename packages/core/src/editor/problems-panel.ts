@@ -43,8 +43,12 @@ export function createProblemsPanel(
   const list = h(doc, 'ul', { class: 'sw-problem-list', id: listId, role: 'list' });
   const status = h(doc, 'p', { class: 'sw-field-error sw-problems-status', role: 'alert' });
   host.append(toggle, list, status);
-  const setStatus = (text: string): void => {
-    if (status.textContent !== text) status.textContent = text;
+  const clearStatus = (): void => {
+    if (status.textContent !== '') status.textContent = '';
+  };
+  // Always written, even with the same text: the new text node makes the alert speak for every refusal.
+  const showRefused = (): void => {
+    status.textContent = o.ui.editRefused;
   };
 
   toggle.addEventListener('click', () => {
@@ -60,11 +64,9 @@ export function createProblemsPanel(
       readOnly = v;
       for (const b of list.querySelectorAll<HTMLButtonElement>('.sw-problem-fix')) b.disabled = v;
     },
-    showRefused() {
-      setStatus(o.ui.editRefused);
-    },
+    showRefused,
     update(problems) {
-      setStatus('');
+      clearStatus();
       const hiding = problems.length === 0;
       if (hiding && !host.hidden && host.contains(doc.activeElement)) o.restoreFocus();
       host.hidden = hiding;
@@ -83,9 +85,9 @@ export function createProblemsPanel(
         fixButton.disabled = readOnly;
         fixButton.addEventListener('click', () => {
           if (o.onFix(p)) {
-            setStatus('');
+            clearStatus();
             toggle.focus();
-          } else setStatus(o.ui.editRefused); // the focus stays on this button
+          } else showRefused(); // the focus stays on this button
         });
         return h(doc, 'li', { class: 'sw-problem-item' }, [button, fixButton]);
       });

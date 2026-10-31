@@ -90,6 +90,21 @@ describe('outline', () => {
     editor.setReadOnly(true);
     expect(title()).toBe('Variables');
   });
+
+  it('a reveal while the visual pane is hidden applies when it is shown again, except for a root path', async () => {
+    const { editor } = await mount({ mode: 'split' });
+    const title = () => el.querySelector('.sw-section-title')!.textContent;
+    [...el.querySelectorAll<HTMLElement>('[role=treeitem] .sw-outline-label')].find((l) => l.textContent === 'web')!.click();
+    expect(title()).toBe('web');
+    editor.setMode('code');
+    editor.reveal({ doc: 0, path: [] });
+    editor.setMode('split');
+    expect(title()).toBe('web');
+    editor.setMode('code');
+    editor.reveal({ doc: 0, path: ['x-variables', 'TAG'] });
+    editor.setMode('split');
+    expect(title()).toBe('Variables');
+  });
 });
 
 describe('cards', () => {

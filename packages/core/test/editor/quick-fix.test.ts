@@ -193,6 +193,19 @@ describe('refused fixes', () => {
     expect(panelStatus().closest('[hidden]')).toBeNull();
   });
 
+  it('panel: every refusal is announced again, even with the same text', async () => {
+    await mount({ format: 'kubernetes', value: FLOW_POD });
+    fixButton().click();
+    const seen: MutationRecord[] = [];
+    const watch = new MutationObserver((records) => seen.push(...records));
+    watch.observe(panelStatus(), { childList: true, characterData: true, subtree: true });
+    fixButton().click();
+    await Promise.resolve();
+    watch.disconnect();
+    expect(seen.length).toBeGreaterThan(0);
+    expect(panelStatus().textContent).toBe(defaultUiMessages.editRefused);
+  });
+
   it('panel: a stale second fix is refused with the message, which clears once the problems change', async () => {
     const twoUses = 'services:\n  web:\n    image: "${IMG}"\n    command: "${IMG}"\n';
     const { editor } = await mount({ value: twoUses });

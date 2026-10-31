@@ -52,6 +52,8 @@ export function createVisualPane(
   let selectedRef: NodeRef | undefined;
   /** The Variables section is the selection. Tracked apart from `selectedRef`: it has no path of its own. */
   let variablesSelected = false;
+  /** A reveal made while the pane was hidden; the next render selects it if it resolves to a node. */
+  let pendingReveal: NodeRef | undefined;
   let nodes: readonly OutlineNode[] = [];
   let flat = new Map<string, OutlineNode>();
   let section: { id: string; handle: Section } | undefined;
@@ -230,6 +232,15 @@ export function createVisualPane(
       }
     };
     index(nodes);
+    if (pendingReveal) {
+      // Like a reveal on a shown pane: a ref with no node (such as the root) leaves the selection as it is.
+      const hit = nearest(pendingReveal);
+      pendingReveal = undefined;
+      if (hit) {
+        selectedRef = hit.ref;
+        variablesSelected = hit.type === 'variables';
+      }
+    }
     const sel =
       (variablesSelected ? flat.get(VARIABLES_ID) : undefined) ??
       (selectedRef ? nearest(selectedRef) : undefined) ??
@@ -288,11 +299,11 @@ export function createVisualPane(
     reveal(ref: NodeRef) {
       if (destroyed) return false;
       if (o.el.hidden) {
-        selectedRef = ref;
-        variablesSelected = false; // the next render resolves `ref`, to Variables if it is under the block
+        pendingReveal = ref; // the outline may be stale: resolved by the render that shows the pane
         stale = true;
         return false;
       }
+      pendingReveal = undefined;
       flushPending();
       const hit = nearest(ref);
       if (!hit) return false;
