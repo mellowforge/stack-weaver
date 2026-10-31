@@ -5,6 +5,7 @@ import type { ManifestEditorOptions } from '../../src/editor/editor.js';
 import { defaultUiMessages } from '../../src/editor/messages.js';
 import type { Problem } from '../../src/validation/problems.js';
 import { createFakeAdapter } from '../helpers/fake-adapter.js';
+import { focused } from '../helpers/focus.js';
 
 let el: HTMLElement;
 beforeEach(() => {
@@ -49,7 +50,7 @@ describe('quick fixes', () => {
     await mount();
     fixButton().focus();
     fixButton().click();
-    expect(document.activeElement).toBe(el.querySelector('.sw-problems-toggle'));
+    expect(focused()).toBe(el.querySelector('.sw-problems-toggle'));
     await vi.advanceTimersByTimeAsync(1000);
     expect(el.querySelector('.sw-problem-fix')).toBeNull();
   });
@@ -135,7 +136,7 @@ describe('quick fixes', () => {
     await vi.advanceTimersByTimeAsync(1000);
     expect(editor.getValue()).toBe(UNDECLARED);
     expect(fixButton()).toBe(btn);
-    expect(document.activeElement).toBe(btn);
+    expect(focused()).toBe(btn);
   });
 });
 

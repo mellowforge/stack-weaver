@@ -91,6 +91,6 @@ describe('locate', () => {
 describe('sources', () => {
   it('kubernetes/rules.ts does not import yaml', () => {
     const src = readFileSync(new URL('../../src/formats/kubernetes/rules.ts', import.meta.url), 'utf8');
-    expect(src).not.toMatch(/from 'yaml'/);
+    expect(src).not.toMatch(/from\s+['"]yaml['"]/);
   });
 });

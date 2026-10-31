@@ -2,6 +2,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { createOutline } from '../../src/visual/outline.js';
 import type { OutlineNode } from '../../src/visual/outline-model.js';
+import { focused } from '../helpers/focus.js';
 
 const node = (path: (string | number)[], label: string, children: OutlineNode[] = [], type: OutlineNode['type'] = 'map'): OutlineNode => ({
   id: `0:${path.join('/')}`,
@@ -83,15 +84,15 @@ describe('outline (APG tree)', () => {
     const { item, key } = mount();
     item('Deployment web').focus();
     key(item('Deployment web'), 'ArrowDown');
-    expect(document.activeElement).toBe(item('metadata'));
+    expect(focused()).toBe(item('metadata'));
     key(item('metadata'), 'ArrowDown');
-    expect(document.activeElement).toBe(item('spec')); // template is hidden under the collapsed spec
+    expect(focused()).toBe(item('spec')); // template is hidden under the collapsed spec
     key(item('spec'), 'End');
-    expect(document.activeElement).toBe(item('Service s'));
+    expect(focused()).toBe(item('Service s'));
     key(item('Service s'), 'ArrowUp');
-    expect(document.activeElement).toBe(item('spec'));
+    expect(focused()).toBe(item('spec'));
     key(item('spec'), 'Home');
-    expect(document.activeElement).toBe(item('Deployment web'));
+    expect(focused()).toBe(item('Deployment web'));
   });
 
   it('ArrowRight expands then enters, ArrowLeft collapses then goes to parent', () => {
@@ -99,18 +100,18 @@ describe('outline (APG tree)', () => {
     item('spec').focus();
     key(item('spec'), 'ArrowRight');
     expect(item('spec').getAttribute('aria-expanded')).toBe('true');
-    expect(document.activeElement).toBe(item('spec'));
+    expect(focused()).toBe(item('spec'));
     key(item('spec'), 'ArrowRight');
-    expect(document.activeElement).toBe(item('template'));
+    expect(focused()).toBe(item('template'));
     key(item('template'), 'ArrowRight'); // a leaf does nothing
-    expect(document.activeElement).toBe(item('template'));
+    expect(focused()).toBe(item('template'));
     key(item('template'), 'ArrowLeft');
-    expect(document.activeElement).toBe(item('spec'));
+    expect(focused()).toBe(item('spec'));
     key(item('spec'), 'ArrowLeft');
     expect(item('spec').getAttribute('aria-expanded')).toBe('false');
-    expect(document.activeElement).toBe(item('spec'));
+    expect(focused()).toBe(item('spec'));
     key(item('spec'), 'ArrowLeft');
-    expect(document.activeElement).toBe(item('Deployment web'));
+    expect(focused()).toBe(item('Deployment web'));
   });
 
   it('Enter/click selects', () => {
@@ -132,7 +133,7 @@ describe('outline (APG tree)', () => {
     key(item('spec'), 'ArrowRight');
     outline.update(tree(), '0:spec');
     expect(item('spec').getAttribute('aria-expanded')).toBe('true');
-    expect(document.activeElement).toBe(item('spec'));
+    expect(focused()).toBe(item('spec'));
   });
 
   it('expandTo opens the ancestors of a node', () => {

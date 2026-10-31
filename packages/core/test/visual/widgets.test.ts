@@ -10,6 +10,7 @@ import { loadKubernetesKind } from '../../src/formats/kubernetes/loader.js';
 import type { GuideField, JsonSchema } from '../../src/formats/types.js';
 import { createWidgetContext } from '../../src/visual/widgets/context.js';
 import { defaultWidgets, pickWidget } from '../../src/visual/widgets/registry.js';
+import { focused } from '../helpers/focus.js';
 
 const host = document.createElement('div');
 document.body.append(host);
@@ -265,7 +266,7 @@ describe('text widgets', () => {
     const { store, w, refresh } = setup('string', 'name: abc\n', ['name'], { type: 'string' });
     const input = q<HTMLInputElement>('input', w.el);
     input.focus();
-    expect(document.activeElement).toBe(input);
+    expect(focused()).toBe(input);
     input.setSelectionRange(1, 1);
     refresh();
     expect(input.selectionStart).toBe(1);

@@ -7,6 +7,7 @@ import { parseText } from '../../src/document/parse.js';
 import { readBlock } from '../../src/formats/compose/variables/block.js';
 import type { Problem } from '../../src/validation/problems.js';
 import { createFakeAdapter } from '../helpers/fake-adapter.js';
+import { focused } from '../helpers/focus.js';
 
 let el: HTMLElement;
 beforeEach(() => {
@@ -41,13 +42,6 @@ const type = (input: HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement,
   input.dispatchEvent(new Event('change', { bubbles: true }));
 };
 const addButton = () => el.querySelector<HTMLButtonElement>('.sw-variables-add')!;
-/** The focused element must be live: connected and not inside a hidden subtree (happy-dom keeps focus on removed ones). */
-const focused = () => {
-  const a = document.activeElement as HTMLElement;
-  expect(a.isConnected).toBe(true);
-  expect(a.closest('[hidden]')).toBeNull();
-  return a;
-};
 
 describe('outline', () => {
   it('compose: the outline starts with Variables; the x-variables key is hidden under the x-variables store', async () => {

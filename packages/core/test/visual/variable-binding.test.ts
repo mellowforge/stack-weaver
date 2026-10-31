@@ -3,6 +3,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { createEditorWithContext } from '../../src/editor/editor.js';
 import type { ManifestEditorOptions } from '../../src/editor/editor.js';
 import { createFakeAdapter } from '../helpers/fake-adapter.js';
+import { focused } from '../helpers/focus.js';
 
 let el: HTMLElement;
 beforeEach(() => {
@@ -35,13 +36,6 @@ const optionTexts = (key: string) => [...select(key).options].map((o) => o.textC
 const choose = (s: HTMLSelectElement, v: string) => {
   s.value = v;
   s.dispatchEvent(new Event('change', { bubbles: true }));
-};
-/** The focused element must be live: connected and not inside a hidden subtree (happy-dom keeps focus on removed ones). */
-const focused = () => {
-  const a = document.activeElement as HTMLElement;
-  expect(a.isConnected).toBe(true);
-  expect(a.closest('[hidden]')).toBeNull();
-  return a;
 };
 
 describe('use-variable toggle', () => {

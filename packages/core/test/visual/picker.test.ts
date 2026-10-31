@@ -14,6 +14,7 @@ import type { FormatDefinition } from '../../src/formats/types.js';
 import { loadKubernetesKind } from '../../src/formats/kubernetes/loader.js';
 import { skeletonFor } from '../../src/visual/skeleton.js';
 import { createFakeAdapter } from '../helpers/fake-adapter.js';
+import { focused } from '../helpers/focus.js';
 
 let el: HTMLElement;
 let editors: { destroy(): void }[];
@@ -84,7 +85,7 @@ describe('Add resource picker', () => {
     expect(d.getAttribute('aria-modal')).toBe('true');
     expect(d.getAttribute('aria-labelledby')).toBeTruthy();
     expect(document.getElementById(d.getAttribute('aria-labelledby')!)!.textContent).toBe('Add resource');
-    expect(document.activeElement).toBe(search());
+    expect(focused()).toBe(search());
     expect(search().getAttribute('aria-label')).toBeTruthy();
   });
 
@@ -122,7 +123,7 @@ describe('Add resource picker', () => {
     await open();
     key(dialog()!, { key: 'Escape' });
     expect(dialog()).toBeNull();
-    expect(document.activeElement).toBe(trigger());
+    expect(focused()).toBe(trigger());
   });
 
   it('Escape works when focus has left the dialog', async () => {
@@ -132,7 +133,7 @@ describe('Add resource picker', () => {
     expect(document.activeElement).toBe(document.body);
     document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true, cancelable: true }));
     expect(dialog()).toBeNull();
-    expect(document.activeElement).toBe(trigger());
+    expect(focused()).toBe(trigger());
   });
 
   it('the dialog is focusable and the background is inert only while it is open', async () => {
@@ -168,10 +169,10 @@ describe('Add resource picker', () => {
     const forward = new KeyboardEvent('keydown', { key: 'Tab', bubbles: true, cancelable: true });
     d.dispatchEvent(forward);
     expect(forward.defaultPrevented).toBe(true);
-    expect(document.activeElement).toBe(first);
+    expect(focused()).toBe(first);
     const back = new KeyboardEvent('keydown', { key: 'Tab', shiftKey: true, bubbles: true, cancelable: true });
     d.dispatchEvent(back);
-    expect(document.activeElement).toBe(last);
+    expect(focused()).toBe(last);
   });
 
   it('choosing Deployment appends a document from skeletonFor and selects it', async () => {
@@ -181,7 +182,7 @@ describe('Add resource picker', () => {
     dialog()!.querySelector<HTMLElement>('[data-sw-kind="apps/v1/Deployment"]')!.click();
     await vi.waitFor(() => expect(editor.getValue()).toContain('kind: Deployment'));
     expect(dialog()).toBeNull();
-    expect(document.activeElement).toBe(trigger());
+    expect(focused()).toBe(trigger());
     const docs = yamlDocs(parseText(editor.getValue()));
     expect(docs).toHaveLength(2);
     expect(editor.getValue().startsWith(`${SVC}---\napiVersion: apps/v1\nkind: Deployment\nmetadata:\n  name: deployment\n`)).toBe(true);
@@ -319,7 +320,7 @@ describe('removing a section', () => {
     expect(edit).not.toHaveBeenCalled();
     confirmGroup()!.querySelector<HTMLButtonElement>('.sw-confirm-yes')!.click();
     expect(edit).toHaveBeenCalledWith({ op: 'deleteDocument', doc: 1 });
-    expect(document.activeElement).toBe(el.querySelector('.sw-section-title'));
+    expect(focused()).toBe(el.querySelector('.sw-section-title'));
     expect(yamlDocs(parseText(editor.getValue())).filter((d) => d.contents !== null)).toHaveLength(1);
     expect(editor.getValue()).not.toContain('Deployment');
   });
@@ -330,7 +331,7 @@ describe('removing a section', () => {
     removeBtn().click();
     confirmGroup()!.querySelector<HTMLButtonElement>('.sw-confirm-no')!.click();
     expect(confirmGroup()!.hidden).toBe(true);
-    expect(document.activeElement).toBe(removeBtn());
+    expect(focused()).toBe(removeBtn());
     expect(editor.getValue()).toContain('Deployment');
   });
 
