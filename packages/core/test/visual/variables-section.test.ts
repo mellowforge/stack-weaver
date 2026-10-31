@@ -5,6 +5,7 @@ import type { ManifestEditorOptions } from '../../src/editor/editor.js';
 import { defaultUiMessages } from '../../src/editor/messages.js';
 import { parseText } from '../../src/document/parse.js';
 import { readBlock } from '../../src/formats/compose/variables/block.js';
+import type { Problem } from '../../src/validation/problems.js';
 import { createFakeAdapter } from '../helpers/fake-adapter.js';
 
 let el: HTMLElement;
@@ -376,5 +377,35 @@ describe('external store and states', () => {
     await vi.waitFor(() => expect(addButton().disabled).toBe(true));
     expect(cards().length).toBe(2);
     expect(ctl<HTMLInputElement>('PORT', 'name').disabled).toBe(true);
+  });
+});
+
+describe('section edits and validation', () => {
+  const codes = (ps: readonly Problem[]) => ps.map((p) => p.code);
+
+  it('removing a referenced variable makes its uses undeclared', async () => {
+    const { editor } = await mount();
+    expect(codes(editor.getProblems())).toEqual([]);
+    ctl<HTMLButtonElement>('PORT', 'remove').click();
+    await vi.waitFor(() => expect(codes(editor.getProblems())).toEqual(['rule.undeclared-variable']));
+  });
+
+  it('changing a referenced variable from number to boolean makes its use a type error', async () => {
+    const { editor } = await mount({ value: 'x-variables:\n  SCALE:\n    type: number\nservices:\n  web:\n    image: nginx\n    scale: ${SCALE}\n' });
+    expect(codes(editor.getProblems())).toEqual([]);
+    type(ctl('SCALE', 'type'), 'boolean');
+    await vi.waitFor(() => expect(codes(editor.getProblems())).toEqual(['rule.variable-type']));
+    expect(editor.getProblems()[0]!.severity).toBe('error');
+  });
+
+  it('external store: a section edit re-validates without any typing', async () => {
+    const { editor } = await mount({ value: BODY, variables: { store: 'external', value: [] } });
+    expect(codes(editor.getProblems())).toEqual(['rule.undeclared-variable']);
+    addButton().click();
+    type(ctl('VAR_1', 'name'), 'PORT');
+    await vi.waitFor(() => expect(codes(editor.getProblems())).toEqual([]));
+    ctl<HTMLButtonElement>('PORT', 'remove').click();
+    await vi.waitFor(() => expect(codes(editor.getProblems())).toEqual(['rule.undeclared-variable']));
+    expect(editor.getValue()).toBe(BODY);
   });
 });

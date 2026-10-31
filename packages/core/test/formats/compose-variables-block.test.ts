@@ -155,6 +155,14 @@ describe('composeVariables.writeOps', () => {
   it('returns undefined when the root is not a mapping', () => {
     expect(composeVariables.writeOps(parseText('- a\n- b\n'), port)).toBeUndefined();
   });
+
+  it('a text with no document gains one holding the block, in its own line endings; nothing to replace there', () => {
+    const text = '# notes\r\n';
+    const out = apply(text, composeVariables.writeOps(parseText(text), port));
+    expect(out).toBe('# notes\r\n---\r\nx-variables:\r\n  WEB_PORT:\r\n    type: port\r\n    default: 8080\r\n');
+    expect(readBlock(parseText(out)).decls).toEqual([port]);
+    expect(composeVariables.writeOps(parseText(''), port, 'OLD')).toBeUndefined();
+  });
 });
 
 describe('composeVariables.writeOps on a flow-style entry', () => {

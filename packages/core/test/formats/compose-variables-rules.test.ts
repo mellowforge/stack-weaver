@@ -45,6 +45,13 @@ describe('undeclared-variable', () => {
     expect(ps.map((p) => slice(text, p))).toEqual(['${ONE}', '${TWO}']);
   });
 
+  it('CRLF text: two placeholders in one single-quoted scalar each get their exact range', async () => {
+    const text = "services:\r\n  web:\r\n    image: nginx\r\n    command: 'run ${A} with ''${B}'''\r\n";
+    const ps = rules(await run(text), 'undeclared-variable');
+    expect(ps.map((p) => slice(text, p))).toEqual(['${A}', '${B}']);
+    expect(ps.map((p) => p.from)).toEqual([text.indexOf('${A}'), text.indexOf('${B}')]);
+  });
+
   it.each([
     ['plain', 'echo $${X} ${X}', '${X}'],
     ['plain', 'echo $$HOME $HOME', '$HOME'],
@@ -111,6 +118,40 @@ describe('variable-declaration', () => {
     expect(ps.map((p) => [p.code, p.severity, p.message, slice(text, p)])).toEqual([
       ['rule.variable-declaration', 'error', 'Invalid declaration of BAD: unknown type.', 'colour'],
       ['rule.variable-declaration', 'error', 'Invalid declaration of S: must be a mapping.', '5'],
+    ]);
+  });
+
+  it('an enum without values (at the entry) and a default of the wrong type (at the default); valid siblings declare', async () => {
+    const text = [
+      'x-variables:',
+      '  E:',
+      '    type: enum',
+      '  N:',
+      '    type: number',
+      '    default: abc',
+      '  OK:',
+      '    type: string',
+      'services:',
+      '  web:',
+      '    image: ${OK}',
+      '    hostname: ${E}',
+      '',
+    ].join('\n');
+    const ps = rules(await run(text));
+    expect(ps.map((p) => [p.code, p.message, slice(text, p)])).toEqual([
+      ['rule.variable-declaration', 'Invalid declaration of E: an enum needs a list of values.', 'type: enum\n'],
+      ['rule.variable-declaration', 'Invalid declaration of N: the default does not fit the type.', 'abc'],
+      // E is not declared (it is malformed); OK is
+      ['rule.undeclared-variable', 'Variable "E" is not declared.', '${E}'],
+    ]);
+  });
+
+  it('a block that is not a mapping is one error at the block, and declares nothing', async () => {
+    const text = 'x-variables: 5\nservices:\n  web:\n    image: ${A}\n';
+    const ps = rules(await run(text));
+    expect(ps.map((p) => [p.code, p.message, slice(text, p)])).toEqual([
+      ['rule.variable-declaration', 'Invalid declaration of x-variables: must be a mapping.', '5'],
+      ['rule.undeclared-variable', 'Variable "A" is not declared.', '${A}'],
     ]);
   });
 

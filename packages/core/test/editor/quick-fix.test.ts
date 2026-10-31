@@ -112,13 +112,16 @@ describe('quick fixes', () => {
   });
 
   it('row: the fix is rebuilt when the problem moves, so it never applies a stale problem', async () => {
-    const { fake } = await mount({ mode: 'visual' });
+    const { editor, fake } = await mount({ mode: 'visual' });
     const before = el.querySelector('.sw-row-fix')!;
-    fake.type(UNDECLARED.replace('image: nginx', 'image: nginx:latest'));
+    const moved = UNDECLARED.replace('image: nginx', 'image: nginx:latest');
+    fake.type(moved);
     await vi.advanceTimersByTimeAsync(1000);
-    const after = el.querySelector('.sw-row-fix')!;
+    const after = el.querySelector<HTMLButtonElement>('.sw-row-fix')!;
     expect(after).not.toBe(before);
     expect(after.textContent).toBe(before.textContent);
+    after.click();
+    expect(editor.getValue()).toBe(`${moved}x-variables:\n  PORT:\n    type: string\n`);
   });
 
   it('a refused fix leaves the focus and the panel item in place', async () => {
@@ -234,4 +237,39 @@ describe('refused fixes', () => {
     editor.setReadOnly(true);
     expect(fake.diagnostics.some((d) => d.actions)).toBe(false);
   });
+});
+
+describe('every entry point under every store', () => {
+  type Mounted = Awaited<ReturnType<typeof mount>>;
+  const ENTRIES: Record<string, (m: Mounted) => void> = {
+    panel: () => fixButton().click(),
+    row: () => el.querySelector<HTMLButtonElement>('.sw-row .sw-row-fix')!.click(),
+    'code pane': ({ fake }) => fake.diagnostics.find((d) => d.actions)!.actions![0]!.apply(),
+  };
+  // "${PORT}:80" is not the whole value, so the declaration is a string (R1).
+  const DECLARED = `${UNDECLARED}x-variables:\n  PORT:\n    type: string\n`;
+
+  /** The fix applied: the problem is gone; x-variables: the block is in the text and one undo restores it; external: the text is untouched. */
+  async function expectFixed({ editor }: Mounted, store: 'x-variables' | 'external'): Promise<void> {
+    await vi.advanceTimersByTimeAsync(1000);
+    expect(editor.getProblems()).toEqual([]);
+    expect(editor.getVariables()).toEqual([{ name: 'PORT', type: 'string' }]);
+    if (store === 'external') {
+      expect(editor.getValue()).toBe(UNDECLARED);
+      return;
+    }
+    expect(editor.getValue()).toBe(DECLARED);
+    expect(editor.undo()).toBe(true);
+    expect(editor.getValue()).toBe(UNDECLARED);
+  }
+
+  it.each(Object.keys(ENTRIES).flatMap((where) => (['x-variables', 'external'] as const).map((store) => [where, store] as const)))(
+    '%s, %s store',
+    async (where, store) => {
+      const m = await mount({ mode: 'split', ...(store === 'external' ? { variables: { store: 'external', value: [] } } : {}) });
+      expect(m.editor.getProblems().map((p) => p.code)).toEqual(['rule.undeclared-variable']);
+      ENTRIES[where]!(m);
+      await expectFixed(m, store);
+    },
+  );
 });

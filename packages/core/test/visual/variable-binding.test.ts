@@ -206,6 +206,18 @@ describe('use-variable toggle', () => {
     await mount(svc('    scale: 2\n'), { readOnly: true });
     expect(toggle('scale').disabled).toBe(true);
   });
+
+  it('choosing a fitting variable for an undeclared placeholder leaves no problem on the row', async () => {
+    const { editor } = await mount(svc('    scale: ${NOPE}\n'));
+    const rowProblems = () => row('scale').querySelector<HTMLElement>('.sw-row-problems')!;
+    expect(editor.getProblems().map((p) => p.code)).toEqual(['rule.undeclared-variable']);
+    expect(rowProblems().hidden).toBe(false);
+    choose(select('scale'), 'SCALE');
+    expect(editor.getValue()).toContain('scale: ${SCALE}\n');
+    await vi.waitFor(() => expect(editor.getProblems()).toEqual([]));
+    expect(rowProblems().hidden).toBe(true);
+    expect(rowProblems().childElementCount).toBe(0);
+  });
 });
 
 describe('variable completion in the code pane', () => {

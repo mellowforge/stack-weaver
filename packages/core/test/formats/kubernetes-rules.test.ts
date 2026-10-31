@@ -176,6 +176,16 @@ describe('target-port', () => {
     ]);
   });
 
+  it('a name found only in a workload of another namespace, or one the Service does not select, warns', async () => {
+    const ports = (name: string) => `          ports:\n            - name: ${name}\n              containerPort: 80\n`;
+    const elsewhere = deployment('o', ['app: a'], { ns: 'other', ports: ports('metrics') });
+    const unselected = deployment('u', ['app: u'], { ports: ports('metrics') });
+    for (const text of [join(elsewhere, dep('a', 'http'), svc('metrics')), join(unselected, dep('a', 'http'), svc('metrics'))]) {
+      const ps = await rules(text, 'target-port');
+      expect(ps.map((p) => [p.severity, slice(text, p)])).toEqual([['warning', 'metrics']]);
+    }
+  });
+
   it('numeric targetPort is never checked', async () => {
     expect(await rules(join(dep('a', 'http'), svc('8080')), 'target-port')).toEqual([]);
   });
