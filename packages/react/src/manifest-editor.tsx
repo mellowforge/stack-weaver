@@ -95,6 +95,8 @@ interface Carried {
   readonly format: string;
   readonly readOnly: boolean;
   readonly theme: EditorTheme;
+  /** Whether the outgoing editor had a step to undo or redo: the new one has none, and the host must hear it. */
+  readonly hadHistory: boolean;
 }
 
 type Patch = { -readonly [K in keyof ManifestEditorUpdate]: ManifestEditorUpdate[K] };
@@ -184,6 +186,15 @@ export function ManifestEditor(props: ManifestEditorProps): JSX.Element {
     });
     ed.ready.catch(() => {}); // the editor already shows (and logs) a failed load
     editor.current = ed;
+    // The core reports history changes only from the empty history a new editor starts with, so it never says that
+    // the outgoing editor's undo steps are gone. Say it here, as the core would (a frozen state; a throw is logged).
+    if (from?.hadHistory) {
+      try {
+        latest.current.onHistoryChange?.(Object.freeze({ canUndo: false, canRedo: false }));
+      } catch (err) {
+        console.error('stack-weaver: an onHistoryChange callback threw', err);
+      }
+    }
     return () => {
       // The theme has no getter: the one last pushed is what the editor shows.
       carry.current = {
@@ -192,6 +203,7 @@ export function ManifestEditor(props: ManifestEditorProps): JSX.Element {
         format: ed.getFormat(),
         readOnly: ed.getReadOnly(),
         theme: prev.current.theme,
+        hadHistory: ed.canUndo() || ed.canRedo(),
       };
       ed.destroy();
       editor.current = null;

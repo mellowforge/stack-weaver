@@ -295,6 +295,53 @@ describe.each([
     expect(redo.disabled).toBe(true);
   });
 
+  it('recreation reports an empty history through onHistoryChange', async () => {
+    let editor: RefObject<ManifestEditorController | null> | undefined;
+    const reported: { canUndo: boolean; canRedo: boolean }[] = [];
+    // The guide is the parent's: each new object recreates the editor, which drops the undo history.
+    function Host({ guide }: { guide: Record<string, never> }) {
+      const ref = useRef<ManifestEditorController>(null);
+      editor = ref;
+      const [history, setHistory] = useState({ canUndo: false, canRedo: false });
+      return (
+        <>
+          <button type="button" data-testid="undo" disabled={!history.canUndo} onClick={() => ref.current?.undo()}>
+            Undo
+          </button>
+          <ManifestEditor
+            ref={ref}
+            codeEditor={adapter}
+            defaultValue="a: 1"
+            guide={guide}
+            onHistoryChange={(state) => {
+              reported.push(state);
+              setHistory(state);
+            }}
+          />
+        </>
+      );
+    }
+    const { getByTestId, rerender } = render(<Host guide={{}} />, opts);
+    await settle(editor!);
+    const undo = getByTestId('undo') as HTMLButtonElement;
+    type('a: 2');
+    expect(undo.disabled).toBe(false);
+    reported.length = 0;
+    const old = editor!.current;
+    rerender(<Host guide={{}} />);
+    expect(editor!.current).not.toBe(old);
+    expect(editor!.current!.getValue()).toBe('a: 2');
+    expect(editor!.current!.canUndo()).toBe(false);
+    expect(reported).toEqual([{ canUndo: false, canRedo: false }]);
+    expect(Object.isFrozen(reported[0])).toBe(true);
+    expect(undo.disabled).toBe(true);
+    // Recreating again with an empty history has nothing new to report.
+    reported.length = 0;
+    rerender(<Host guide={{}} />);
+    expect(reported).toEqual([]);
+    await settle(editor!);
+  });
+
   it('unmount before ready: no callback after unmount, no unhandled rejection', async () => {
     const ref = createRef<ManifestEditorController>();
     // A code editor that never finishes mounting, so `ready` is still pending at the unmount.
