@@ -1,0 +1,68 @@
+@import '@stack-weaver/core/stack-weaver.css';
+@import '@stack-weaver/demo-kit/theme.css';
+@import '@stack-weaver/demo-kit/controls.css';
+
+/* The rules below match site/src/shared.css (the Vanilla and React pages use the same ones). */
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  background: var(--site-bg);
+  color: var(--site-fg);
+  font-family: var(--site-font);
+  font-size: 16px;
+  line-height: 1.5;
+  -webkit-font-smoothing: antialiased;
+}
+
+a {
+  color: inherit;
+}
+
+.sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  margin: -1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+}
+
+/* the toolbar's checkbox, buttons and the host the editor fills */
+.toolbar input[type='checkbox'] {
+  accent-color: var(--site-accent);
+}
+
+.button {
+  appearance: none;
+  padding: 6px 14px;
+  font: inherit;
+  font-size: 14px;
+  font-weight: 550;
+  color: var(--site-fg);
+  background: var(--site-bg);
+  border: 1px solid var(--site-border-strong);
+  border-radius: 8px;
+  cursor: pointer;
+}
+
+.button:disabled {
+  color: var(--site-muted-strong);
+  border-color: var(--site-border);
+  border-style: dashed;
+  cursor: not-allowed;
+}
+
+.demo-editor {
+  height: 560px;
+}
+
+/* Layout of the Angular tab app (an iframe on the landing page); the React app has the same padding. */
+.angular-app {
+  padding: 12px 16px 8px;
+}

@@ -31,6 +31,12 @@
     },
     {
       "path": "./projects/stack-weaver-angular/tsconfig.spec.json"
+    },
+    {
+      "path": "./projects/site-demo/tsconfig.app.json"
+    },
+    {
+      "path": "./projects/site-demo/tsconfig.spec.json"
     }
   ]
 }

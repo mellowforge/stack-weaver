@@ -97,6 +97,26 @@ describe('framework tabs', () => {
     expect(iframes()[0]).toBe(frame);
   });
 
+  it('the Angular iframe is created only on first activation', () => {
+    mount();
+    click(tab('React'));
+    expect(iframes()).toHaveLength(1);
+
+    click(tab('Angular'));
+    expect(iframes()).toHaveLength(2);
+    const frame = iframes()[1]!;
+    expect(frame.getAttribute('src')).toBe('/angular/');
+    expect(frame.title).toBe('Angular demo');
+    expect(frame.getAttribute('loading')).toBe('lazy');
+    expect(frame.className).toBe('demo-frame');
+    expect(panelOf(tab('Angular')).contains(frame)).toBe(true);
+
+    click(tab('React'));
+    click(tab('Angular'));
+    expect(iframes()).toHaveLength(2);
+    expect(iframes()[1]).toBe(frame);
+  });
+
   it('puts the base in the iframe URL', () => {
     mount(siteConfig({ GITHUB_REPOSITORY: 'Constantine-24/stack-weaver' }));
     click(tab('React'));

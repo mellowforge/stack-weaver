@@ -1,5 +1,5 @@
 // Verifies the assembled site/dist: required files, base-prefixed absolute URLs,
-// existing local references, and the inlined iframe URLs. Task 7 extends it for angular/.
+// existing local references, the Angular <base href>, and the inlined iframe URLs.
 import { existsSync, readFileSync, readdirSync } from 'node:fs';
 import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -11,7 +11,7 @@ const { base } = siteConfig(process.env);
 const errors = [];
 const fail = (msg) => errors.push(msg);
 
-const pages = ['index.html', 'react/index.html'];
+const pages = ['index.html', 'react/index.html', 'angular/index.html'];
 for (const file of [...pages, '.nojekyll']) {
   if (!existsSync(join(dist, file))) fail(`missing dist/${file}`);
 }
@@ -39,6 +39,12 @@ for (const page of pages) {
   }
 }
 
+const angularPath = join(dist, 'angular/index.html');
+if (existsSync(angularPath)) {
+  const expected = `<base href="${base}angular/">`;
+  if (!readFileSync(angularPath, 'utf8').includes(expected)) fail(`angular/index.html lacks ${expected}`);
+}
+
 const assetsDir = join(dist, 'assets');
 const bundles = existsSync(assetsDir) ? readdirSync(assetsDir).filter((f) => f.endsWith('.js')) : [];
 const bundleText = bundles.map((f) => readFileSync(join(assetsDir, f), 'utf8')).join('\n');
@@ -46,13 +52,13 @@ const bundleText = bundles.map((f) => readFileSync(join(assetsDir, f), 'utf8')).
 // inlined into the bundle through the __SITE__ define, so check that literal; the
 // framework directories those URLs point at are checked above.
 const escapedBase = base.replace(/[.*+?^${}()|[\]\\/]/g, '\\$&');
-if (!new RegExp(`base\\s*:\\s*["'\`]${escapedBase}["'\`]`).test(bundleText)) {
+if (!new RegExp(`["'\`]?base["'\`]?\\s*:\\s*["'\`]${escapedBase}["'\`]`).test(bundleText)) {
   fail(`landing JS bundle lacks the inlined site base "${base}"`);
 }
-for (const segment of ['react']) {
-  if (!bundleText.includes(`\`${segment}\``) && !bundleText.includes(`"${segment}"`) && !bundleText.includes(`'${segment}'`)) {
-    fail(`landing JS bundle lacks the "${segment}" iframe path segment`);
-  }
+// Only the iframe builder emits this: it picks the iframe title ("Angular demo" / "React demo") from the framework id
+// that also becomes the path segment of the src. (A bare "react" string would match any bundle that mentions React.)
+if (!/["'`]angular["'`]\s*\?\s*["'`]Angular["'`]\s*:\s*["'`]React["'`]/.test(bundleText)) {
+  fail('landing JS bundle lacks the angular/react iframe builder (framework id to title and path segment)');
 }
 
 if (errors.length) {

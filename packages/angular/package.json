@@ -5,8 +5,8 @@
   "packageManager": "pnpm@12.11.2",
   "scripts": {
     "ng": "ng",
-    "build": "ng build stack-weaver-angular",
-    "test": "ng test stack-weaver-angular --watch=false",
+    "build": "ng build stack-weaver-angular && ng build site-demo",
+    "test": "ng test stack-weaver-angular --watch=false && ng test site-demo --watch=false",
     "typecheck": "tsc --noEmit -p projects/stack-weaver-angular/tsconfig.lib.json",
     "test:smoke": "pnpm build && node scripts/smoke.mjs"
   },
