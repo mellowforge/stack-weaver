@@ -58,43 +58,44 @@ All items below are done in Plan 4 unless marked moved.
   items), R11 (`PluralMessage.none`), R12 (undo/redo re-detect under `'auto'`), R13 (problem lists compare `path`), the
   picker follows the host guide, silent failures logged, `formatBadge`. Done.
 
-## Plan 5 (wrappers and release)
-- **Changesets:** restore `.changeset/config.json` `fixed: [["@stack-weaver/core","@stack-weaver/angular","@stack-weaver/react"]]` when the wrappers are added. It is set to `[]` until then.
-- **`@changesets/cli`:** kept at ^2.31.1 to match grid-master. Revisit ^3 there.
-- Wrappers recreate the editor when an init-only option changes (P8); only `value`, `mode`, `readOnly`, `theme`, `format` and the external variables are settable.
-- Wrappers pass only the props that changed to `update()` (R3): a re-passed `format: 'auto'` is a no-op by design, and `variables` in `update` is re-applied even when unchanged.
-- The `check-types` unit test reads whatever `dist/` exists (and skips without a build); the CI gate is the release script (`node scripts/check-types.mjs` after `build`).
-- `SyncCodeEditorAdapter`: done in the Plan 4 final wave (public, exported from the root and the codemirror subpath).
+## Plan 5 (wrappers and release): status
+All items below are done in Plan 5 unless marked parked.
+- **Changesets:** the fixed triple `["@stack-weaver/core","@stack-weaver/angular","@stack-weaver/react"]` is restored in `.changeset/config.json`. Done (Task 8). All three start at 0.0.0, and one `.changeset/first-release.md` makes the first release 0.1.0.
+- **`@changesets/cli`:** kept at ^2.31.1 to match grid-master. Revisit ^3 there (with `changesets/action` v2).
+- Wrappers recreate the editor when an init-only option changes (P8); only `value`, `mode`, `readOnly`, `theme`, `format` and the external variables are settable. Done (React and Angular).
+- Wrappers pass only the props that changed to `update()` (R3). Done.
+- The `check-types` unit test reads whatever `dist/` exists (and skips without a build); the CI gate is the release script and the `Core graph checks` CI step (`node scripts/check-types.mjs` after `build`). Done (Q12).
+- `SyncCodeEditorAdapter`: done in the Plan 4 final wave.
 
 ### Plan 5 wrapper contract
-What the React and Angular wrappers must respect (from the Plan 4 milestone review):
-- Init-only callbacks (`onChange`, `onProblemsChange`, `onModeChange`, `onVariablesChange`) are read once: route them
-  through a ref trampoline so a re-render's new function is called without recreating the editor.
-- Object options (`guide`, `widgets`, `formats`, `recipes`, `messages`, `variables`) are init-only and compared by
-  reference: ask hosts for stable objects, or compare structurally before recreating the editor.
-- `onChange` fires synchronously, with origin `'api'`, inside `setValue` and `update({ value })`: filter it (or compare
-  with the value just pushed) to avoid echo loops and Angular's ExpressionChanged error.
-- Bind `[(format)]` with `getFormat()` / `setFormat()` (R8): the option round-trips, so `'auto'` keeps detecting.
-- R10, deferred here as additive core API: controller change signals: `onFormatChange` (the active format),
-  `canUndo` / `canRedo` with a change event, and `reset` / `clearHistory` on the controller (or `update({ resetHistory })`).
-- `defaultWidgets` and `defaultUiMessages` are not frozen: wrappers must not mutate them (or the core freezes them). Done (Plan 5 Task 2: both are frozen).
-- S5: map `ActionResult.edit` (`flow`, `alias`, `block-scalar`) to the "Edit in code" hint in wrapper UIs.
-- S6: a `transact` refusal does not say which op failed. The `ActionRefusal` TSDoc now says a multi-op refusal reports the first refused op's reason (Plan 5 Task 2).
-- S7: `recipes.choose` silently skips fixing the format when that format is not loaded. Done (Plan 5 Task 2: warns once per format, still inserts the text).
+All items are implemented in both wrappers, with matching test names.
+- Init-only callbacks (`onChange`, `onProblemsChange`, `onModeChange`, `onVariablesChange`) are read once and routed through a trampoline. Done.
+- Object options (`guide`, `widgets`, `formats`, `recipes`, `messages`, `variables`) are init-only and compared by reference; hosts are asked for stable objects. Done.
+- `onChange` echo filtering: a pushed `value` or `mode` is not reported back. Done.
+- Format binding with `getFormat()` / `setFormat()` (R8): the option round-trips, `onFormatChange` / `activeFormatChange` report the active format. Done.
+- R10 controller signals (`onFormatChange`, `onHistoryChange`, `canUndo` / `canRedo`, `reset`, `clearHistory`). Done.
+- R16: undo and redo re-detect the format only for steps made through the API. Done.
+- `defaultWidgets` and `defaultUiMessages` are frozen. Done (Plan 5 Task 2).
+- The Angular wrapper gained a `textChange` output (`{ value, origin }`) for parity with React's `onChange`. Done.
+- S6: the `ActionRefusal` TSDoc says a multi-op refusal reports the first refused op's reason. Done (Plan 5 Task 2).
+- S7: `recipes.choose` warns once per format when that format is not loaded, and still inserts the text. Done (Plan 5 Task 2).
+- S5 (parked): map `ActionResult.edit` (`flow`, `alias`, `block-scalar`) to the "Edit in code" hint. The wrappers have no UI of their own, so there is nothing to map; the core editor already shows the hint.
 
 ### Deferred from the Plan 4 final review (E)
 - S4: the code pane's assist callbacks (completion, hover) have bare `catch` blocks; log with `console.debug`. Done (Plan 5 Task 2).
 - S8: a widget whose `destroy()` throws after a `widgetFailed` note is logged a second time. Done (Plan 5 Task 2: a regression test pins one log per failure; the code already swallowed the destroy error).
 - `defaultWidgets` (and `defaultUiMessages`) freeze. Done (Plan 5 Task 2).
-- R10 controller signals (above).
-- R16: under `'auto'`, undo and redo re-detect on every history step, including typed ones, so undoing typing can
-  switch the format when an intermediate text parses and detects differently. Record the origin per history entry
-  and re-detect only for `'api'` steps if the wrappers need that.
+- R10 controller signals. Done.
+- R16: under `'auto'`, undo and redo re-detected on every history step, including typed ones. Done (Plan 5:
+  the origin is recorded per history entry and only `'api'` steps re-detect).
 - A host `detect` that throws under `'auto'` with no format re-detects, and logs, on every keystroke. Rate-limit it. Done (Plan 5 Task 2: logged when the message differs, cleared by a detect that does not throw).
 - Test hygiene: `quick-fix.test.ts` still has local copies of the shared `focused()` helper (`visibleFocus`, `live`). Done (Plan 5 Task 2).
 - The reserved rule id `'failed'` warning is deduped per page, not per format. Done (Plan 5 Task 2: keyed by format id).
 
 ## Parked, low priority
+- Core `ready` never settles when the editor is destroyed while a mount never settles (a code editor whose `mount` promise stays pending): `destroy()` does not resolve it.
+- `@changesets/cli` ^3 together with `changesets/action` v2 (grid-master is on ^2.31.1).
+- Wrapper UIs: S5, the "Edit in code" hint mapping (see Plan 5 above).
 - `--update-lock` and the first real schema bump: the lock-writing glue (`writeLockEntry`, the generators' flag branches) has only been tested with mocks. Expect to debug it on the first upstream bump.
 - `parseText`'s dangling-alias check costs O(aliases × nodes).
 - `add`/`push`/`delete` refuse on documents with more than 100 alias expansions. Those edits go to "edit in code".

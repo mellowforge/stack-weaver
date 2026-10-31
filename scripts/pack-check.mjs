@@ -1,10 +1,11 @@
 #!/usr/bin/env node
 /**
- * Packs each package listed in PACKAGES below exactly as `pnpm publish` would and
- * checks each tarball: required files present (including generated schema modules),
- * no sources, tests or scripts, no `workspace:` specifier left in the packed
- * package.json, and type declarations that resolve (arethetypeswrong). Add a package
- * to PACKAGES when it becomes publishable. Run after `pnpm build`.
+ * Packs each of the three published packages listed in PACKAGES below (core, react and
+ * Angular) exactly as `pnpm publish` would and checks each tarball: required files
+ * present (including generated schema modules), no sources, tests or scripts, no
+ * `workspace:` specifier left in the packed package.json, and type declarations that
+ * resolve (arethetypeswrong). Add a package to PACKAGES when it becomes publishable.
+ * Run after `pnpm build`.
  */
 import { execFileSync } from 'node:child_process';
 import { mkdtempSync, rmSync } from 'node:fs';
@@ -28,6 +29,17 @@ const PACKAGES = [
       'dist/formats/kubernetes/generated/loaders.js',
       'dist/formats/compose/generated/compose.validate.js',
     ],
+  },
+  {
+    dir: 'packages/react',
+    attw: ['--profile', 'esm-only'],
+    required: ['dist/index.js', 'dist/index.d.ts'],
+  },
+  {
+    // Packs from publishConfig.directory (the ng-packagr output), which pnpm resolves itself.
+    dir: 'packages/angular/projects/stack-weaver-angular',
+    attw: ['--profile', 'esm-only'],
+    required: ['fesm2022/stack-weaver-angular.mjs', 'types/stack-weaver-angular.d.ts'],
   },
 ];
 const ALWAYS = ['package.json', 'README.md', 'LICENSE'];

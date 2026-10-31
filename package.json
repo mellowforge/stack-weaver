@@ -8,6 +8,8 @@
   "scripts": {
     "test": "pnpm -r test",
     "build": "pnpm -r build",
+    "build:site": "pnpm -r build && pnpm --filter @stack-weaver/site build:site && pnpm --filter @stack-weaver/site check",
+    "test:smoke": "pnpm -r test:smoke",
     "typecheck": "pnpm -r typecheck",
     "changeset": "changeset",
     "version-packages": "changeset version && pnpm install --lockfile-only",

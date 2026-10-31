@@ -93,7 +93,7 @@ targets app developers who are new to Kubernetes, and end users of platforms tha
   - `pack:check` (attw), npm trusted publishing.
   - Angular builds with ng-packagr.
 - **Demo and docs:** a `site/` with Vanilla, React and Angular tabs, plus a private `demo-kit` for shared
-  fixtures and recipes.
+  fixtures and recipes. `site/` is the only demo: the wrappers have no per-wrapper dev demo apps (Plan 5, Q10).
 - **Inherited rules:** wrappers contain only wiring; every export, CSS class and CSS variable is public API;
   WAI-ARIA APG patterns and WCAG 2.2 AA; Lighthouse a11y = 100; light and dark themes through `--sw-*`
   CSS variables; core ships `stack-weaver.css`.
@@ -347,7 +347,8 @@ editor.ready; /* Promise<void>, see below */ editor.destroy();
 - **React:** `<ManifestEditor value | defaultValue onChange mode onModeChange … ref>`, where `ref` exposes
   the controller.
 - **Angular:** `<sw-manifest-editor [(value)] [(mode)] (problemsChange) …>` using `model()`. The core runs
-  outside the Angular zone (`runOutsideAngular`), and only outputs re-enter it.
+  outside the Angular zone (`runOutsideAngular`), and only outputs re-enter it. For parity with React's
+  `onChange`, a `textChange` output emits `{ value, origin }` for every text change (Plan 5).
 
 ## Decisions from the builder check [call unless marked]
 

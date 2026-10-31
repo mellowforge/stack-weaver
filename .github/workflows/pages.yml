@@ -1,0 +1,57 @@
+name: Deploy demo site
+
+# Landing page at /, Angular tab app at /angular/, React tab app at /react/.
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: pages
+  cancel-in-progress: false
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+      - uses: pnpm/action-setup@ea17c68df8912ef543352723c149a84f56e3d413 # v6.1.0
+      - uses: actions/setup-node@v7
+        with:
+          node-version-file: .nvmrc
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      # The packages first: the tests import their built dist
+      - run: pnpm -r build
+      - run: pnpm -r test
+      # GITHUB_REPOSITORY is set by Actions, so the site gets the /<repo>/ base path
+      # (the same steps as the root `pnpm build:site`, without building the packages twice)
+      - run: pnpm --filter @stack-weaver/site build:site
+        env:
+          # The packages are on npm, so the site shows the npm links
+          SHOW_NPM: '1'
+      - run: pnpm --filter @stack-weaver/site check
+      - uses: actions/upload-pages-artifact@v5
+        with:
+          path: site/dist
+
+  deploy:
+    needs: build
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      pages: write
+      id-token: write
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - id: deployment
+        uses: actions/deploy-pages@v5

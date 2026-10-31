@@ -1,0 +1,51 @@
+version: 2
+updates:
+  - package-ecosystem: npm
+    directory: /
+    schedule:
+      interval: weekly
+    groups:
+      angular:
+        patterns: ['@angular/*', '@angular-devkit/*', 'ng-packagr', 'zone.js']
+      react:
+        patterns: ['react', 'react-dom', '@types/react', '@types/react-dom', '@vitejs/plugin-react', '@testing-library/*']
+      # Minor and patch only: a major matches no group, so it arrives as its own PR and is
+      # merged or closed on its own CI result.
+      dev-tooling:
+        dependency-type: development
+        update-types: ['minor', 'patch']
+        exclude-patterns:
+          [
+            '@angular/*',
+            '@angular-devkit/*',
+            'ng-packagr',
+            'zone.js',
+            'react',
+            'react-dom',
+            '@types/react*',
+            '@vitejs/plugin-react',
+            '@testing-library/*',
+          ]
+    # Framework majors change an adapter's peer range — do them by hand, as a deliberate release.
+    ignore:
+      - dependency-name: '@angular/*'
+        update-types: ['version-update:semver-major']
+      - dependency-name: 'react'
+        update-types: ['version-update:semver-major']
+      - dependency-name: 'react-dom'
+        update-types: ['version-update:semver-major']
+      # The Angular workspace is pinned to the TypeScript range Angular supports (~6.0).
+      - dependency-name: 'typescript'
+        update-types: ['version-update:semver-major']
+      # changesets/action v2 requires Changesets v3; upgrade the CLI and the action together, by hand.
+      - dependency-name: '@changesets/cli'
+        update-types: ['version-update:semver-major']
+
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: monthly
+    ignore:
+      # v2 requires @changesets/cli v3 (see the npm ignore above); move both together, by hand.
+      - dependency-name: 'changesets/action'
+        update-types: ['version-update:semver-major']

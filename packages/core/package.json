@@ -1,10 +1,10 @@
 {
   "name": "@stack-weaver/core",
-  "version": "0.1.0",
+  "version": "0.0.0",
   "description": "Framework-agnostic, schema-driven visual and code editor core for Kubernetes and docker-compose YAML.",
   "license": "MIT",
   "author": "Konstantin Penzin",
-  "homepage": "https://github.com/Constantine-24/stack-weaver#readme",
+  "homepage": "https://constantine-24.github.io/stack-weaver/",
   "repository": {
     "type": "git",
     "url": "git+https://github.com/Constantine-24/stack-weaver.git",

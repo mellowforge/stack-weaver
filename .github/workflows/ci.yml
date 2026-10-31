@@ -1,0 +1,66 @@
+name: CI
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  verify:
+    name: Build, type-check, test, package, site
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+
+      # pnpm version comes from "packageManager" in package.json.
+      - uses: pnpm/action-setup@ea17c68df8912ef543352723c149a84f56e3d413 # v6.1.0
+
+      - uses: actions/setup-node@v7
+        with:
+          node-version-file: .nvmrc
+          cache: pnpm
+
+      - run: pnpm install --frozen-lockfile
+
+      # The packages first: the tests import their built dist
+      - name: Build packages
+        run: pnpm build
+
+      - name: Core graph checks
+        run: |
+          node packages/core/scripts/check-entry.mjs
+          node packages/core/scripts/check-types.mjs
+
+      - name: Type-check
+        run: pnpm typecheck
+
+      - name: Unit tests
+        run: pnpm test
+
+      - name: Smoke tests (built packages load through their exports)
+        run: pnpm test:smoke
+
+      - name: LICENSE parity
+        # npm only packs files inside the package, so each package carries a copy of the root LICENSE.
+        run: |
+          for copy in packages/core/LICENSE packages/react/LICENSE packages/angular/projects/stack-weaver-angular/LICENSE; do
+            cmp LICENSE "$copy" || { echo "::error file=$copy::$copy differs from the root LICENSE"; exit 1; }
+          done
+
+      - name: Inspect package contents
+        run: pnpm pack:check
+
+      - name: Build the demo site
+        run: |
+          pnpm --filter @stack-weaver/site build:site
+          pnpm --filter @stack-weaver/site check
