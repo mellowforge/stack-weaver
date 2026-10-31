@@ -195,3 +195,11 @@ Each was found in a per-task review and judged not worth blocking the task. Grou
   visual tree; `renameKey` inside a flow map is still refused (`flow`); an enum change on a flow entry moves `enum:` last.
 - Finding F2 (Plan 1/2 behaviour, not a regression): with `format: 'auto'` the format detected from the initial text stays
   locked; `setValue` of a compose document into a Kubernetes-detected editor validates it as Kubernetes.
+
+**Milestone review residuals**
+- The Variables section's `sw-variables-error` alert is cleared only by the next "Add variable" click, not by `update()`,
+  so a refusal message can outlive its cause (same pattern as the variable-binding error span).
+- The visual pane's `variablesSelected` flag is not reset when the Variables node goes away (e.g. a format change); if
+  the node comes back, Variables is selected again instead of the current card.
+- "Add variable" on an empty or comment-only document goes through `addDocument`, which writes a leading `---`; the
+  README says it "starts the document with the `x-variables` block".
