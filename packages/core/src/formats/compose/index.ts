@@ -6,6 +6,7 @@ import type { FormatDefinition, SchemaBundle } from '../types.js';
 import { composeGuide } from './guide.js';
 import { loadComposeSchema } from './loader.js';
 import { composeRecipes } from './recipes.js';
+import { composeVariables } from './variables/index.js';
 
 const TOP_LEVEL_KEYS = ['services', 'networks', 'volumes', 'configs', 'secrets', 'include'];
 
@@ -34,4 +35,5 @@ export const composeFormat: FormatDefinition = deepFreeze<FormatDefinition>({
   },
   guide: composeGuide,
   recipes: composeRecipes,
+  variables: composeVariables,
 });

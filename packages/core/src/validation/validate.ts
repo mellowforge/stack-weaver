@@ -184,7 +184,7 @@ async function validateDocument(
     if (bundle && format.variables) {
       const sub = format.variables.substitute(data, decls);
       const skip = sub.skip.map(toPointer);
-      errors = bundle.validate(sub.data).filter((e) => !skip.some((s) => isUnder(e.instancePath, s)));
+      errors = bundle.validate(sub.data).filter((e) => !skip.some((s) => isUnder(skippedPointer(e), s)));
     } else errors = bundle ? bundle.validate(data) : [];
   } catch (err) {
     const params = { kind: kind ?? format.label, cause: causeOf(err) };
@@ -360,6 +360,16 @@ function sortProblems(list: Problem[]): Problem[] {
     .map((v, i) => ({ v, i }))
     .sort((a, b) => a.v.from - b.v.from || SEVERITY_RANK[a.v.severity] - SEVERITY_RANK[b.v.severity] || a.i - b.i)
     .map((x) => x.v);
+}
+
+/**
+ * Where a skip applies for `e`: its own location, or, for an unknown-key error, the offending
+ * key (a value that fails its schema also makes its key "unevaluated" on the parent).
+ */
+function skippedPointer(e: SchemaError): string {
+  if (!UNKNOWN_KEY.has(e.keyword)) return e.instancePath;
+  const key = e.params['additionalProperty'] ?? e.params['unevaluatedProperty'];
+  return typeof key === 'string' ? `${e.instancePath}/${key.replace(/~/g, '~0').replace(/\//g, '~1')}` : e.instancePath;
 }
 
 function isUnder(path: string, ancestor: string): boolean {
