@@ -35,7 +35,8 @@ function mergeRecipes(formats: readonly FormatDefinition[], host: readonly Recip
  * Fills `root` (the shell's `.sw-recipes` element) with a card per recipe and a "Start blank" button.
  *
  * With format `'auto'` every format's recipes are offered, grouped by format label; with a fixed
- * format, only that format's. Choosing a card sets the text (origin `'api'`), fixes the format and
+ * format, only that format's. A host recipe whose `format` is not a known format id is dropped, with one
+ * `console.warn`. Choosing a card sets the text (origin `'api'`), fixes the format and
  * reveals the recipe's `focus` in the code editor and, in the visual pane, focuses its widget. "Start blank" hides the cards and focuses the
  * code; they stay hidden until the text has become non-empty and then empty again.
  * @internal
@@ -44,11 +45,13 @@ export function createRecipeCards(
   ctx: EditorContext,
   o: {
     root: HTMLElement;
-    /** True when the format is detected from the text rather than fixed by the host. */
-    auto: boolean;
+    /** True while the format is detected from the text rather than fixed by the host. */
+    auto(): boolean;
     /** The loaded formats; empty until they have loaded. */
     formats(): readonly FormatDefinition[];
     hostRecipes: readonly Recipe[];
+    /** The ids of every format the editor can load: a host recipe naming another id is dropped, with a warning. */
+    knownFormats: ReadonlySet<string>;
     /** Makes `format` the editor's format. */
     fixFormat(format: FormatDefinition): void;
     /** Moves keyboard focus into the code editor. */
@@ -56,6 +59,11 @@ export function createRecipeCards(
   },
 ): RecipeCards {
   const doc = o.root.ownerDocument;
+  const hostRecipes = o.hostRecipes.filter((r) => {
+    if (o.knownFormats.has(r.format)) return true;
+    console.warn(`stack-weaver: recipe "${r.id}" names an unknown format "${r.format}"; it is not offered`);
+    return false;
+  });
   let dismissed = false;
   let rendered = '';
 
@@ -104,8 +112,8 @@ export function createRecipeCards(
       const empty = isEmptyText(ctx);
       if (!empty) dismissed = false;
       const formats = o.formats();
-      const shown = o.auto ? formats : formats.filter((f) => f.id === ctx.format()?.id);
-      const all = mergeRecipes(formats, o.hostRecipes);
+      const shown = o.auto() ? formats : formats.filter((f) => f.id === ctx.format()?.id);
+      const all = mergeRecipes(formats, hostRecipes);
       const groups = shown
         .map((format) => ({ format, recipes: all.filter((r) => r.format === format.id) }))
         .filter((g) => g.recipes.length > 0);

@@ -1,4 +1,4 @@
-import { createManifestEditor, type EditorMode, type ManifestEditor, type ManifestEditorOptions, type VariableDecl } from '../src/index.ts';
+import { createManifestEditor, type EditorMode, type ManifestEditorController, type ManifestEditorOptions, type VariableDecl } from '../src/index.ts';
 import '../src/styles/stack-weaver.css';
 
 const K8S = `apiVersion: apps/v1
@@ -73,7 +73,7 @@ const store = (): 'x-variables' | 'external' => $<HTMLSelectElement>('variables-
 
 let theme: 'light' | 'dark' = 'light';
 let readOnly = false;
-let editor: ManifestEditor | undefined;
+let editor: ManifestEditorController | undefined;
 
 function mount(format: string, value: string): void {
   const opts: ManifestEditorOptions = {
@@ -100,7 +100,7 @@ function mount(format: string, value: string): void {
     () => log('ready'),
     (err: unknown) => log(`ready rejected: ${String(err)}`),
   );
-  (window as unknown as { editor: ManifestEditor }).editor = editor;
+  (window as unknown as { editor: ManifestEditorController }).editor = editor;
 }
 
 $<HTMLSelectElement>('mode').addEventListener('change', (e) => editor?.setMode((e.target as HTMLSelectElement).value as EditorMode));

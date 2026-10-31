@@ -64,7 +64,7 @@ CodeMirror. Give the host element a height: the editor fills it, with a 320px mi
 
 | Option | Meaning |
 | --- | --- |
-| `format` | `'kubernetes'`, `'compose'`, or `'auto'` to detect it from the text. |
+| `format` | `'kubernetes'`, `'compose'`, or `'auto'` to detect it from the text. Under `'auto'` the format is detected again whenever you set the text (`setValue`, `update({ value })`); typing never switches a detected format. Change it later with `setFormat`. |
 | `value`, `mode` | The initial text, and `'visual'`, `'split'` (the default) or `'code'`. |
 | `readOnly` | Blocks edits in both panes. Change it later with `setReadOnly`. |
 | `theme` | `'light'`, `'dark'`, or `'auto'` (the default) to follow `prefers-color-scheme`. Change it later with `setTheme`. |
@@ -80,11 +80,12 @@ CodeMirror. Give the host element a height: the editor fills it, with a 320px mi
 | `onModeChange(mode)` | Called when the mode changes: by the user, by `setMode`, or when an "Edit in code" or "Jump to error" link opens Split from Visual. |
 | `onVariablesChange(decls)` | Called when the effective variable declarations change. See [Compose variables](#compose-variables). |
 
-`value`, `mode`, `readOnly` and `theme` are initial values with setters (`setValue`, `setMode`, `setReadOnly`,
-`setTheme`). The other options are read once, when the editor is created. `setValue` and `setMode` do nothing (and
-call no callback) when the value is already current. A callback that throws is logged and does not stop the editor.
+`value`, `mode`, `readOnly`, `theme` and `format` are initial values with setters (`setValue`, `setMode`,
+`setReadOnly`, `setTheme`, `setFormat`); `update({ format, value, variables, readOnly, mode, theme })` sets several
+at once, in that order. The other options are read once, when the editor is created. These setters do nothing
+(and call no callback) when the value is already current; `setFormat('auto')` always detects the format again. A callback that throws is logged and does not stop the editor.
 
-The controller also has `getMode()`, `getProblems()`, `getReadOnly()`, `undo()`, `redo()` and `reveal(ref)`, which
+The controller (`ManifestEditorController`) also has `getFormat()`, `getMode()`, `getProblems()`, `getReadOnly()`, `undo()`, `redo()` and `reveal(ref)`, which
 selects a node (`{ doc, path }`) in both panes, and `getVariables()`, `setVariables(decls)` and `applyFix(problem)`
 for variables and quick fixes (below).
 

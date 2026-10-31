@@ -81,6 +81,15 @@ function valueAt(data: unknown, path: readonly (string | number)[]): unknown {
   return cur;
 }
 
+/** Destroys `row`; a throw (from a host widget) is logged, so a loop over the rows goes on to the others. */
+function destroyRow(row: Row): void {
+  try {
+    row.destroy();
+  } catch (err) {
+    console.error("stack-weaver: a field row's destroy threw", err);
+  }
+}
+
 const startsWith = (path: readonly (string | number)[], prefix: readonly (string | number)[]): boolean =>
   prefix.every((seg, i) => path[i] === seg);
 
@@ -119,7 +128,7 @@ export function mountSection(ctx: EditorContext, ref: NodeRef, slots: SectionSlo
   const hasFocus = (node: HTMLElement): boolean => node.contains(doc.activeElement);
 
   function clear(): void {
-    for (const r of rows.values()) r.destroy();
+    for (const r of rows.values()) destroyRow(r);
     rows.clear();
     noteEl.hidden = true;
   }
@@ -168,7 +177,7 @@ export function mountSection(ctx: EditorContext, ref: NodeRef, slots: SectionSlo
       const kind: Row['kind'] = cv.type === 'scalar' ? 'scalar' : 'collection';
       let row = rows.get(rowKey);
       if (row && row.kind !== kind) {
-        row.destroy();
+        destroyRow(row);
         rows.delete(rowKey);
         row = undefined;
       }
@@ -185,8 +194,11 @@ export function mountSection(ctx: EditorContext, ref: NodeRef, slots: SectionSlo
             },
             ...(handle.focus && { focus: () => handle.focus!() }),
             destroy: () => {
-              handle.destroy();
-              handle.el.remove();
+              try {
+                handle.destroy();
+              } finally {
+                handle.el.remove();
+              }
             },
           };
         } else if (kind === 'scalar') {
@@ -204,7 +216,7 @@ export function mountSection(ctx: EditorContext, ref: NodeRef, slots: SectionSlo
     }
     for (const [k, r] of [...rows]) {
       if (!live.has(k)) {
-        r.destroy();
+        destroyRow(r);
         rows.delete(k);
       }
     }

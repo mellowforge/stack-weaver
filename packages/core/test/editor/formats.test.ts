@@ -3,7 +3,7 @@ import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { parseText } from '../../src/document/parse.js';
 import { createEditorWithContext } from '../../src/editor/editor.js';
 import type { ManifestEditorOptions } from '../../src/editor/editor.js';
-import { badgeText, loadBuiltinFormats, mergeFormats, resolveFormat } from '../../src/editor/formats.js';
+import { BUILTIN_FORMAT_IDS, badgeText, loadBuiltinFormats, mergeFormats, resolveFormat } from '../../src/editor/formats.js';
 import type { FormatDefinition } from '../../src/formats/types.js';
 import { createFakeAdapter } from '../helpers/fake-adapter.js';
 
@@ -88,6 +88,10 @@ describe('format resolution', () => {
     const merged = mergeFormats(await loadBuiltinFormats(), [mine]);
     expect(merged.filter((f) => f.id === 'compose')).toEqual([mine]);
     expect(merged.map((f) => f.id)).toContain('kubernetes');
+  });
+
+  it('BUILTIN_FORMAT_IDS names the built-in formats', async () => {
+    expect((await loadBuiltinFormats()).map((f) => f.id)).toEqual(BUILTIN_FORMAT_IDS);
   });
 
   it('badge shows label and version', async () => {

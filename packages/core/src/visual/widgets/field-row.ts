@@ -147,7 +147,7 @@ function createFieldRow(ctx: EditorContext, registry: WidgetRegistry, envFor: (p
   let failed = false;
   let widgetName = '';
 
-  /** Drops a widget that threw and shows the value as read-only text instead (with `failEl`). */
+  /** Drops a widget that threw (in its factory, `update` or `focus`) and shows the value as read-only text instead (with `failEl`). */
   function widgetFailed(err: unknown): void {
     console.error(`stack-weaver: the "${widgetName}" widget failed`, err);
     failed = true;
@@ -163,7 +163,12 @@ function createFieldRow(ctx: EditorContext, registry: WidgetRegistry, envFor: (p
   }
 
   function dropBody(): void {
-    widget?.destroy?.();
+    try {
+      widget?.destroy?.();
+    } catch (err) {
+      // The row is cleared below either way: the widget's element goes with it.
+      console.error(`stack-weaver: the "${widgetName}" widget failed`, err);
+    }
     widget = undefined;
     valueEl = undefined;
     cardBtn = undefined;
@@ -255,9 +260,18 @@ function createFieldRow(ctx: EditorContext, registry: WidgetRegistry, envFor: (p
     update(lastValue, readOnlyNow, lastProblems);
   });
 
+  /** Focuses the widget; when it has nothing to focus, or its `focus` throws, the row's first button instead. */
   function focusRow(): void {
-    if (widget && !(widgetName === 'variable' && !body.querySelector('select'))) widget.focus();
-    else (cardBtn ?? rowEl.querySelector<HTMLElement>('button'))?.focus();
+    if (widget && !(widgetName === 'variable' && !body.querySelector('select'))) {
+      try {
+        widget.focus();
+        return;
+      } catch (err) {
+        widgetFailed(err);
+        update(lastValue, readOnlyNow, lastProblems); // shows the failure note, whose "Edit in code" takes the focus
+      }
+    }
+    (cardBtn ?? failEl.querySelector<HTMLElement>('button') ?? rowEl.querySelector<HTMLElement>('button'))?.focus();
   }
 
   function update(value: YamlValue, readOnly: boolean, problems: readonly Problem[]): void {

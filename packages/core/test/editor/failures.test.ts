@@ -7,6 +7,8 @@ import { defaultUiMessages as ui } from '../../src/editor/messages.js';
 import { kubernetesFormat } from '../../src/formats/kubernetes/index.js';
 import type { FormatDefinition } from '../../src/formats/types.js';
 import type { WidgetContext, WidgetFactory } from '../../src/visual/widgets/types.js';
+import { mountSection } from '../../src/visual/section.js';
+import type { SectionSlots } from '../../src/visual/section.js';
 import { createFakeAdapter } from '../helpers/fake-adapter.js';
 
 const DEPLOY = 'apiVersion: apps/v1\nkind: Deployment\nmetadata:\n  name: web\nspec:\n  replicas: 2\n';
@@ -96,6 +98,32 @@ describe('a pane that throws during an update (A5)', () => {
     expect(() => ctx.store.edit({ op: 'set', at: replicasAt, value: 4 })).not.toThrow();
     expect(fake.getText()).toBe(DEPLOY.replace('replicas: 2', 'replicas: 4'));
     expect(log).toHaveBeenCalledWith('stack-weaver: an onChange callback threw', expect.any(Error));
+  });
+
+  it('a throwing recipes.refresh still lets onChange fire', async () => {
+    const log = vi.spyOn(console, 'error').mockImplementation(() => {});
+    const onChange = vi.fn();
+    const onVariablesChange = vi.fn();
+    let armed = false;
+    // Every refresh of the cards reads the recipe ids (to merge them over the built-ins): make that throw.
+    const recipe = {
+      get id(): string {
+        if (armed) throw new Error('recipe id failed');
+        return 'mine';
+      },
+      format: 'compose',
+      title: 'Mine',
+      description: 'A host recipe',
+      yaml: 'services: {}\n',
+    };
+    const { editor } = await mount({ format: 'compose', value: '', recipes: [recipe], onChange, onVariablesChange });
+    armed = true;
+    const text = 'x-variables:\n  PORT:\n    type: port\n';
+    editor.setValue(text);
+    expect(log).toHaveBeenCalledWith('stack-weaver: the recipe cards threw', expect.any(Error));
+    expect(onChange).toHaveBeenCalledWith(text, { origin: 'api' });
+    expect(onVariablesChange).toHaveBeenCalledWith([expect.objectContaining({ name: 'PORT' })]);
+    expect(el.querySelector<HTMLButtonElement>('.sw-undo')!.disabled).toBe(false);
   });
 });
 
@@ -213,6 +241,88 @@ describe('schema and widget failures are not silent (A7)', () => {
     note.querySelector<HTMLButtonElement>('.sw-link')!.click();
     const { from, to } = fake.revealed!.range;
     expect(editor.getValue().slice(from, to)).toBe('2');
+  });
+
+  it('a widget whose focus() throws is logged and does not break navigation', async () => {
+    const log = vi.spyOn(console, 'error').mockImplementation(() => {});
+    const throwingFocus: WidgetFactory = (wctx: WidgetContext) => {
+      const input = document.createElement('input');
+      input.id = wctx.id;
+      input.className = 'host-widget';
+      return {
+        el: input,
+        update: (value) => void (input.value = String(value)),
+        focus: () => {
+          throw new Error('host widget focus failed');
+        },
+      };
+    };
+    const { ctx } = await mount({ mode: 'visual', widgets: { integer: throwingFocus } });
+    outlineClick('spec');
+    expect(() => ctx.focusField(replicasAt)).not.toThrow();
+    await settle();
+    expect(log).toHaveBeenCalledWith('stack-weaver: the "integer" widget failed', expect.any(Error));
+    const r = row('replicas');
+    expect(r.querySelector('.host-widget')).toBeNull();
+    const note = r.querySelector<HTMLElement>('.sw-row-failed')!;
+    expect(note.hidden).toBe(false);
+    expect(note.textContent).toContain(ui.widgetFailed);
+    // The focus lands on the row's way to the code instead.
+    const active = document.activeElement as HTMLElement;
+    expect(note.contains(active)).toBe(true);
+    expect(active.isConnected).toBe(true);
+    expect(active.closest('[hidden]')).toBeNull();
+    // Navigation goes on: another section opens and focuses normally.
+    outlineClick('metadata');
+    expect(el.querySelector('.sw-section .sw-row[data-sw-key="name"]')).not.toBeNull();
+  });
+
+  it('a widget whose destroy() throws does not stop the other rows being destroyed', async () => {
+    const log = vi.spyOn(console, 'error').mockImplementation(() => {});
+    const destroyed: string[] = [];
+    const throwingDestroy: WidgetFactory = (wctx: WidgetContext) => {
+      const input = document.createElement('input');
+      input.id = wctx.id;
+      input.className = 'host-widget';
+      return {
+        el: input,
+        update: (value) => void (input.value = String(value)),
+        focus: () => input.focus(),
+        destroy: () => {
+          destroyed.push(String(wctx.ref.path.at(-1)));
+          throw new Error('host widget destroy failed');
+        },
+      };
+    };
+    const value = DEPLOY + '  minReadySeconds: 5\n  revisionHistoryLimit: 3\n';
+    await mount({ value, widgets: { integer: throwingDestroy } });
+    outlineClick('spec');
+    expect(el.querySelectorAll('.sw-section .host-widget')).toHaveLength(3);
+    outlineClick('metadata'); // the spec section and its rows go
+    expect(destroyed.sort()).toEqual(['minReadySeconds', 'replicas', 'revisionHistoryLimit']);
+    expect(el.querySelectorAll('.host-widget')).toHaveLength(0);
+    expect(log).toHaveBeenCalledWith('stack-weaver: the "integer" widget failed', expect.any(Error));
+  });
+
+  it('a section whose row handle throws on destroy still destroys the other rows', async () => {
+    const log = vi.spyOn(console, 'error').mockImplementation(() => {});
+    const { ctx } = await mount({ value: 'apiVersion: v1\nkind: ConfigMap\nmetadata:\n  name: a\n  namespace: b\n  generateName: c\n' });
+    const released: string[] = [];
+    const slots: SectionSlots = {
+      field: (init) => ({
+        el: document.createElement('div'),
+        update: () => {},
+        destroy: () => {
+          released.push(String(init.key));
+          if (init.key === 'name') throw new Error('row destroy failed');
+        },
+      }),
+      addSlot: () => undefined,
+    };
+    const section = mountSection(ctx, { doc: 0, path: ['metadata'] }, slots, document);
+    expect(() => section.destroy()).not.toThrow();
+    expect(released).toEqual(['name', 'namespace', 'generateName']);
+    expect(log).toHaveBeenCalledWith("stack-weaver: a field row's destroy threw", expect.any(Error));
   });
 
   it('a section without failures shows no schema note', async () => {

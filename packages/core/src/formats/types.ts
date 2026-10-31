@@ -130,7 +130,10 @@ export interface GuideOverride {
 export interface Recipe {
   /** Stable id; a host recipe with the id of a built-in replaces it. */
   readonly id: string;
-  /** The `id` of the format the recipe belongs to. */
+  /**
+   * The `id` of the format the recipe belongs to: a built-in format or one of the editor's `formats`. A host recipe
+   * naming any other id is not offered (the editor warns once). Its `yaml` should detect as this format.
+   */
   readonly format: string;
   /** Short card title. */
   readonly title: string;

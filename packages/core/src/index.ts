@@ -90,7 +90,7 @@ export { pickWidget, defaultWidgets } from './visual/widgets/registry.js';
 
 // Editor
 export { createManifestEditor } from './editor/editor.js';
-export type { ManifestEditor, ManifestEditorOptions, EditorMode, EditorMessages } from './editor/editor.js';
+export type { ManifestEditorController, ManifestEditorOptions, ManifestEditorUpdate, EditorMode, EditorMessages } from './editor/editor.js';
 export type { ActionRefusal, ActionResult, VariableStore, VariablesOption } from './editor/variables.js';
 export type { EditorTheme, ResolvedTheme } from './editor/theme.js';
 export { defaultUiMessages } from './editor/messages.js';

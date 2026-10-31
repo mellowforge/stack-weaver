@@ -358,4 +358,17 @@ describe('Variables selection', () => {
     await vi.waitFor(() => expect(item('Variables')).toBeTruthy());
     expect(title()).not.toBe('Variables');
   });
+
+  it('after setFormat away and back the Variables selection does not come back', async () => {
+    const { editor } = await mount({ format: 'auto', mode: 'visual', value: COMPOSE });
+    click('Variables');
+    expect(title()).toBe('Variables');
+    editor.setFormat('kubernetes'); // the text stays; the format has no variables, so no Variables node
+    await vi.waitFor(() => expect(item('Variables')).toBeUndefined());
+    expect(el.querySelector('.sw-variables')).toBeNull();
+    editor.setFormat('compose');
+    await vi.waitFor(() => expect(item('Variables')).toBeTruthy());
+    expect(title()).not.toBe('Variables');
+    expect(editor.getValue()).toBe(COMPOSE);
+  });
 });

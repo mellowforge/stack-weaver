@@ -10,7 +10,7 @@ import type { Problem } from '../validation/problems.js';
 import { createCodePane } from './code-pane.js';
 import { createBundleCache, loaders } from './context.js';
 import type { EditorContext, Pane } from './context.js';
-import { badgeText, mergeFormats, resolveFormat } from './formats.js';
+import { BUILTIN_FORMAT_IDS, badgeText, mergeFormats, needsBuiltins, resolveFormat } from './formats.js';
 import { defaultUiMessages } from './messages.js';
 import type { UiMessages } from './messages.js';
 import { createProblemScheduler, problemCountText } from './problems.js';
@@ -39,14 +39,21 @@ export type EditorMessages = {
 /**
  * Options for {@link createManifestEditor}.
  *
- * `value`, `mode`, `readOnly` and `theme` are initial values: change them later with
- * {@link ManifestEditor.setValue}, {@link ManifestEditor.setMode}, {@link ManifestEditor.setReadOnly}
- * and {@link ManifestEditor.setTheme}. The other options (`format`, `formats`, `guide`, `recipes`,
- * `widgets`, `messages`, `codeEditor`, `variables` and the callbacks) are read once, when the editor is created;
- * to change them, create a new editor.
+ * `value`, `mode`, `readOnly`, `theme` and `format` are initial values: change them later with
+ * {@link ManifestEditorController.update} or their setters ({@link ManifestEditorController.setValue},
+ * {@link ManifestEditorController.setMode}, {@link ManifestEditorController.setReadOnly},
+ * {@link ManifestEditorController.setTheme} and {@link ManifestEditorController.setFormat}); so is the list of an
+ * `external` variables store ({@link ManifestEditorController.setVariables}). The other options (`formats`,
+ * `guide`, `recipes`, `widgets`, `messages`, `codeEditor`, the variables store kind and the callbacks) are read
+ * once, when the editor is created; to change them, create a new editor.
  */
 export interface ManifestEditorOptions {
-  /** `'kubernetes'`, `'compose'`, the id of a host format, or `'auto'` to detect it from the text. Default `'auto'`. Init-only. */
+  /**
+   * `'kubernetes'`, `'compose'`, the id of a host format, or `'auto'` to detect it from the text. Default `'auto'`.
+   * An unknown id resolves to no format. Under `'auto'` the format is detected again whenever the text is set
+   * through the API (`setValue`, `update({ value })`); typing never switches a detected format. Change it with
+   * {@link ManifestEditorController.setFormat}.
+   */
   readonly format?: 'kubernetes' | 'compose' | 'auto' | (string & {});
   /** Initial YAML text. Default `''`. */
   readonly value?: string;
@@ -70,37 +77,77 @@ export interface ManifestEditorOptions {
   readonly messages?: EditorMessages;
   /**
    * Called with the full text after every change, including undo and redo (`origin: 'history'`)
-   * and {@link ManifestEditor.setValue} (`origin: 'api'`). A throw is logged and does not stop the editor.
+   * and {@link ManifestEditorController.setValue} (`origin: 'api'`). A throw is logged and does not stop the editor.
    */
   readonly onChange?: (value: string, meta: { readonly origin: ChangeOrigin }) => void;
   /** Called when the problems change. A throw is logged and does not stop the editor. */
   readonly onProblemsChange?: (problems: readonly Problem[]) => void;
   /**
-   * Called when the mode changes: by the mode switch, by {@link ManifestEditor.setMode}, and when an
+   * Called when the mode changes: by the mode switch, by {@link ManifestEditorController.setMode}, and when an
    * "Edit in code" or "Jump to error" control opens Split from Visual. A throw is logged.
    */
   readonly onModeChange?: (mode: EditorMode) => void;
   /**
    * Where variable declarations live: `{ store: 'x-variables' }` (the default) keeps them in the
    * document's variables block; `{ store: 'external', value }` keeps them in a list the host owns
-   * (change it with {@link ManifestEditor.setVariables}). Invalid initial declarations throw a
+   * (change it with {@link ManifestEditorController.setVariables}). Invalid initial declarations throw a
    * `TypeError`. Init-only.
    */
   readonly variables?: VariablesOption;
   /**
    * Called with the declarations (deep-frozen) when they change: by a text edit of the block, undo
    * and redo, the variable controls and quick fixes. Not called for
-   * {@link ManifestEditor.setVariables}. A throw is logged.
+   * {@link ManifestEditorController.setVariables}. A throw is logged.
    */
   readonly onVariablesChange?: (decls: readonly VariableDecl[]) => void;
 }
 
-/** A mounted manifest editor. */
-export interface ManifestEditor {
+/**
+ * Runtime changes for {@link ManifestEditorController.update}. An absent (or `undefined`) field is left as it is.
+ */
+export interface ManifestEditorUpdate {
+  /** The text, as {@link ManifestEditorController.setValue}. */
+  readonly value?: string;
+  /** The mode, as {@link ManifestEditorController.setMode}. */
+  readonly mode?: EditorMode;
+  /** As {@link ManifestEditorController.setReadOnly}. */
+  readonly readOnly?: boolean;
+  /** As {@link ManifestEditorController.setTheme}. */
+  readonly theme?: EditorTheme;
+  /** As {@link ManifestEditorController.setFormat}. */
+  readonly format?: ManifestEditorOptions['format'];
+  /**
+   * The declarations of an `external` variables store, as {@link ManifestEditorController.setVariables} (with the
+   * `x-variables` store it warns and changes nothing).
+   */
+  readonly variables?: readonly VariableDecl[];
+}
+
+/** A mounted manifest editor: the handle {@link createManifestEditor} returns. */
+export interface ManifestEditorController {
   /** The current YAML text. */
   getValue(): string;
-  /** Replaces the text (origin `'api'`); a no-op (no `onChange`) when it is equal. */
+  /**
+   * Replaces the text (origin `'api'`) as a minimal diff, so the code caret survives, and as one undo step; a
+   * no-op (no `onChange`) when it is equal. Under format `'auto'` the format is detected again (broken text keeps
+   * the current one).
+   */
   setValue(text: string): void;
+  /**
+   * Applies several changes at once, in this order: `format`, `value`, `variables`, `readOnly`, `mode`, `theme`.
+   * Each does what its setter does, and nothing when it is current; an empty patch does nothing.
+   */
+  update(patch: ManifestEditorUpdate): void;
+  /** The id of the resolved format; `undefined` before it resolves, and when there is none. */
+  getFormat(): string | undefined;
+  /**
+   * Sets the format option. An id fixes the format (an unknown id resolves to no format, as the `format` option
+   * does); a no-op when it is the current option. `'auto'` (or `undefined`, the option's default) detects the
+   * format from the text now, and again on every later API text change. Built-in formats that were not needed
+   * so far load first, so the change can then land after a tick. `onVariablesChange` is called when the format
+   * change changes the declarations.
+   */
+  setFormat(format: ManifestEditorOptions['format']): void;
   /** The current mode. */
   getMode(): EditorMode;
   /** Switches mode and calls `onModeChange`; a no-op (no `onModeChange`) when it is the current mode. */
@@ -109,9 +156,9 @@ export interface ManifestEditor {
   getProblems(): readonly Problem[];
   /** Whether user edits are blocked. */
   getReadOnly(): boolean;
-  /** Blocks or allows user edits. */
+  /** Blocks or allows user edits; a no-op when it is current. */
   setReadOnly(readOnly: boolean): void;
-  /** Switches the colour scheme; `'auto'` follows `prefers-color-scheme` from now on. */
+  /** Switches the colour scheme; `'auto'` follows `prefers-color-scheme` from now on. A no-op when it is current. */
   setTheme(theme: EditorTheme): void;
   /** Undoes the latest step; false when there is none (or the editor is read-only). */
   undo(): boolean;
@@ -152,11 +199,11 @@ const EMPTY_GUIDE: Guide = { groups: [], kinds: {}, fields: {} };
 
 /**
  * Creates the editor inside `el`. The DOM is built synchronously; the format and the code editor
- * resolve asynchronously (see {@link ManifestEditor.ready}).
+ * resolve asynchronously (see {@link ManifestEditorController.ready}).
  * @param el - The host element; its children are replaced.
  * @param options - See {@link ManifestEditorOptions}.
  */
-export function createManifestEditor(el: HTMLElement, options: ManifestEditorOptions = {}): ManifestEditor {
+export function createManifestEditor(el: HTMLElement, options: ManifestEditorOptions = {}): ManifestEditorController {
   return createEditorWithContext(el, options).editor;
 }
 
@@ -167,12 +214,13 @@ export function createManifestEditor(el: HTMLElement, options: ManifestEditorOpt
 export function createEditorWithContext(
   el: HTMLElement,
   options: ManifestEditorOptions = {},
-): { editor: ManifestEditor; ctx: EditorContext } {
+): { editor: ManifestEditorController; ctx: EditorContext } {
   const win = el.ownerDocument.defaultView;
   const store = new DocumentStore(options.value ?? '');
   const ui: UiMessages = { ...defaultUiMessages, ...options.messages?.ui };
   const hostFormats = options.formats ?? [];
-  const formatOption = options.format ?? 'auto';
+  /** The `format` option: `'auto'` or a format id. Changed by `setFormat`. */
+  let formatOption: string = options.format ?? 'auto';
   let destroyed = false;
   /** Bumped by every store change and mode change, and by each focus request; see `focusField`. */
   let focusGen = 0;
@@ -180,7 +228,11 @@ export function createEditorWithContext(
   let mode: EditorMode = options.mode ?? 'split';
   let format: FormatDefinition | undefined;
   let formatList: FormatDefinition[] = [...hostFormats];
+  /** True once the first load is done: from then on `formatOption` resolves against `formatList`. */
   let formatsLoaded = false;
+  /** The built-in formats are in `formatList`; they load only when an option needs them (see `needsBuiltins`). */
+  let builtinsLoaded = false;
+  let builtinsLoad: Promise<void> | undefined;
   let problems: readonly Problem[] = [];
   const problemListeners = new Set<(p: readonly Problem[]) => void>();
 
@@ -313,14 +365,16 @@ export function createEditorWithContext(
   });
   const recipes = createRecipeCards(ctx, {
     root: shell.recipesEl,
-    auto: formatOption === 'auto',
+    auto: () => formatOption === 'auto',
     formats: () => (formatsLoaded ? formatList : []),
     hostRecipes: options.recipes ?? [],
+    knownFormats: new Set([...BUILTIN_FORMAT_IDS, ...hostFormats.map((f) => f.id)]),
     fixFormat: (f) => applyFormat(f),
     focusCode: () => codePane.instance()?.focus(),
   });
 
   const refreshHistory = (): void => shell.setHistory({ canUndo: store.canUndo, canRedo: store.canRedo, readOnly });
+  const refreshRecipes = (): void => guarded('the recipe cards', () => recipes.refresh());
 
   function undo(): boolean {
     return !destroyed && !readOnly && store.undo();
@@ -344,9 +398,81 @@ export function createEditorWithContext(
     shell.setBadge(next ? badgeText(next) : ui.formatNone);
     updatePanes(null);
     void scheduler.run(); // a new format means new problems: now, rather than after the debounce
-    recipes.refresh();
+    refreshRecipes();
   }
   shell.setBadge(ui.formatNone);
+
+  /**
+   * Under `auto`: the format a new editor would detect for the text. Broken text keeps the current format, so
+   * typing (or setting) text through a syntax error does not flicker.
+   */
+  function redetect(): void {
+    const p = store.parsed;
+    if (p.ok || !format) applyFormat(resolveFormat('auto', p, formatList));
+  }
+
+  /** Loads the built-in formats once, merged under the host's. A failure is logged and shown, and rejects; a later call retries. */
+  function loadBuiltins(): Promise<void> {
+    builtinsLoad ??= loaders.loadBuiltinFormats().then(
+      (builtins) => {
+        if (destroyed) return;
+        formatList = mergeFormats(builtins, hostFormats);
+        builtinsLoaded = true;
+      },
+      (err: unknown) => {
+        builtinsLoad = undefined;
+        if (destroyed) return; // nobody is left to tell
+        // Without formats the editor still edits text: say so where the format and the form would be.
+        console.error('stack-weaver: loading the built-in formats failed', err);
+        shell.setBadge(ui.formatsFailed);
+        visualPane.setNotice(ui.formatsFailed);
+        throw err;
+      },
+    );
+    return builtinsLoad;
+  }
+
+  /**
+   * Resolves `formatOption` once the first load is done (before that, the first load resolves the option it then
+   * finds). An option that needs the built-in formats when they are not loaded resolves after they load, unless
+   * a later `setFormat` superseded it; if they fail, there is no format. Returns a promise (that never rejects)
+   * only in that case.
+   */
+  function resolveOption(): Promise<void> | undefined {
+    if (!formatsLoaded) return undefined;
+    const opt = formatOption;
+    const apply = (): void => {
+      if (opt === 'auto') redetect();
+      else applyFormat(resolveFormat(opt, store.parsed, formatList));
+    };
+    if (builtinsLoaded || !needsBuiltins(opt, hostFormats)) {
+      apply();
+      return undefined;
+    }
+    return loadBuiltins().then(
+      () => {
+        if (!destroyed && opt === formatOption) apply();
+      },
+      () => {
+        if (destroyed || opt !== formatOption) return;
+        applyFormat(undefined);
+        shell.setBadge(ui.formatsFailed); // over `applyFormat`'s "No format": say why
+      },
+    );
+  }
+
+  function setFormat(next: ManifestEditorOptions['format'] = 'auto'): void {
+    if (destroyed || (next === formatOption && next !== 'auto')) return;
+    formatOption = next;
+    const loading = resolveOption();
+    const settle = (): void => {
+      if (destroyed) return;
+      variables.check(); // the format decides where the declarations are read from
+      refreshRecipes(); // auto offers every format's recipes, a fixed format only its own
+    };
+    settle();
+    void loading?.then(settle);
+  }
 
   const unsubscribe = store.subscribe((e: StoreEvent) => {
     if (destroyed) return;
@@ -354,16 +480,19 @@ export function createEditorWithContext(
     // Panes first: a format change re-syncs them, and they must already hold this change.
     updatePanes(e);
     if (formatOption === 'auto' && formatsLoaded) {
-      const p = store.parsed;
-      // Under `auto` the format follows the text: it is detected once there is some, and dropped when the text is
-      // cleared (else the badge, guide and problems would keep describing a document that is gone). Broken text
-      // keeps the last format, so typing through a syntax error does not flicker.
-      if (!format) applyFormat(resolveFormat('auto', p, formatList));
-      else if (p.ok && allDocumentsEmpty(p)) applyFormat(undefined);
+      guarded('the format detection', () => {
+        const p = store.parsed;
+        // Under `auto` the format follows the text: it is detected once there is some, again whenever the host
+        // sets the text (origin 'api'), and dropped when the text is cleared (else the badge, guide and problems
+        // would keep describing a document that is gone). Typing keeps the format: a half-typed document must
+        // not switch it. Broken text keeps the last format, so typing through a syntax error does not flicker.
+        if (!format || e.origin === 'api') redetect();
+        else if (p.ok && allDocumentsEmpty(p)) applyFormat(undefined);
+      });
     }
     scheduler.schedule();
-    recipes.refresh();
-    refreshHistory();
+    refreshRecipes();
+    guarded('the history controls', refreshHistory);
     if (options.onChange) guarded('an onChange callback', () => options.onChange?.(e.text, { origin: e.origin }));
     variables.check();
   });
@@ -389,25 +518,18 @@ export function createEditorWithContext(
     guarded('the code editor', () => codePane.instance()?.setTheme(themeNow()));
   }
 
-  const needBuiltins = formatOption === 'auto' || !hostFormats.some((f) => f.id === formatOption);
-  const formatReady = (needBuiltins ? loaders.loadBuiltinFormats() : Promise.resolve([])).then(
-    (builtins) => {
+  const formatReady = (needsBuiltins(formatOption, hostFormats) ? loadBuiltins() : Promise.resolve()).then(() => {
+    if (destroyed) return;
+    formatsLoaded = true;
+    const finish = (): void => {
       if (destroyed) return;
-      formatList = mergeFormats(builtins, hostFormats);
-      formatsLoaded = true;
-      applyFormat(resolveFormat(formatOption, store.parsed, formatList));
       variables.reseed(); // the declarations already in the text are not a change
-      recipes.refresh(); // `applyFormat` does nothing when the format stays unresolved
-    },
-    (err: unknown) => {
-      if (destroyed) return; // nobody is left to tell
-      // Without formats the editor still edits text: say so where the format and the form would be.
-      console.error('stack-weaver: loading the built-in formats failed', err);
-      shell.setBadge(ui.formatsFailed);
-      visualPane.setNotice(ui.formatsFailed);
-      throw err;
-    },
-  );
+      refreshRecipes(); // `applyFormat` does nothing when the format stays unresolved
+    };
+    // The option as it is now: a `setFormat` made while loading counts, and may need the built-in formats.
+    const loading = resolveOption();
+    return loading ? loading.then(finish) : finish();
+  });
   // Ready also means the first validation has been published (or dropped by a destroy). It runs
   // even when a load failed (the failure is already shown), and `ready` then rejects with it.
   const ready = Promise.allSettled([formatReady, codePane.ready]).then(async (results) => {
@@ -422,30 +544,46 @@ export function createEditorWithContext(
   shell.setReadOnly(readOnly);
   panel.setReadOnly(readOnly);
 
-  const editor: ManifestEditor = {
+  /** `setValue` and `update({ value })`: a minimal diff that keeps the undo history (`store.reset` drops it). */
+  function setValue(text: string): void {
+    if (!destroyed) store.setText(text, 'api');
+  }
+  function setTheme(t: EditorTheme): void {
+    if (destroyed || t === theme) return;
+    theme = t;
+    watchScheme(t === 'auto');
+    applyTheme();
+  }
+  function setReadOnly(v: boolean): void {
+    if (destroyed || v === readOnly) return;
+    readOnly = v;
+    for (const p of panes) p.setReadOnly(v);
+    shell.setReadOnly(v);
+    panel.setReadOnly(v);
+    refreshRecipes();
+    refreshHistory();
+  }
+
+  const editor: ManifestEditorController = {
     getValue: () => store.text,
-    setValue(text) {
-      if (!destroyed) store.setText(text, 'api');
+    setValue,
+    update(patch) {
+      // The documented order: the format first, so a new text is read in the new format.
+      if (patch.format !== undefined) setFormat(patch.format);
+      if (patch.value !== undefined) setValue(patch.value);
+      if (patch.variables !== undefined) variables.setAll(patch.variables);
+      if (patch.readOnly !== undefined) setReadOnly(patch.readOnly);
+      if (patch.mode !== undefined) setMode(patch.mode);
+      if (patch.theme !== undefined) setTheme(patch.theme);
     },
+    getFormat: () => format?.id,
+    setFormat,
     getMode: () => mode,
     setMode,
     getProblems: () => problems,
     getReadOnly: () => readOnly,
-    setTheme(t) {
-      if (destroyed) return;
-      theme = t;
-      watchScheme(t === 'auto');
-      applyTheme();
-    },
-    setReadOnly(v) {
-      if (destroyed) return;
-      readOnly = v;
-      for (const p of panes) p.setReadOnly(v);
-      shell.setReadOnly(v);
-      panel.setReadOnly(v);
-      recipes.refresh();
-      refreshHistory();
-    },
+    setTheme,
+    setReadOnly,
     undo,
     redo,
     reveal: (ref) => {

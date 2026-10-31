@@ -11,6 +11,14 @@ export async function loadBuiltinFormats(): Promise<FormatDefinition[]> {
   return [k8s.kubernetesFormat, compose.composeFormat];
 }
 
+/** The ids of the built-in formats, known before they load (they must match {@link loadBuiltinFormats}). */
+export const BUILTIN_FORMAT_IDS: readonly string[] = Object.freeze(['kubernetes', 'compose']);
+
+/** True when resolving `option` needs the built-in formats: `'auto'`, or an id no host format has. */
+export function needsBuiltins(option: string, host: readonly FormatDefinition[]): boolean {
+  return option === 'auto' || !host.some((f) => f.id === option);
+}
+
 /** Merges host formats over built-ins by id: a host format replaces a built-in with the same id and goes first. */
 export function mergeFormats(builtins: readonly FormatDefinition[], host: readonly FormatDefinition[]): FormatDefinition[] {
   const ids = new Set(host.map((f) => f.id));

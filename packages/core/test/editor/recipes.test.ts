@@ -132,6 +132,40 @@ describe('recipe cards', () => {
     expect(ids()).toHaveLength(kubernetesFormat.recipes!.length + 1);
   });
 
+  it('a host recipe for an unknown format is dropped with a warning', async () => {
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
+    const yaml = 'apiVersion: v1\nkind: Namespace\nmetadata:\n  name: demo\n';
+    const stray: Recipe = { id: 'stray', format: 'kubernets', title: 'Stray', description: 'A typo in the format', yaml };
+    const mine: Recipe = { id: 'mine', format: 'kubernetes', title: 'Mine', description: 'Host recipe', yaml };
+    const { editor } = await mount({ format: 'auto', recipes: [stray, mine] });
+    expect(ids()).toContain('mine');
+    expect(ids()).not.toContain('stray');
+    expect(warn).toHaveBeenCalledExactlyOnceWith('stack-weaver: recipe "stray" names an unknown format "kubernets"; it is not offered');
+    editor.setValue('a: 1\n');
+    editor.setValue('');
+    expect(warn).toHaveBeenCalledOnce();
+  });
+
+  it('a host recipe for a host format is kept', async () => {
+    const warn = vi.spyOn(console, 'warn');
+    const mine: FormatDefinition = { ...composeFormat, id: 'mine', label: 'Mine', recipes: [] };
+    const recipe: Recipe = { id: 'm', format: 'mine', title: 'M', description: 'M', yaml: 'services: {}\n' };
+    await mount({ format: 'mine', formats: [mine], recipes: [recipe] });
+    expect(ids()).toEqual(['m']);
+    expect(warn).not.toHaveBeenCalled();
+  });
+
+  it('every built-in recipe detects as its own format', async () => {
+    // An auto editor showing the other format switches to the recipe's own format when the host sets its text.
+    const { editor } = await mount({ format: 'auto' });
+    for (const recipe of [...kubernetesFormat.recipes!, ...composeFormat.recipes!]) {
+      editor.setValue(recipe.format === 'kubernetes' ? 'services: {}\n' : 'apiVersion: v1\nkind: Namespace\n');
+      expect(editor.getFormat()).not.toBe(recipe.format);
+      editor.setValue(recipe.yaml);
+      expect(editor.getFormat(), recipe.id).toBe(recipe.format);
+    }
+  });
+
   it('never renders recipe text as markup', async () => {
     const evil: Recipe = { id: 'evil', format: 'kubernetes', title: '<img src=x>', description: '<b>x</b>', yaml: 'a: 1\n' };
     await mount({ format: 'kubernetes', recipes: [evil] });
