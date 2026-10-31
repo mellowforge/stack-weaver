@@ -81,6 +81,26 @@ describe('split sync with the real CodeMirror adapter', () => {
     expect(view.state.selection.main.head).toBe(caret);
   });
 
+  it('a visual edit before the caret shifts the caret by the length change (B4)', async () => {
+    const { ctx, view } = await mount();
+    const caret = DEPLOY.indexOf('replicas');
+    view.dispatch({ selection: EditorSelection.cursor(caret) });
+    expect(ctx.store.edit({ op: 'set', at: { doc: 0, path: ['metadata', 'name'] }, value: 'webapp' }).ok).toBe(true);
+    expect(view.state.doc.toString()).toBe(DEPLOY.replace('web', 'webapp'));
+    expect(view.state.selection.main.head).toBe(caret + 3);
+    expect(view.contentDOM.isConnected).toBe(true);
+  });
+
+  it('a visual edit spanning the caret puts the caret at the start of the change (B4)', async () => {
+    const { ctx, view } = await mount();
+    const start = DEPLOY.indexOf('web');
+    view.dispatch({ selection: EditorSelection.cursor(start + 1) });
+    expect(ctx.store.edit({ op: 'set', at: { doc: 0, path: ['metadata', 'name'] }, value: 'api' }).ok).toBe(true);
+    expect(view.state.doc.toString()).toBe(DEPLOY.replace('web', 'api'));
+    expect(view.state.selection.main.head).toBe(start);
+    expect(view.contentDOM.isConnected).toBe(true);
+  });
+
   it('Mod-z in code undoes a visual edit', async () => {
     const { ctx, editor, view } = await mount();
     editor.reveal({ doc: 0, path: ['spec'] });

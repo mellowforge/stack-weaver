@@ -411,6 +411,20 @@ describe('refusal messages', () => {
     expect(input.value).toBe('8080'); // back to the stored declaration
   });
 
+  it('a real read-only refusal (no mock) shows editRefused and changes nothing (B5)', async () => {
+    const onVariablesChange = vi.fn();
+    const { editor } = await mount({ onVariablesChange });
+    editor.setReadOnly(true);
+    const input = ctl<HTMLInputElement>('PORT', 'default');
+    expect(input.disabled).toBe(true);
+    // A change that still reaches the control (a script, a stale event) is refused by the store itself.
+    type(input, '9090');
+    expect(card('PORT').querySelector('.sw-variable-error')!.textContent).toBe(defaultUiMessages.editRefused);
+    expect(editor.getValue()).toBe(TEXT);
+    expect(onVariablesChange).not.toHaveBeenCalled();
+    expect(input.isConnected).toBe(true);
+  });
+
   it('a refused remove says editRefused on the remove button', async () => {
     const { ctx } = await mount();
     vi.spyOn(ctx.variables()!, 'remove').mockReturnValue({ ok: false, reason: 'not-found' });

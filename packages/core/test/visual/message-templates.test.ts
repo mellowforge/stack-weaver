@@ -81,6 +81,41 @@ describe('message templates', () => {
     expect(panelHost.querySelector('.sw-problem .sw-visually-hidden')!.textContent).toBe('<Warning> ');
   });
 
+  describe('template-looking text in labels and keys is shown literally (B6)', () => {
+    const LABEL = 'Tags {count} {name}';
+    function plain(name: string, text: string, path: string[], schema: JsonSchema, value: YamlValue) {
+      const store = new DocumentStore(text);
+      const ctx = createWidgetContext(store, { id: 'w', label: LABEL, description: '', ref: { doc: 0, path }, value, schema, readOnly: false, messages: defaultUiMessages, locale: 'en', guide: () => ({ groups: [], kinds: {}, fields: {} }) });
+      const w = defaultWidgets[name]!.create(ctx);
+      host.append(w.el);
+      return w;
+    }
+
+    it('string-list: the new-item input, the add button and the remove buttons', () => {
+      const w = plain('string-list', 'a:\n  - x\n', ['a'], { type: 'array', items: { type: 'string' } }, ['x']);
+      expect(labels(w.el, '.sw-list-add input')).toEqual([`${LABEL} New item`]);
+      expect(labels(w.el, '.sw-list-add-btn')).toEqual([`Add ${LABEL}`]);
+      expect(labels(w.el, '.sw-list-remove')).toEqual([`Remove ${LABEL} 1`]);
+    });
+
+    it('key-value with a key literally named {name}: entry inputs and its remove button', () => {
+      const w = plain('key-value', 'm:\n  "{name}": "1"\n', ['m'], { type: 'object', additionalProperties: { type: 'string' } }, { '{name}': '1' });
+      expect(labels(w.el, '.sw-kv-key')).toEqual([`${LABEL}, {name}, Key`, `${LABEL}, Key`]);
+      expect(labels(w.el, '.sw-kv-value')).toEqual([`${LABEL}, {name}, Value`, `${LABEL}, Value`]);
+      expect(labels(w.el, '.sw-list-remove')).toEqual([`Remove ${LABEL} {name}`]);
+      expect(labels(w.el, '.sw-list-add-btn')).toEqual([`Add ${LABEL}`]);
+    });
+
+    it('the problems summary keeps a {count} in the panel label literal', () => {
+      const panelHost = document.createElement('div');
+      host.append(panelHost);
+      const panel = createProblemsPanel(panelHost, { ui: { ...defaultUiMessages, problemsLabel: 'Issues {count} {label}' }, locale: 'en', onSelect() {}, onFix: () => true, restoreFocus() {} });
+      panel.update([{ doc: 0, path: ['a'], from: 0, to: 1, severity: 'error', code: 'x', message: 'm {count}', source: 'schema' } as never]);
+      expect(panelHost.querySelector('.sw-problems-toggle')!.textContent).toBe('Issues {count} {label}: 1 problem');
+      expect(panelHost.querySelector('.sw-problem-message')!.textContent).toBe('m {count}');
+    });
+  });
+
   it('breadcrumbAt takes a document label template', () => {
     const p = parseText('a: 1\n---\nb: 2\n');
     expect(breadcrumbAt(p, p.text.indexOf('b'))[0]).toBe('Document 2');

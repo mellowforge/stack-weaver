@@ -25,6 +25,7 @@ async function mount(options: ManifestEditorOptions = {}) {
 }
 
 const WITH_BLOCK = 'x-variables:\n  PORT:\n    type: port\nservices:\n  web:\n    image: nginx\n    ports:\n      - "${PORT}:80"\n';
+const COMPOSE_BODY = 'services:\n  web:\n    image: nginx\n';
 const UNDECLARED = 'services:\n  web:\n    image: nginx\n    ports:\n      - "${PORT}:80"\n';
 const find = (ps: readonly Problem[], code: string) => ps.find((p) => p.code === code);
 
@@ -122,6 +123,18 @@ describe('flow-style x-variables entries', () => {
     expect(editor.getValue()).toBe(FLOW);
   });
 
+  it('a refused transact makes a multi-op set and a remove no-ops with edit-refused and the edit reason (B5)', async () => {
+    const onVariablesChange = vi.fn();
+    const { editor, ctx } = await mount({ value: FLOW, onVariablesChange });
+    const transact = vi.spyOn(DocumentStore.prototype, 'transact').mockReturnValue({ ok: false, reason: 'unsupported' });
+    expect(ctx.variables()!.set({ name: 'WEB_PORT', type: 'boolean', description: 'Public port' })).toEqual({ ok: false, reason: 'edit-refused', edit: 'unsupported' });
+    expect(ctx.variables()!.remove('WEB_PORT')).toEqual({ ok: false, reason: 'edit-refused', edit: 'unsupported' });
+    expect(transact).toHaveBeenCalledTimes(2);
+    expect(editor.getValue()).toBe(FLOW);
+    expect(editor.undo()).toBe(false);
+    expect(onVariablesChange).not.toHaveBeenCalled();
+  });
+
   it('a refused op makes set change nothing and fire no onVariablesChange', async () => {
     const onVariablesChange = vi.fn();
     const text = FLOW.replace('default: 8080, description', 'default: 8080,\n    description');
@@ -184,6 +197,72 @@ describe('external store', () => {
     expect(vs.set({ name: 'B', type: 'number' }).ok).toBe(true);
     expect(vs.get()).toHaveLength(2);
     expect(vs.remove('C').ok).toBe(true);
+  });
+});
+
+describe('variable stores across format changes and recipes (B2)', () => {
+  const K8S = 'apiVersion: v1\nkind: Service\nmetadata:\n  name: s\n';
+  const PORT: VariableDecl = { name: 'PORT', type: 'port', default: 80 };
+  const outline = () => [...el.querySelectorAll<HTMLElement>('[role=treeitem] .sw-outline-label')].map((l) => l.textContent);
+  const VARS_RECIPE = {
+    id: 'with-vars',
+    format: 'compose',
+    title: 'With variables',
+    description: 'A service and its port variable',
+    yaml: 'x-variables:\n  PORT:\n    type: port\n    default: 8080\nservices:\n  web:\n    image: nginx\n    ports:\n      - "${PORT}:80"\n',
+  };
+  const chooseRecipe = (id: string) => el.querySelector<HTMLButtonElement>(`.sw-recipes button[data-sw-recipe="${id}"]`)!.click();
+
+  it('external store: switching the format away and back keeps the list and fires no onVariablesChange', async () => {
+    const onVariablesChange = vi.fn();
+    const { editor } = await mount({ value: COMPOSE_BODY, variables: { store: 'external', value: [PORT] }, onVariablesChange });
+    const before = editor.getVariables();
+    editor.setFormat('kubernetes');
+    expect(editor.getVariables()).toEqual([PORT]);
+    editor.setFormat('compose');
+    expect(editor.getVariables()).toBe(before);
+    expect(onVariablesChange).not.toHaveBeenCalled();
+  });
+
+  it('external store: update({ value }) that switches an auto editor to kubernetes hides Variables; back to compose shows it', async () => {
+    const onVariablesChange = vi.fn();
+    const { editor } = await mount({ format: 'auto', mode: 'visual', value: COMPOSE_BODY, variables: { store: 'external', value: [PORT] }, onVariablesChange });
+    expect(outline()).toContain('Variables');
+    editor.update({ value: K8S });
+    expect(editor.getActiveFormat()).toBe('kubernetes');
+    expect(outline()).not.toContain('Variables');
+    editor.update({ value: COMPOSE_BODY });
+    expect(editor.getActiveFormat()).toBe('compose');
+    expect(outline()).toContain('Variables');
+    expect(editor.getVariables()).toEqual([PORT]);
+    expect(onVariablesChange).not.toHaveBeenCalled();
+  });
+
+  it('x-variables store: a recipe with an x-variables block fires onVariablesChange once and is one undo step', async () => {
+    const onVariablesChange = vi.fn();
+    const { editor } = await mount({ format: 'auto', recipes: [VARS_RECIPE], onVariablesChange });
+    chooseRecipe('with-vars');
+    expect(editor.getValue()).toBe(VARS_RECIPE.yaml);
+    expect(editor.getActiveFormat()).toBe('compose');
+    expect(editor.getVariables()).toEqual([{ name: 'PORT', type: 'port', default: 8080 }]);
+    expect(onVariablesChange).toHaveBeenCalledTimes(1);
+    expect(onVariablesChange.mock.calls[0]![0]).toEqual([{ name: 'PORT', type: 'port', default: 8080 }]);
+    expect(editor.undo()).toBe(true);
+    expect(editor.getValue()).toBe('');
+    expect(editor.undo()).toBe(false);
+    expect(onVariablesChange).toHaveBeenCalledTimes(2);
+    expect(onVariablesChange.mock.calls[1]![0]).toEqual([]);
+  });
+
+  it('external store: the recipe block stays text; the host list is unchanged and onVariablesChange does not fire', async () => {
+    const onVariablesChange = vi.fn();
+    const { editor } = await mount({ format: 'auto', recipes: [VARS_RECIPE], variables: { store: 'external', value: [] }, onVariablesChange });
+    chooseRecipe('with-vars');
+    expect(editor.getValue()).toBe(VARS_RECIPE.yaml);
+    expect(editor.getVariables()).toEqual([]);
+    expect(onVariablesChange).not.toHaveBeenCalled();
+    expect(editor.undo()).toBe(true);
+    expect(editor.getValue()).toBe('');
   });
 });
 

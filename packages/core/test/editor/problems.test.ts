@@ -311,6 +311,32 @@ describe('problems UI', () => {
     expect(el.querySelector('.sw-problem-count')!.textContent).toBe('2 проблемы');
   });
 
+  it('ru plurals through the editor: 1, 5, 21 and 0 pick one, many, one and none (B8)', async () => {
+    // One error per top-level key, so the text sets the count.
+    const perKey: FormatDefinition = {
+      ...twoErrors,
+      id: 'per-key',
+      loadSchema: async () => ({
+        id: 'per-key',
+        schema: {},
+        validate: (data) => Object.keys(data as object).map((k) => ({ instancePath: `/${k}`, keyword: 'type', params: { type: 'string' }, message: `bad ${k}` })),
+      }),
+    };
+    const keys = (n: number) => Array.from({ length: n }, (_, i) => `k${i}: 1\n`).join('');
+    const { editor } = await mount({
+      format: 'per-key',
+      formats: [perKey],
+      value: keys(1),
+      messages: { locale: 'ru', ui: { problemCount: { none: 'Нет проблем', one: '{count} проблема', few: '{count} проблемы', many: '{count} проблем', other: '{count} проблемы' } } },
+    });
+    const count = () => el.querySelector('.sw-problem-count')!.textContent;
+    expect(count()).toBe('1 проблема');
+    for (const [n, text] of [[5, '5 проблем'], [21, '21 проблема'], [0, 'Нет проблем']] as const) {
+      editor.setValue(n === 0 ? '' : keys(n));
+      await vi.waitFor(() => expect(count()).toBe(text));
+    }
+  });
+
   it.each(['', 'en_US', 'x', '*'])('an invalid locale %j falls back to English, with one warning', async (locale) => {
     const warn = vi.spyOn(console, 'warn').mockImplementation(() => undefined);
     await mount({ format: 'two', formats: [twoErrors], value: 'a: 1\nb: 2\n', messages: { locale } });

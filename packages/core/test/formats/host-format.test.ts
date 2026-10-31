@@ -1,10 +1,21 @@
+// @vitest-environment happy-dom
 import { readFileSync } from 'node:fs';
-import { describe, expect, it } from 'vitest';
+import { join } from 'node:path';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 import { parseText } from '../../src/document/parse.js';
+import { loaders } from '../../src/editor/context.js';
+import { createManifestEditor } from '../../src/editor/editor.js';
+import type { ManifestEditorOptions } from '../../src/editor/editor.js';
 import { kubernetesFormat } from '../../src/formats/kubernetes/index.js';
 import { detectFormat } from '../../src/formats/registry.js';
 import type { FormatDefinition, Rule, SchemaBundle } from '../../src/formats/types.js';
 import { validateText } from '../../src/validation/validate.js';
+import { createFakeAdapter } from '../helpers/fake-adapter.js';
+
+afterEach(() => {
+  vi.restoreAllMocks();
+  document.body.replaceChildren();
+});
 
 const isRecord = (v: unknown): v is Record<string, unknown> => typeof v === 'object' && v !== null && !Array.isArray(v);
 
@@ -42,6 +53,40 @@ describe('a host format written with the public API only', () => {
     const problems = await validateText(p, pipelineFormat);
     expect(problems.map((x) => x.code)).toEqual(['rule.steps']);
     expect(TEXT.slice(problems[0]!.from, problems[0]!.to).trimEnd()).toBe('run: make');
+  });
+});
+
+describe('a host format in the editor, end to end (B7)', () => {
+  async function editorWith(options: ManifestEditorOptions) {
+    const el = document.createElement('div');
+    document.body.append(el);
+    const onProblemsChange = vi.fn();
+    const editor = createManifestEditor(el, { codeEditor: createFakeAdapter(), formats: [pipelineFormat], value: TEXT, onProblemsChange, ...options });
+    await editor.ready;
+    return { el, editor, onProblemsChange };
+  }
+
+  it('format "auto": the host format is detected first, badged and validated', async () => {
+    const builtins = vi.spyOn(loaders, 'loadBuiltinFormats');
+    const { el, editor } = await editorWith({ format: 'auto' });
+    expect(editor.getFormat()).toBe('auto');
+    expect(editor.getActiveFormat()).toBe('pipeline');
+    expect(el.querySelector('.sw-format-badge')!.textContent).toBe('Pipeline 1');
+    expect(editor.getProblems().map((p) => p.code)).toEqual(['rule.steps']);
+    // 'auto' may detect a built-in format too, so it loads them (behind the host formats).
+    expect(builtins).toHaveBeenCalledTimes(1);
+    editor.destroy();
+  });
+
+  it('format "pipeline": resolves without loading the built-in formats', async () => {
+    const builtins = vi.spyOn(loaders, 'loadBuiltinFormats');
+    const { el, editor, onProblemsChange } = await editorWith({ format: 'pipeline' });
+    expect(editor.getActiveFormat()).toBe('pipeline');
+    expect(el.querySelector('.sw-format-badge')!.textContent).toBe('Pipeline 1');
+    expect(editor.getProblems().map((p) => p.code)).toEqual(['rule.steps']);
+    expect(onProblemsChange).toHaveBeenCalledWith(editor.getProblems());
+    expect(builtins).not.toHaveBeenCalled();
+    editor.destroy();
   });
 });
 
@@ -90,7 +135,7 @@ describe('locate', () => {
 
 describe('sources', () => {
   it('kubernetes/rules.ts does not import yaml', () => {
-    const src = readFileSync(new URL('../../src/formats/kubernetes/rules.ts', import.meta.url), 'utf8');
+    const src = readFileSync(join(import.meta.dirname, '..', '..', 'src', 'formats', 'kubernetes', 'rules.ts'), 'utf8');
     expect(src).not.toMatch(/from\s+['"]yaml['"]/);
   });
 });
