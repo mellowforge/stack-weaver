@@ -81,6 +81,27 @@ All items are implemented in both wrappers, with matching test names.
 - S7: `recipes.choose` warns once per format when that format is not loaded, and still inserts the text. Done (Plan 5 Task 2).
 - S5 (parked): map `ActionResult.edit` (`flow`, `alias`, `block-scalar`) to the "Edit in code" hint. The wrappers have no UI of their own, so there is nothing to map; the core editor already shows the hint.
 
+### Plan 5 browser verification (Task 9)
+Run with Chrome DevTools against `pnpm build:site` + `vite preview`:
+- **Checked on the Vanilla, React and Angular tabs:**
+  - a visual edit reaches the code pane, and typing in the code pane reaches the visual pane;
+  - broken YAML shows the banner and "Jump to error";
+  - Empty shows the recipes, and a recipe inserts YAML, fixes the format and moves focus to a field;
+  - `x-variables` shows the Variables section and "Use variable";
+  - the external variables example works;
+  - the demo Undo and Redo buttons follow `historyChange`;
+  - read-only blocks typing;
+  - the status line updates;
+  - the frameworks tabs create the iframes lazily, with titles;
+  - no console errors.
+- **Lighthouse accessibility:** 100 on the landing page, `react/` and `angular/`, in light and dark (6 runs).
+- **Fixed during verification:**
+  - the Angular demo page had no `<main>` landmark (it scored 99);
+  - the React and Angular demos wrapped the wrapper's host in an extra `.demo-editor` box with no height, so the editor overflowed onto the status line. The wrapper host is now the box itself, and both wrapper READMEs say the editor fills its host's height.
+- **Parked (core, found in the browser):**
+  - Typing into the visual `apiVersion` field changes the kind after the first keystroke. The form then switches to "Unknown kind, edit in code" mid-typing, and the remaining keystrokes are lost. This was already the case in Plan 2. A possible fix: defer kind re-resolution while the field has focus, or commit `apiVersion` on change instead of on input.
+  - Chrome reports the issue "No label associated with a form field" (count 6), although no unlabelled field is present and Lighthouse's label audits pass. The likely source is transient elements; worth a look.
+
 ### Deferred from the Plan 4 final review (E)
 - S4: the code pane's assist callbacks (completion, hover) have bare `catch` blocks; log with `console.debug`. Done (Plan 5 Task 2).
 - S8: a widget whose `destroy()` throws after a `widgetFailed` note is logged a second time. Done (Plan 5 Task 2: a regression test pins one log per failure; the code already swallowed the destroy error).
