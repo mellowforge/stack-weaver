@@ -47,9 +47,9 @@ describe('quick fixes', () => {
     await mount();
     fixButton().focus();
     fixButton().click();
+    expect(document.activeElement).toBe(el.querySelector('.sw-problems-toggle'));
     await vi.advanceTimersByTimeAsync(1000);
     expect(el.querySelector('.sw-problem-fix')).toBeNull();
-    expect(document.activeElement).toBe(el.querySelector('.sw-problems-toggle'));
   });
 
   it('row: the visual row of an undeclared placeholder shows the fix and applying it declares the variable', async () => {
@@ -81,5 +81,53 @@ describe('quick fixes', () => {
     expect(fixButton().disabled).toBe(true);
     fixButton().click();
     expect(editor.getValue()).toBe(UNDECLARED);
+  });
+  const visibleFocus = (): Element => {
+    const a = document.activeElement!;
+    expect(a.isConnected).toBe(true);
+    expect(a.closest('[hidden]')).toBeNull();
+    return a;
+  };
+
+  it('panel: fixing the only problem hides the panel and hands the focus to a visible target', async () => {
+    await mount({ mode: 'split' });
+    fixButton().focus();
+    fixButton().click();
+    await vi.advanceTimersByTimeAsync(1000);
+    expect(el.querySelector<HTMLElement>('.sw-problems')!.hidden).toBe(true);
+    expect(visibleFocus()).toBe(el.querySelector('.sw-mode-radio[data-sw-mode="split"]'));
+  });
+
+  it('row: after the fix the focus stays inside the row, not on the removed button', async () => {
+    await mount({ mode: 'visual' });
+    const rowFix = el.querySelector<HTMLButtonElement>('.sw-row .sw-row-fix')!;
+    const row = rowFix.closest('.sw-row')!;
+    rowFix.focus();
+    rowFix.click();
+    await vi.advanceTimersByTimeAsync(1000);
+    expect(rowFix.isConnected).toBe(false);
+    expect(row.contains(visibleFocus())).toBe(true);
+  });
+
+  it('row: the fix is rebuilt when the problem moves, so it never applies a stale problem', async () => {
+    const { fake } = await mount({ mode: 'visual' });
+    const before = el.querySelector('.sw-row-fix')!;
+    fake.type(UNDECLARED.replace('image: nginx', 'image: nginx:latest'));
+    await vi.advanceTimersByTimeAsync(1000);
+    const after = el.querySelector('.sw-row-fix')!;
+    expect(after).not.toBe(before);
+    expect(after.textContent).toBe(before.textContent);
+  });
+
+  it('a refused fix leaves the focus and the panel item in place', async () => {
+    const { editor } = await mount({ mode: 'split' });
+    const btn = fixButton();
+    btn.focus();
+    editor.setReadOnly(true);
+    btn.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+    await vi.advanceTimersByTimeAsync(1000);
+    expect(editor.getValue()).toBe(UNDECLARED);
+    expect(fixButton()).toBe(btn);
+    expect(document.activeElement).toBe(btn);
   });
 });

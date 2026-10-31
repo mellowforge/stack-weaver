@@ -212,6 +212,11 @@ function createFieldRow(ctx: EditorContext, registry: WidgetRegistry, envFor: (p
     if (mode === 'unknown') body.append(' ', editInCode());
   }
 
+  function focusRow(): void {
+    if (widget) widget.focus();
+    else (cardBtn ?? rowEl.querySelector<HTMLElement>('button'))?.focus();
+  }
+
   function update(value: YamlValue, readOnly: boolean, problems: readonly Problem[]): void {
     if (destroyed) return;
     readOnlyNow = readOnly;
@@ -285,7 +290,7 @@ function createFieldRow(ctx: EditorContext, registry: WidgetRegistry, envFor: (p
       if (cardBtn.textContent !== text) cardBtn.textContent = text;
     }
 
-    const sig = problems.map((p) => `${p.severity}\u0000${p.message}\u0000${p.fix?.label ?? ''}`).join('\u0001');
+    const sig = problems.map((p) => `${p.severity}\u0000${p.message}\u0000${p.fix ? `${p.fix.label}\u0000${p.from}\u0000${p.to}\u0000${JSON.stringify(p.fix.action)}` : ''}`).join('\u0001');
     if (sig !== problemsSig) {
       problemsSig = sig;
       fixButtons = [];
@@ -300,7 +305,10 @@ function createFieldRow(ctx: EditorContext, registry: WidgetRegistry, envFor: (p
           ]);
           if (p.fix) {
             const fixBtn = h(doc, 'button', { type: 'button', class: 'sw-row-fix', 'aria-describedby': msgId }, [p.fix.label]);
-            fixBtn.addEventListener('click', () => void ctx.applyFix(p));
+            fixBtn.addEventListener('click', () => {
+              // The button goes away with its problem: keep the focus on something that stays.
+              if (ctx.applyFix(p)) focusRow();
+            });
             fixButtons.push(fixBtn);
             li.append(' ', fixBtn);
           }
@@ -318,10 +326,7 @@ function createFieldRow(ctx: EditorContext, registry: WidgetRegistry, envFor: (p
     setLabel(l) {
       sectionLabel = l;
     },
-    focus() {
-      if (widget) widget.focus();
-      else (cardBtn ?? rowEl.querySelector<HTMLElement>('button'))?.focus();
-    },
+    focus: focusRow,
     destroy() {
       destroyed = true;
       dropBody();

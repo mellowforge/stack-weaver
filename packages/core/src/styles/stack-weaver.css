@@ -253,6 +253,7 @@
 
 .sw-problem-fix,
 .sw-row-fix {
+  min-block-size: 24px;
   padding: 2px 8px;
   color: var(--sw-fg);
   background: transparent;

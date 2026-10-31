@@ -37,6 +37,13 @@ describe('stack-weaver.css', () => {
     }
   });
 
+  it('keeps the quick-fix buttons at least 24px tall (WCAG 2.5.8)', () => {
+    for (const selector of ['.sw-problem-fix', '.sw-row-fix']) {
+      const rule = [...css.matchAll(/(^|\n)([^{}\n][^{}]*)\{([^}]*)\}/g)].find((m) => m[2]!.split(',').some((x) => x.trim() === selector));
+      expect(rule?.[3], selector).toMatch(/min-block-size:\s*24px;/);
+    }
+  });
+
   it('defines no top-level rule selector twice', () => {
     const body = css.replace(/\/\*[\s\S]*?\*\//g, '');
     const selectors: string[] = [];

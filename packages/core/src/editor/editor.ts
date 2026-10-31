@@ -266,7 +266,10 @@ export function createEditorWithContext(
   const codePane = createCodePane(ctx, { el: shell.codeEl, adapter, theme: themeNow, onUndo: () => undo(), onRedo: () => redo() });
   const panes: Pane[] = [visualPane, codePane];
 
-  const panel = createProblemsPanel(shell.problemsEl, { ui, onFix: (p) => ctx.applyFix(p), onSelect: (p) => {
+  const panel = createProblemsPanel(shell.problemsEl, { ui, onFix: (p) => ctx.applyFix(p),
+    // The panel hid itself around the focus: the current mode's radio is always visible.
+    restoreFocus: () => shell.root.querySelector<HTMLElement>(`.sw-mode-radio[data-sw-mode="${mode}"]`)?.focus(),
+    onSelect: (p) => {
       // The code pane is hidden in visual mode: select the node in the outline instead.
       if (mode !== 'code') visualPane.reveal({ doc: p.doc, path: p.path });
       if (mode !== 'visual') ctx.revealRange({ from: p.from, to: p.to });

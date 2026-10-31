@@ -24,12 +24,13 @@ let nextId = 0;
  * Fills `host` (the shell's `.sw-problems` element) with a toggle and the list. Each item is a
  * button; `onSelect` receives the problem it stands for. A problem with a quick fix gets a second,
  * sibling button (never nested); `onFix` applies it and returns whether it did, and then the
- * focus moves to the toggle because the item it was in is gone.
+ * focus moves to the toggle because the item it was in is gone. When an update hides the panel
+ * while the focus is inside it, `restoreFocus` hands the focus to a visible target.
  * @internal
  */
 export function createProblemsPanel(
   host: HTMLElement,
-  o: { ui: UiMessages; onSelect(problem: Problem): void; onFix(problem: Problem): boolean },
+  o: { ui: UiMessages; onSelect(problem: Problem): void; onFix(problem: Problem): boolean; restoreFocus(): void },
 ): ProblemsPanel {
   const doc = host.ownerDocument;
   const listId = `sw-problem-list-${++nextId}`;
@@ -52,7 +53,9 @@ export function createProblemsPanel(
       for (const b of list.querySelectorAll<HTMLButtonElement>('.sw-problem-fix')) b.disabled = v;
     },
     update(problems) {
-      host.hidden = problems.length === 0;
+      const hiding = problems.length === 0;
+      if (hiding && !host.hidden && host.contains(doc.activeElement)) o.restoreFocus();
+      host.hidden = hiding;
       toggle.textContent = `${o.ui.problemsLabel}: ${problemCountText(o.ui, problems.length)}`;
       const items = problems.map((p, i) => {
         const button = h(doc, 'button', { type: 'button', class: 'sw-problem', 'data-sw-severity': p.severity }, [
