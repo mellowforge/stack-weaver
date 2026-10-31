@@ -1,5 +1,6 @@
 // @vitest-environment happy-dom
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { DocumentStore } from '../../src/document/store.js';
 import { createEditorWithContext } from '../../src/editor/editor.js';
 import type { ManifestEditorOptions } from '../../src/editor/editor.js';
 import type { VariableDecl } from '../../src/formats/types.js';
@@ -104,6 +105,18 @@ describe('flow-style x-variables entries', () => {
     expect(ctx.variables()!.set({ name: 'WEB_PORT', type: 'boolean', description: 'Public port' })).toBe(true);
     expect(editor.getValue()).toBe(FLOW.replace('{ type: port, default: 8080, description: Public port }', '{ type: boolean, description: Public port }'));
     expect(editor.getVariables()).toEqual([{ name: 'WEB_PORT', type: 'boolean', description: 'Public port' }]);
+    expect(onVariablesChange).toHaveBeenCalledTimes(1);
+    expect(editor.undo()).toBe(true);
+    expect(editor.getValue()).toBe(FLOW);
+  });
+
+  it('VariableStore multi-op set still commits once (now through transact)', async () => {
+    const transact = vi.spyOn(DocumentStore.prototype, 'transact');
+    const onVariablesChange = vi.fn();
+    const { editor, ctx } = await mount({ value: FLOW, onVariablesChange });
+    expect(ctx.variables()!.set({ name: 'WEB_PORT', type: 'boolean', description: 'Public port' })).toBe(true);
+    expect(transact).toHaveBeenCalledTimes(1);
+    expect(transact.mock.calls[0]![0].length).toBeGreaterThan(1);
     expect(onVariablesChange).toHaveBeenCalledTimes(1);
     expect(editor.undo()).toBe(true);
     expect(editor.getValue()).toBe(FLOW);

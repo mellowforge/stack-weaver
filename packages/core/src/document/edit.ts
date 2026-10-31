@@ -739,7 +739,9 @@ function addDocument(p: ParsedText, yaml: string): EditResult {
   let body = yaml.replace(/\r?\n/g, p.eol);
   if (!body.endsWith(p.eol)) body += p.eol;
   const lead = t.length > 0 && !t.endsWith('\n') ? p.eol : '';
-  const insert = `${lead}---${p.eol}${body}`;
+  // `---` only separates documents: the first document of a text with none needs no marker.
+  const sep = p.docCount === 0 ? '' : `---${p.eol}`;
+  const insert = `${lead}${sep}${body}`;
   const before = yamlDocs(p).map((d) => d.toJS() as unknown);
   return finish(
     p,
@@ -819,7 +821,7 @@ function dispatch(p: ParsedText, op: EditOp): EditResult {
       return typeof tg === 'string' ? refuse(tg) : setScalar(p, op.at, tg, op.value);
     }
     case 'add': {
-      if (typeof op.key !== 'string' || !isYamlValue(op.value)) return refuse('unsupported');
+      if (typeof op.key !== 'string' || op.key === '<<' || !isYamlValue(op.value)) return refuse('unsupported');
       const tg = locate(p, op.at);
       return typeof tg === 'string' ? refuse(tg) : addPair(p, op.at, tg, op.key, op.value);
     }
@@ -834,7 +836,7 @@ function dispatch(p: ParsedText, op: EditOp): EditResult {
       return op.at.path.length === 0 ? refuse('unsupported') : deleteItem(p, op.at, tg);
     }
     case 'renameKey': {
-      if (typeof op.key !== 'string') return refuse('unsupported');
+      if (typeof op.key !== 'string' || op.key === '<<') return refuse('unsupported');
       const tg = locate(p, op.at);
       return typeof tg === 'string' ? refuse(tg) : renamePair(p, op.at, tg, op.key);
     }
@@ -872,8 +874,10 @@ function dispatch(p: ParsedText, op: EditOp): EditResult {
  *   A key the map already has is `duplicate-key`; a key inside a flow map is `flow`; a map with a
  *   `<<` merge key, an alias key, or a key whose anchor is still aliased is `alias`; a block scalar
  *   or non-scalar key is `unsupported`.
+ * - `add` and `renameKey` refuse the key `<<` (`unsupported`): a merge key is not a plain key.
  * - `addDocument` appends `---` and the YAML (line endings normalized, a final line break
- *   ensured). The snippet must parse (`parse-error` otherwise), and the result must hold exactly
+ *   ensured); a text with no document yet (empty, or only comments) gets the YAML without the
+ *   `---`. The snippet must parse (`parse-error` otherwise), and the result must hold exactly
  *   one more document with the earlier documents' data unchanged (`unsupported` otherwise).
  * - `deleteDocument` removes the document from its own `---` line up to the next `---` (for the
  *   first document, up to and including the next marker, keeping a comment on the marker's line).
@@ -897,7 +901,8 @@ export function applyEdit(p: ParsedText, op: EditOp): EditResult {
   try {
     assertParsed(p);
     return dispatch(p, op);
-  } catch {
+  } catch (err) {
+    console.debug('stack-weaver: applyEdit failed', err);
     return refuse('unsupported');
   }
 }

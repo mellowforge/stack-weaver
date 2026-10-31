@@ -1,6 +1,6 @@
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 import { toData } from '../../src/document/data.js';
 import { applyEdit, canEdit } from '../../src/document/edit.js';
 import type { EditOp, EditResult } from '../../src/document/edit.js';
@@ -435,7 +435,7 @@ describe('applyEdit: edge cases', () => {
   });
 
   it('addDocument into empty text and after an unterminated ...', () => {
-    expect(edit('', { op: 'addDocument', yaml: 'a: 1' })).toBe('---\na: 1\n');
+    expect(edit('', { op: 'addDocument', yaml: 'a: 1' })).toBe('a: 1\n');
     expect(edit('a: 1\n...', { op: 'addDocument', yaml: 'b: 1' })).toBe('a: 1\n...\n---\nb: 1\n');
   });
 });
@@ -829,5 +829,39 @@ describe('applyEdit: parsed result', () => {
     if (!r.ok) throw new Error(r.reason);
     expect(r.parsed.docCount).toBe(2);
     expect(toData(r.parsed, 1)).toEqual({ b: 2 });
+  });
+});
+
+describe('edit guards', () => {
+  it("add and renameKey refuse the key '<<'", () => {
+    const text = 'a: 1\nb: 2\n';
+    expect(refusal(text, { op: 'add', at: at(), key: '<<', value: 1 })).toBe('unsupported');
+    expect(refusal(text, { op: 'renameKey', at: at('b'), key: '<<' })).toBe('unsupported');
+    expect(refusal('{a: 1}\n', { op: 'add', at: at(), key: '<<', value: 1 })).toBe('unsupported');
+  });
+
+  it('an engine exception is logged with console.debug and refused as unsupported', () => {
+    const spy = vi.spyOn(console, 'debug').mockImplementation(() => {});
+    try {
+      const poisoned = {
+        op: 'add',
+        at: at(),
+        key: 'k',
+        get value(): never {
+          throw new Error('boom');
+        },
+      } as unknown as EditOp;
+      expect(refusal('a: 1\n', poisoned)).toBe('unsupported');
+      expect(spy).toHaveBeenCalledWith('stack-weaver: applyEdit failed', expect.any(Error));
+    } finally {
+      spy.mockRestore();
+    }
+  });
+
+  it("addDocument on '' and on '# hi\\n' writes no separator", () => {
+    expect(edit('', { op: 'addDocument', yaml: 'x: 1' })).toBe('x: 1\n');
+    expect(edit('# hi\n', { op: 'addDocument', yaml: 'x: 1' })).toBe('# hi\nx: 1\n');
+    expect(edit('# hi', { op: 'addDocument', yaml: 'x: 1' })).toBe('# hi\nx: 1\n');
+    expect(edit('a: 1\n', { op: 'addDocument', yaml: 'x: 1' })).toBe('a: 1\n---\nx: 1\n');
   });
 });

@@ -120,6 +120,51 @@ export class DocumentStore {
     return r;
   }
 
+  /**
+   * Applies `ops` in order, all or nothing. A single op behaves exactly like {@link edit} (same
+   * `opts.group` merging). With several ops each is applied to scratch text first (an op sees the
+   * result of the one before), and only if none is refused is the net change committed as one
+   * `'visual'` splice: one event, one undo step that never merges, and no subscriber ever sees an
+   * intermediate text. The first refusal is returned, changing nothing and emitting nothing; `opts.group`
+   * is ignored for several ops. No ops, or ops that leave the text unchanged, return the ok result without
+   * emitting or recording history. The ok result of several ops carries the net splice and the last op's `at`.
+   */
+  transact(ops: readonly EditOp[], opts?: { readonly group?: string }): EditResult {
+    if (ops.length === 1) return this.edit(ops[0]!, opts);
+    let last: Extract<EditResult, { ok: true }> | undefined;
+    let p = this.#parsed;
+    for (const op of ops) {
+      const r = applyEdit(p, op);
+      if (!r.ok) return r;
+      last = r;
+      p = r.parsed; // the next op reads the previous op's parse: no extra parse
+    }
+    if (!last || last.text === this.#text) {
+      return { ok: true, text: this.#text, change: { from: 0, to: 0, insert: '' }, parsed: this.#parsed };
+    }
+    const change = diffText(this.#text, last.text);
+    this.#commit(last.text, change, 'visual', undefined, last.parsed);
+    return { ...last, change };
+  }
+
+  /**
+   * Replaces the whole text as an `'api'` change and clears the undo and redo history; one event.
+   * When `text` equals the current text only the history is cleared and no event is emitted.
+   */
+  reset(text: string): void {
+    const change = text === this.#text ? undefined : diffText(this.#text, text);
+    this.clearHistory();
+    if (change) this.#set(text, change, 'api');
+  }
+
+  /** Empties the undo and redo history, leaving the text as it is. Emits no event. */
+  clearHistory(): void {
+    this.#undo = [];
+    this.#redo = [];
+    this.#lastOrigin = null;
+    this.#lastGroup = undefined;
+  }
+
   /** Reverts the latest undo step. Returns false when there is nothing to undo. */
   undo(): boolean {
     const entry = this.#undo.pop();

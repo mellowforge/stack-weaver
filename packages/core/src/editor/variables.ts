@@ -1,6 +1,4 @@
-import { applyEdit } from '../document/edit.js';
 import type { EditOp } from '../document/edit.js';
-import { parseText } from '../document/parse.js';
 import type { DocumentStore } from '../document/store.js';
 import type { FormatDefinition, VariableDecl } from '../formats/types.js';
 import type { Problem } from '../validation/problems.js';
@@ -134,33 +132,15 @@ export function createVariables(deps: {
     emit(true);
     if (kind === 'external') deps.revalidate();
   };
-  /** The text after every op of `ops` in turn, applied to scratch text; `undefined` when one is refused. */
-  const dryRun = (ops: readonly EditOp[]): string | undefined => {
-    let p = store.parsed;
-    let text = p.text;
-    for (const [i, op] of ops.entries()) {
-      const r = applyEdit(p, op);
-      if (!r.ok) return undefined;
-      text = r.text;
-      if (i < ops.length - 1) p = parseText(text);
-    }
-    return text;
-  };
   /**
-   * Applies `ops` all or nothing, as one undo step; listeners hear of the net change once. A single
-   * op is one store edit (refused whole). Several ops are applied to scratch text first and then
-   * committed as one store change (the splice between the old and new text), so a refused op
-   * leaves the text untouched and no subscriber, such as the visual pane, ever sees an
+   * Applies `ops` all or nothing through {@link DocumentStore.transact}, as one undo step; listeners
+   * hear of the net change once, so no subscriber, such as the visual pane, ever sees an
    * intermediate text (where a declaration can be invalid between two ops).
    */
   const applyOps = (ops: readonly EditOp[], prefix: string): boolean => {
     hold++;
     try {
-      if (ops.length === 1) return store.edit(ops[0]!, { group: `${prefix}:${++groupN}` }).ok;
-      const text = dryRun(ops);
-      if (text === undefined) return false;
-      store.setText(text, 'visual'); // a 'visual' change is always its own undo step
-      return true;
+      return store.transact(ops, { group: `${prefix}:${++groupN}` }).ok;
     } finally {
       hold--;
       check();

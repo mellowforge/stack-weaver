@@ -273,3 +273,94 @@ describe('DocumentStore: grouped visual edits', () => {
     log.mockRestore();
   });
 });
+
+describe('DocumentStore: transact, reset, clearHistory', () => {
+  const setB = (value: number): EditOp => ({ op: 'set', at: { doc: 0, path: ['b'] }, value });
+
+  it('transact commits all ops as one undo step and one event', () => {
+    const { store, events } = setup();
+    const r = store.transact([setA(5), setB(6)]);
+    expect(r.ok).toBe(true);
+    expect(store.text).toBe('a: 5\nb: 6\n');
+    expect(events).toHaveLength(1);
+    expect(events[0]!.origin).toBe('visual');
+    expect(store.undo()).toBe(true);
+    expect(store.text).toBe('a: 1\nb: 2\n');
+    expect(store.canUndo).toBe(false);
+  });
+
+  it('transact refuses atomically and leaves text, history and listeners untouched', () => {
+    const { store, events } = setup();
+    const bad: EditOp = { op: 'set', at: { doc: 0, path: ['missing'] }, value: 1 };
+    const r = store.transact([setA(5), bad]);
+    expect(r.ok).toBe(false);
+    expect(store.text).toBe('a: 1\nb: 2\n');
+    expect(store.canUndo).toBe(false);
+    expect(events).toHaveLength(0);
+  });
+
+  it('transact with one op merges with a same-group edit like edit() does', () => {
+    const { store, clock } = setup();
+    store.edit(setA(5), { group: 'g' });
+    clock.advance(100);
+    expect(store.transact([setA(6)], { group: 'g' }).ok).toBe(true);
+    store.undo();
+    expect(store.text).toBe('a: 1\nb: 2\n');
+  });
+
+  it('transact with several ops never merges, and adopts the last parse', () => {
+    const { store, events, clock } = setup();
+    store.edit(setA(5), { group: 'g' });
+    clock.advance(100);
+    store.transact([setA(6), setB(7)], { group: 'g' });
+    expect(events[1]!.parsed).toBe(store.parsed);
+    store.undo();
+    expect(store.text).toBe('a: 5\nb: 2\n');
+  });
+
+  it('transact with no ops, or ops that change nothing, emits nothing', () => {
+    const { store, events } = setup();
+    expect(store.transact([]).ok).toBe(true);
+    expect(store.transact([setA(1), setB(2)]).ok).toBe(true);
+    expect(events).toHaveLength(0);
+    expect(store.canUndo).toBe(false);
+  });
+
+  it('reset replaces the text, empties undo and redo, and emits origin api', () => {
+    const { store, events } = setup();
+    store.edit(setA(5));
+    store.undo();
+    store.edit(setA(7));
+    store.undo();
+    expect(store.canRedo).toBe(true);
+    events.length = 0;
+    store.reset('z: 1\n');
+    expect(store.text).toBe('z: 1\n');
+    expect(store.canUndo).toBe(false);
+    expect(store.canRedo).toBe(false);
+    expect(events).toHaveLength(1);
+    expect(events[0]!.origin).toBe('api');
+  });
+
+  it('reset to the current text only clears history and emits nothing', () => {
+    const { store, events } = setup();
+    store.edit(setA(5));
+    events.length = 0;
+    store.reset(store.text);
+    expect(store.canUndo).toBe(false);
+    expect(events).toHaveLength(0);
+  });
+
+  it('clearHistory empties undo and redo without changing the text', () => {
+    const { store, events } = setup();
+    store.edit(setA(5));
+    store.edit(setB(6));
+    store.undo();
+    events.length = 0;
+    store.clearHistory();
+    expect(store.text).toBe('a: 5\nb: 2\n');
+    expect(store.canUndo).toBe(false);
+    expect(store.canRedo).toBe(false);
+    expect(events).toHaveLength(0);
+  });
+});
