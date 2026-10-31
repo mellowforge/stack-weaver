@@ -37,8 +37,8 @@ on `main` (2ed25c0).
 
 **Inputs:** `docs/superpowers/notes/2026-10-30-plan-1-followups.md`, sections "Plan 5 (wrappers and release)", "Plan 5
 wrapper contract" and "Deferred from the Plan 4 final review (E)". The grid-master facts this plan relies on are
-copied into the tasks below. The full survey is `docs/superpowers/notes/2026-10-31-grid-master-survey.md` (Task 3
-commits it). Read the section your task points to.
+copied into the tasks below. The full survey is `docs/superpowers/notes/2026-10-31-grid-master-survey.md` (committed).
+Read the section your task points to.
 
 ## Global Constraints
 
@@ -291,7 +291,6 @@ the widget-host code that logs `widgetFailed` (find it with `grep -rn widgetFail
 - Create: `packages/demo-kit/{package.json,tsconfig.json,tsconfig.build.json,vitest.config.ts,scripts/copy-css.mjs}`
 - Create: `packages/demo-kit/src/{index.ts,examples.ts,theme.ts,site.ts,status.ts,textarea-adapter.ts,theme.css,controls.css}`
 - Create: `packages/demo-kit/test/demo-kit.test.ts`
-  The controller does this copy before dispatching, if the scratchpad is gone.
 
 **Interfaces:**
 - `package.json`:
