@@ -87,6 +87,12 @@ What the React and Angular wrappers must respect (from the Plan 4 milestone revi
 - S8: a widget whose `destroy()` throws after a `widgetFailed` note is logged a second time.
 - `defaultWidgets` (and `defaultUiMessages`) freeze.
 - R10 controller signals (above).
+- R16: under `'auto'`, undo and redo re-detect on every history step, including typed ones, so undoing typing can
+  switch the format when an intermediate text parses and detects differently. Record the origin per history entry
+  and re-detect only for `'api'` steps if the wrappers need that.
+- A host `detect` that throws under `'auto'` with no format re-detects, and logs, on every keystroke. Rate-limit it.
+- Test hygiene: `quick-fix.test.ts` still has local copies of the shared `focused()` helper (`visibleFocus`, `live`).
+- The reserved rule id `'failed'` warning is deduped per page, not per format.
 
 ## Parked, low priority
 - `--update-lock` and the first real schema bump: the lock-writing glue (`writeLockEntry`, the generators' flag branches) has only been tested with mocks. Expect to debug it on the first upstream bump.
