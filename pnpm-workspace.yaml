@@ -3,6 +3,7 @@ packages:
   # The Angular library's own manifest, so Changesets versions it and pnpm publishes it
   # from its ng-packagr output (publishConfig.directory)
   - "packages/angular/projects/stack-weaver-angular"
+  - "site"
 allowBuilds:
   "@parcel/watcher": true
   esbuild: true

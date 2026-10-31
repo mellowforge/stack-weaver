@@ -1,0 +1,46 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>%SITE_NAME%: a visual and code editor for Kubernetes and Compose YAML</title>
+    <meta
+      name="description"
+      content="A schema-driven visual and code editor for Kubernetes and docker-compose YAML, for Vanilla JS, React and Angular."
+    />
+    <link
+      rel="icon"
+      href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect x='3' y='3' width='11' height='11' rx='3' fill='%231d4ed8'/%3E%3Crect x='18' y='3' width='11' height='11' rx='3' fill='%2393b4f5'/%3E%3Crect x='3' y='18' width='11' height='11' rx='3' fill='%2393b4f5'/%3E%3Crect x='18' y='18' width='11' height='11' rx='3' fill='%231d4ed8'/%3E%3C/svg%3E"
+    />
+    <script>
+      // Apply the stored theme before the first paint, so a dark reload does not flash light.
+      try {
+        var t = localStorage.getItem('stack-weaver-site-theme');
+        if (t === 'light' || t === 'dark') document.documentElement.setAttribute('data-theme', t);
+      } catch (e) {}
+    </script>
+  </head>
+  <body>
+    <header class="nav">
+      <div class="nav__inner">
+        <a class="nav__brand" href="#demo" id="brand"></a>
+        <nav class="nav__links" aria-label="Main">
+          <a href="#demo">Overview</a>
+          <a href="#frameworks">Demo</a>
+          <a href="#" id="nav-docs">Docs</a>
+          <a href="#" id="nav-github" class="nav__github">GitHub</a>
+        </nav>
+        <div id="theme-slot"></div>
+      </div>
+    </header>
+
+    <main>
+      <section id="demo" class="section section--hero" aria-labelledby="hero-title"></section>
+      <section id="frameworks" class="section" aria-label="Framework demos"></section>
+    </main>
+
+    <footer class="footer" id="footer"></footer>
+
+    <script type="module" src="/src/main.ts"></script>
+  </body>
+</html>

@@ -1,0 +1,19 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>%SITE_NAME%: React demo</title>
+    <script>
+      // Apply the stored theme before the first paint, so a dark reload does not flash light.
+      try {
+        var t = localStorage.getItem('stack-weaver-site-theme');
+        if (t === 'light' || t === 'dark') document.documentElement.setAttribute('data-theme', t);
+      } catch (e) {}
+    </script>
+  </head>
+  <body>
+    <main id="root"></main>
+    <script type="module" src="./main.tsx"></script>
+  </body>
+</html>
