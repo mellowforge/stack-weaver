@@ -42,7 +42,10 @@ export interface ManifestEditorProps extends Omit<ComponentPropsWithoutRef<'div'
   onChange?: (value: string, meta: { readonly origin: ChangeOrigin }) => void;
   /** The mode, pushed when it changes (as `value` is). Default `'split'`. */
   mode?: EditorMode;
-  /** Called when the mode changes: the mode switch, `ref.current.setMode`, and controls that open Split. */
+  /**
+   * Called when the mode changes: the mode switch, `ref.current.setMode`, and controls that open Split. Not called for
+   * a `mode` prop push.
+   */
   onModeChange?: (mode: EditorMode) => void;
   /** The format option: `'auto'` (the default) or a format id. The editor never changes it; see `onFormatChange`. */
   format?: ManifestEditorOptions['format'];
@@ -143,7 +146,7 @@ export function ManifestEditor(props: ManifestEditorProps): JSX.Element {
   const prev = useRef<Settable>(settable(props));
   /** The `external` declarations last handed to the editor. */
   const appliedVariables = useRef<readonly VariableDecl[] | undefined>(undefined);
-  /** Set while the wrapper's own `update()` runs: its `onChange` is an echo of a prop. */
+  /** Set while the wrapper's own `update()` runs: its `onChange` and `onModeChange` are echoes of props. */
   const pushing = useRef(false);
   /** The outgoing editor's state, from its destroy to the next create. */
   const carry = useRef<Carried | undefined>(undefined);
@@ -153,7 +156,8 @@ export function ManifestEditor(props: ManifestEditorProps): JSX.Element {
     latest.current = props;
   });
 
-  const variablesStore = variables?.store;
+  // No `variables` is the core default, the x-variables store: the same kind, so no recreation.
+  const variablesStore = variables?.store ?? 'x-variables';
   const initDeps = [codeEditor, formats, recipes, guide, widgets, messages, variablesStore];
 
   useLayoutEffect(() => {
@@ -178,7 +182,9 @@ export function ManifestEditor(props: ManifestEditorProps): JSX.Element {
       onChange: (text, meta) => {
         if (!pushing.current) latest.current.onChange?.(text, meta);
       },
-      onModeChange: (m) => latest.current.onModeChange?.(m),
+      onModeChange: (m) => {
+        if (!pushing.current) latest.current.onModeChange?.(m);
+      },
       onFormatChange: (f) => latest.current.onFormatChange?.(f),
       onVariablesChange: (d) => latest.current.onVariablesChange?.(d),
       onProblemsChange: (list) => latest.current.onProblemsChange?.(list),

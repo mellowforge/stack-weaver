@@ -82,7 +82,8 @@ export function Editor() {
   render's `value` and from the editor's text. A parent that does not update `value` from `onChange` keeps the user's
   text: an unrelated re-render never pushes the old `value` back. A pushed `value` does not call `onChange`; text set
   through the ref (`ref.current.setValue`) does, with origin `'api'`. `defaultValue` is read once. `mode` follows the
-  same rule, and `format`, `readOnly`, `theme` and an `external` `variables.value` are pushed when they change.
+  same rule: a pushed `mode` does not call `onModeChange`, while `ref.current.setMode` does. `format`, `readOnly`,
+  `theme` and an `external` `variables.value` are pushed when they change.
 - **Recreation loses the undo history.** A recreated editor keeps the text, mode, format option, read-only state and
   theme, but starts with nothing to undo.
 - **`ref` is the controller.** It receives the live `ManifestEditorController` (`getValue`, `undo`, `redo`, `reset`,
@@ -105,7 +106,7 @@ editor owns its content.
 | `defaultValue` | `string` | `''` | The initial text when `value` is not given. Read once. |
 | `onChange` | `(value: string, meta: { origin: ChangeOrigin }) => void` | none | Every text change: `'code'`, `'visual'`, `'history'` or `'api'`. Not called for a pushed `value`. |
 | `mode` | `'visual' \| 'split' \| 'code'` | `'split'` | Which panes are shown. Pushed only when it changes. |
-| `onModeChange` | `(mode: EditorMode) => void` | none | The mode switch, `ref.current.setMode`, or a control that opens Split. |
+| `onModeChange` | `(mode: EditorMode) => void` | none | The mode switch, `ref.current.setMode`, or a control that opens Split. Not called for a pushed `mode`. |
 | `format` | `'auto' \| 'kubernetes' \| 'compose' \| string` | `'auto'` | The format option. `'auto'` detects the format from the text. |
 | `onFormatChange` | `(activeFormat: string \| undefined) => void` | none | The resolved format changed. Also called once when the editor first resolves its format. |
 | `readOnly` | `boolean` | `false` | Blocks user edits. |

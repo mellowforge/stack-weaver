@@ -131,7 +131,8 @@ describe.each([
     expect(ref.current!.getMode()).toBe('visual');
     rerender(view('code'));
     expect(ref.current!.getMode()).toBe('code');
-    onModeChange.mockClear();
+    // A pushed mode is not reported back.
+    expect(onModeChange).not.toHaveBeenCalled();
     // The user picks Split; this parent ignores onModeChange, so its prop stays 'code'.
     fireEvent.click(container.querySelector('.sw-mode-radio[data-sw-mode="split"]')!);
     expect(onModeChange).toHaveBeenCalledTimes(1);
@@ -255,6 +256,11 @@ describe.each([
     const second = ref.current!;
     expect(second).not.toBe(first);
     expect(second.getVariables()).toEqual([]);
+    rerender(<ManifestEditor ref={ref} codeEditor={adapter} value="a: 1" variables={{ store: 'x-variables' }} />);
+    expect(ref.current).toBe(second);
+    // No `variables` is the x-variables store (the core default): switching between the two is not a new kind.
+    rerender(<ManifestEditor ref={ref} codeEditor={adapter} value="a: 1" />);
+    expect(ref.current).toBe(second);
     rerender(<ManifestEditor ref={ref} codeEditor={adapter} value="a: 1" variables={{ store: 'x-variables' }} />);
     expect(ref.current).toBe(second);
     await settle(ref);
