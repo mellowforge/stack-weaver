@@ -1,7 +1,11 @@
 node_modules
 dist
 .superpowers/
-.claude/
+# Claude Code: local state stays out; the shared settings, hooks and rules are committed.
+.claude/*
+!.claude/settings.json
+!.claude/hooks/
+!.claude/rules/
 packages/angular/.angular/
 packages/react/dist-demo
 .cache/

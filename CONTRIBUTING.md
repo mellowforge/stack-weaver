@@ -66,23 +66,32 @@ Wrappers contain only wiring: editor behaviour belongs in the core. CI must be g
 
 Releases are automated with [Changesets](https://github.com/changesets/changesets) from `.github/workflows/release.yml`. Pushing to `main` with pending changesets opens or updates a "Version Packages" PR that bumps versions and writes each package's `CHANGELOG.md`; merging that PR publishes to npm with provenance, through npm trusted publishing (no npm token is stored).
 
-- **Lockstep versions:** `@mellowforge/stack-weaver-core`, `@mellowforge/stack-weaver-angular` and `@mellowforge/stack-weaver-react` are `fixed` in `.changeset/config.json`, so every release moves all three to the same version. They start at `0.0.0`, and `.changeset/first-release.md` takes them to `0.1.0`.
+- **Lockstep versions:** `@mellowforge/stack-weaver-core`, `@mellowforge/stack-weaver-angular` and `@mellowforge/stack-weaver-react` are `fixed` in `.changeset/config.json`, so every release moves all three to the same version. The first release was `0.1.0`.
 - **Pre-1.0 semver:** breaking changes are a minor bump (with migration notes), features minor, fixes patch.
 - **Peer range on core:** the wrappers declare `workspace:0.x` (published as `0.x`), together with `onlyUpdatePeerDependentsWhenOutOfRange`. Don't change it to `workspace:^`: pre-1.0, `^0.1.0` excludes `0.2.0` and Changesets would answer with a major bump. Run `pnpm changeset status --verbose` after touching the config. At 1.0 the range becomes `workspace:^`.
 - `@mellowforge/stack-weaver-angular` publishes from `packages/angular/dist/stack-weaver-angular` (`publishConfig.directory`); pnpm rewrites `workspace:` ranges at pack time, and `pnpm pack:check` proves it.
 - Each package carries a byte-identical copy of the root `LICENSE` (CI compares them).
-- The Version Packages PR is opened with `GITHUB_TOKEN`, so `ci.yml` does not run on it and it shows no CI checks; `pnpm release` re-runs the build, tests, core graph checks and `pack:check` before publishing. Required status checks on `main` would therefore block that PR: if you add them, let `release.yml` open the PR with a GitHub App token or a PAT instead, so CI runs on it.
+- The Version Packages PR is opened with `GITHUB_TOKEN`, so `ci.yml` does not run on it and it shows no CI checks. `pnpm release` therefore re-runs every gate (build, type-check, tests, smoke tests, core graph checks and `pack:check`) before it publishes.
+- **`main` is protected** by the "Protect main" ruleset: changes land through a pull request with the CI check "Build, type-check, test, package, site" green, merged with **Squash and merge** or **Rebase and merge** (linear history); force-pushes and deleting `main` are blocked. The Version Packages PR never gets that check, so a repository admin merges it through the ruleset bypass ("Merge without waiting for requirements").
+- **Agents never publish.** `.claude/hooks/block-raw-tooling.js` stops Claude Code from running publish commands, changing published versions or pushing tags; `pnpm test:hooks` tests it, in CI too. See `.claude/rules/release.md`.
 
-### First publish (maintainer, once)
+### First publish of a new package (maintainer)
 
-npm trusted publishers can only be added to packages that already exist, so the first version is published by hand:
+The three packages were first published by hand as `0.1.0`; every later version comes from `release.yml`. npm trusted publishers can only be added to packages that already exist, so a package **added later** is published by hand once:
 
-1. Merge the first "Version Packages" PR (it takes all three packages to 0.1.0). The `release.yml` run on that merge **fails at the publish step with an npm auth error**; that is expected and is the signal for step 2.
-2. Locally, on an up-to-date `main`: `npm login` (an account in the `mellowforge` npm org), then `pnpm build && pnpm changeset publish`, then `git push --follow-tags` so GitHub gets the release tags it created.
-3. On npmjs.com, for each package → Settings → Trusted Publisher: GitHub owner `mellowforge`, repository `stack-weaver`, workflow `release.yml`, no environment, allow `npm publish`.
-4. From then on, `release.yml` publishes through OIDC with provenance.
-5. In the repository **Settings → Secrets and variables → Actions → Variables**, add `SHOW_NPM` with the value `1`, so the demo site shows the npm links from its next deploy (see below).
+1. Merge the "Version Packages" PR that includes it. The `release.yml` run on that merge **fails at the publish step with an npm auth error** for the new package; that is expected and is the signal for step 2.
+2. In a real terminal (not a script or an agent: npm's 2FA asks for a browser confirmation, and `changeset publish` cannot show it, failing with `ERR_PNPM_OTP_NON_INTERACTIVE`), on an up-to-date `main` (`git pull --ff-only`, then check the version in the package's `package.json`):
+   ```bash
+   npm login                                   # an account in the mellowforge npm org
+   pnpm build
+   cd packages/<package> && pnpm publish       # an Angular library: run it in packages/angular/projects/<lib>
+   cd - && pnpm changeset tag && git push --follow-tags
+   npm logout
+   ```
+3. On npmjs.com, for the package → Settings → Trusted Publisher → GitHub Actions: owner `mellowforge`, repository `stack-weaver`, workflow `release.yml`, no environment, allow `npm publish`. A trusted publisher expires 48 hours after it is created unless a release through it succeeds, so let the next CI release follow within 48 hours (or recreate it first).
+4. On npmjs.com, for the package → Settings → Publishing access: **Require two-factor authentication and disallow tokens**. Deprecate the `0.0.0-stage` placeholder npm creates: `npm deprecate "@mellowforge/<package>@<0.1.0" "Pre-release build; use 0.1.0 or later"`.
+5. From then on, `release.yml` publishes it through OIDC with provenance.
 
 ### GitHub Pages (once)
 
-In the repository **Settings → Pages**, set **Source: GitHub Actions**. `.github/workflows/pages.yml` then deploys the demo site on every push to `main`. The site build step in `pages.yml` passes the repository variable `SHOW_NPM` to the build: the deployed site shows the npm links only once that variable is `1`, which you set after the first publish (step 5 above).
+In the repository **Settings → Pages**, set **Source: GitHub Actions**. `.github/workflows/pages.yml` then deploys the demo site on every push to `main`. The site build step in `pages.yml` passes the repository variable `SHOW_NPM` to the build: the deployed site shows the npm links only while that variable is `1` (it is set).
