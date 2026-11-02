@@ -103,7 +103,7 @@ Run with Chrome DevTools against `pnpm build:site` + `vite preview`:
   - the React and Angular demos wrapped the wrapper's host in an extra `.demo-editor` box with no height, so the editor overflowed onto the status line. The wrapper host is now the box itself, and both wrapper READMEs say the editor fills its host's height.
 - **Parked (core, found in the browser):**
   - Typing into the visual `apiVersion` field changes the kind after the first keystroke. The form then switches to "Unknown kind, edit in code" mid-typing, and the remaining keystrokes are lost. This was already the case in Plan 2. A possible fix: defer kind re-resolution while the field has focus, or commit `apiVersion` on change instead of on input.
-    **Fixed** (branch `fix/apiversion-typing`): while a visual edit changes the kind of the section's document and focus is in the section, the visual pane holds the section; leaving the section renders again, and a non-visual change (code, undo, API) renders as usual, rebuilding a held section and refocusing its row. Every keystroke still reaches the code (spec Goal 1). Also seen then: the Angular demo page requests a missing `/favicon.ico` (404).
+    **Fixed** (branch `fix/apiversion-typing`): while a visual edit changes the kind of the section's document and focus is in the section, the visual pane holds the section; leaving the section renders again, and a non-visual change (code, undo, API) renders as usual, rebuilding a held section and refocusing its row. Every keystroke still reaches the code (spec Goal 1). Also seen then: the Angular demo page requests a missing `/favicon.ico` (404). **Done (0.1.1):** the React and Angular demo pages have the site icon.
   - Chrome reports the issue "No label associated with a form field" (count 6), although no unlabelled field is present and Lighthouse's label audits pass. The likely source is transient elements; worth a look.
 
 ### Plan 5 milestone review (panel fix wave)
@@ -140,9 +140,9 @@ The panel findings triaged IN landed in one fix wave (ruling P5-5: R1 is fixed i
 - **Wrappers: a recreation that throws behaves differently in each wrapper.**
   - Angular keeps no controller and retries the recreation on the next input change.
   - React lets the error reach the nearest error boundary, which unmounts the editor.
-  - React leaves no choice here. Neither README says so yet; add one line to each.
+  - React leaves no choice here. **Done (0.1.1):** each wrapper README says so.
 - Angular: a retry that still fails can be logged twice in one tick, when an init-only input and a settable input change together. The effect is bounded: no state corruption and no second editor.
-- Core `resolveOption`: the outer catch still logs "the format detection threw", although it now catches failures to apply the format. Only the log text is wrong.
+- Core `resolveOption`: the outer catch still logs "the format detection threw", although it now catches failures to apply the format. **Done (0.1.1):** it logs "applying the format threw".
 - Plan 5 review X2/X8: test-name symmetry between the wrappers (unmount vs destroy before ready, `onHistoryChange` vs
   `historyChange` drives undo buttons), and the React demo's missing counterparts of the Angular demo's "recreates the
   editor for another variables store" and "removes its DOM and editor on destroy".
