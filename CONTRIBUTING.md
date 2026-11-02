@@ -78,7 +78,7 @@ Releases are automated with [Changesets](https://github.com/changesets/changeset
 npm trusted publishers can only be added to packages that already exist, so the first version is published by hand:
 
 1. Merge the first "Version Packages" PR (it takes all three packages to 0.1.0). The `release.yml` run on that merge **fails at the publish step with an npm auth error**; that is expected and is the signal for step 2.
-2. Locally, on an up-to-date `main`: `npm login` (an account in the `stack-weaver` npm org), then `pnpm build && pnpm changeset publish`, then `git push --follow-tags` so GitHub gets the release tags it created.
+2. Locally, on an up-to-date `main`: `npm login` (an account in the `mellowforge` npm org), then `pnpm build && pnpm changeset publish`, then `git push --follow-tags` so GitHub gets the release tags it created.
 3. On npmjs.com, for each package → Settings → Trusted Publisher: GitHub owner `mellowforge`, repository `stack-weaver`, workflow `release.yml`, no environment, allow `npm publish`.
 4. From then on, `release.yml` publishes through OIDC with provenance.
 5. In the repository **Settings → Secrets and variables → Actions → Variables**, add `SHOW_NPM` with the value `1`, so the demo site shows the npm links from its next deploy (see below).
