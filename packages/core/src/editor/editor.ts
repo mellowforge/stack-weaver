@@ -577,7 +577,7 @@ export function createEditorWithContext(
       } catch (err) {
         // Not a throwing `detect` (`redetect` catches and logs those): applying the format threw. There is then no
         // format rather than a half-applied one.
-        console.error('stack-weaver: the format detection threw', err);
+        console.error('stack-weaver: applying the format threw', err);
         applyFormat(undefined);
       }
       clearLoadFailure();

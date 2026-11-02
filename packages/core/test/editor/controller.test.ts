@@ -442,6 +442,22 @@ describe('a host format whose detect throws (A7)', () => {
   });
 });
 
+describe('a host format that throws while it is applied', () => {
+  it('logs that applying the format threw (not the detection) and leaves no format', async () => {
+    const error = vi.spyOn(console, 'error').mockImplementation(() => {});
+    const bad = Object.defineProperty({ ...fakeFormat({ id: 'bad' }) }, 'label', {
+      get(): string {
+        throw new Error('label blew up');
+      },
+    });
+    const { editor } = await mount({ format: 'bad', formats: [bad], value: COMPOSE });
+    expect(error).toHaveBeenCalledWith('stack-weaver: applying the format threw', expect.any(Error));
+    expect(error).not.toHaveBeenCalledWith('stack-weaver: the format detection threw', expect.anything());
+    expect(editor.getActiveFormat()).toBeUndefined();
+    expect(badge()).toBe(ui.formatNone);
+  });
+});
+
 describe('a throwing host detect under auto (rate limit)', () => {
   it('a throwing host detect under auto logs once until detection succeeds', async () => {
     const error = vi.spyOn(console, 'error').mockImplementation(() => {});
