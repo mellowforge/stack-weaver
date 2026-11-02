@@ -152,4 +152,32 @@ describe('outline (APG tree)', () => {
     expect(item('Metadata')).toBe(before);
     expect(before.isConnected).toBe(true);
   });
+
+  it('moves a node to another parent: the roots of one format become the children of a document in another format', () => {
+    const { outline, items } = mount();
+    const labels = () => items().map((i) => `${i.getAttribute('aria-level')} ${i.querySelector('.sw-outline-label')!.textContent}`);
+    // A mapping-rooted format: the top-level keys are the roots.
+    outline.update([node(['metadata'], 'metadata'), node(['spec'], 'spec')], undefined);
+    expect(labels()).toEqual(['1 metadata', '1 spec']);
+    // A documents-rooted format: the same ids are now children of the document node.
+    outline.update(tree(), undefined);
+    expect(labels()).toEqual(['1 Deployment web', '2 metadata', '2 spec', '3 template', '1 Service s']);
+    outline.update([node(['spec'], 'spec')], undefined);
+    expect(labels()).toEqual(['1 spec']);
+    expect(host.querySelectorAll('li')).toHaveLength(1);
+  });
+
+  it('swaps a parent and its child, and keeps focus on the moved item', () => {
+    const { outline, items } = mount();
+    const at = (id: string, label: string, children: OutlineNode[] = []): OutlineNode => ({ ...node([label], label, children), id });
+    const labels = () => items().map((i) => `${i.getAttribute('aria-level')} ${i.querySelector('.sw-outline-label')!.textContent}`);
+    outline.update([at('a', 'a', [at('b', 'b')])], undefined);
+    outline.update([at('b', 'b', [at('a', 'a')])], 'a');
+    expect(labels()).toEqual(['1 b', '2 a']);
+    const a = items()[1]!;
+    a.focus();
+    outline.update([at('a', 'a', [at('b', 'b')])], 'a');
+    expect(labels()).toEqual(['1 a', '2 b']);
+    expect(focused()?.querySelector('.sw-outline-label')?.textContent).toBe('a');
+  });
 });

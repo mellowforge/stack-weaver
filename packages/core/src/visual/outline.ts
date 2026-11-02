@@ -58,14 +58,20 @@ export function createOutline(doc: Document, o: { label: string; onSelect(node: 
   // WCAG 2.5.3 (label in name) needs. The hierarchy is given by `aria-level` and the DOM order, which ARIA allows.
   const items = new Map<string, HTMLElement>();
   const lis = new Map<string, HTMLElement>();
+  /** The parent id each node's elements were built under. Elements are only reused under the same parent. */
+  const parents = new Map<string, string | undefined>();
   const itemEl = (id: string): HTMLElement | undefined => items.get(id);
 
-  /** Creates or updates the node of `n` in place, so a render never detaches an element under the pointer. Returns its `li`. */
-  const patchItem = (n: OutlineNode, level: number): HTMLElement => {
+  /**
+   * Creates or updates the node of `n` in place, so a render never detaches an element under the pointer. Returns
+   * its `li`. A node that moved to another parent (another format can root the same paths differently) gets new
+   * elements: moving the old `li` into another list would pull it out from under the `sync` of the list it is in.
+   */
+  const patchItem = (n: OutlineNode, level: number, parentId: string | undefined): HTMLElement => {
     const parent = n.children.length > 0;
     let item = items.get(n.id);
     let li = lis.get(n.id);
-    if (!item || !li) {
+    if (!item || !li || parents.get(n.id) !== parentId) {
       const labelId = `sw-outline-label-${nextLabel++}`;
       item = h(doc, 'div', { role: 'treeitem', class: 'sw-outline-item', 'data-sw-id': n.id, 'aria-labelledby': labelId }, [
         h(doc, 'span', { class: 'sw-outline-toggle', 'aria-hidden': 'true' }),
@@ -74,6 +80,7 @@ export function createOutline(doc: Document, o: { label: string; onSelect(node: 
       li = h(doc, 'li', { role: 'none', class: 'sw-outline-node' }, [item]);
       items.set(n.id, item);
       lis.set(n.id, li);
+      parents.set(n.id, parentId);
     }
     const set = (name: string, value: string | undefined): void => {
       if (value === undefined) item.removeAttribute(name);
@@ -97,17 +104,17 @@ export function createOutline(doc: Document, o: { label: string; onSelect(node: 
         li.append(group);
       }
       group.hidden = !expanded.has(n.id);
-      sync(group, n.children, level + 1);
+      sync(group, n.children, level + 1, n.id);
     } else {
       group?.remove();
     }
     return li;
   };
 
-  function sync(list: HTMLElement, nodes: readonly OutlineNode[], level: number): void {
+  function sync(list: HTMLElement, nodes: readonly OutlineNode[], level: number, parentId: string | undefined): void {
     let cursor: Element | null = list.firstElementChild;
     for (const n of nodes) {
-      const li = patchItem(n, level);
+      const li = patchItem(n, level, parentId);
       if (li === cursor) cursor = cursor.nextElementSibling;
       else list.insertBefore(li, cursor);
     }
@@ -121,11 +128,12 @@ export function createOutline(doc: Document, o: { label: string; onSelect(node: 
   function render(): void {
     const active = doc.activeElement;
     const hadFocus = active !== null && tree.contains(active);
-    sync(tree, roots, 1);
+    sync(tree, roots, 1, undefined);
     for (const id of [...items.keys()]) {
       if (entries.has(id)) continue;
       items.delete(id);
       lis.delete(id);
+      parents.delete(id);
     }
     if (hadFocus && focusId !== undefined && !tree.contains(doc.activeElement)) itemEl(focusId)?.focus();
   }
