@@ -1,17 +1,17 @@
 {
-  "name": "@stack-weaver/angular",
+  "name": "@mellowforge/stack-weaver-angular",
   "version": "0.0.0",
-  "description": "Angular bindings for @stack-weaver/core: a visual and code editor for Kubernetes and docker-compose YAML.",
+  "description": "Angular bindings for @mellowforge/stack-weaver-core: a visual and code editor for Kubernetes and docker-compose YAML.",
   "license": "MIT",
   "author": "Konstantin Penzin",
-  "homepage": "https://constantine-24.github.io/stack-weaver/",
+  "homepage": "https://mellowforge.github.io/stack-weaver/",
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/Constantine-24/stack-weaver.git",
+    "url": "git+https://github.com/mellowforge/stack-weaver.git",
     "directory": "packages/angular/projects/stack-weaver-angular"
   },
   "bugs": {
-    "url": "https://github.com/Constantine-24/stack-weaver/issues"
+    "url": "https://github.com/mellowforge/stack-weaver/issues"
   },
   "keywords": [
     "kubernetes",
@@ -24,7 +24,7 @@
   "peerDependencies": {
     "@angular/common": "^22.0.0",
     "@angular/core": "^22.0.0",
-    "@stack-weaver/core": "workspace:0.x"
+    "@mellowforge/stack-weaver-core": "workspace:0.x"
   },
   "sideEffects": false,
   "publishConfig": {

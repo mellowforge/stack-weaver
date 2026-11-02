@@ -1,6 +1,6 @@
-# @stack-weaver/react
+# @mellowforge/stack-weaver-react
 
-React bindings for [`@stack-weaver/core`](https://www.npmjs.com/package/@stack-weaver/core), a schema-driven visual and
+React bindings for [`@mellowforge/stack-weaver-core`](https://www.npmjs.com/package/@mellowforge/stack-weaver-core), a schema-driven visual and
 code editor for Kubernetes and docker-compose YAML. `<ManifestEditor>` wraps the core's `createManifestEditor`: the
 same editor, with props in place of options and setters.
 
@@ -9,11 +9,11 @@ server renders an empty `div`.
 
 ## Install
 
-`react`, `react-dom` and `@stack-weaver/core` are peer dependencies, so install them together:
+`react`, `react-dom` and `@mellowforge/stack-weaver-core` are peer dependencies, so install them together:
 
 ```sh
-pnpm add @stack-weaver/react @stack-weaver/core react react-dom
-# or: npm install @stack-weaver/react @stack-weaver/core react react-dom
+pnpm add @mellowforge/stack-weaver-react @mellowforge/stack-weaver-core react react-dom
+# or: npm install @mellowforge/stack-weaver-react @mellowforge/stack-weaver-core react react-dom
 ```
 
 The default code pane is CodeMirror 6, loaded on first use. Its packages are peer dependencies of the core, so install
@@ -32,7 +32,7 @@ CodeMirror packages. The packages are ESM-only.
 Import the editor stylesheet once, in your entry file:
 
 ```ts
-import '@stack-weaver/core/stack-weaver.css';
+import '@mellowforge/stack-weaver-core/stack-weaver.css';
 ```
 
 This package ships no CSS of its own. Give the host `div` a height (`className` or `style`): the editor fills it.
@@ -41,8 +41,8 @@ This package ships no CSS of its own. Give the host `div` a height (`className` 
 
 ```tsx
 import { useRef, useState } from 'react';
-import { ManifestEditor, type ManifestEditorController } from '@stack-weaver/react';
-import '@stack-weaver/core/stack-weaver.css';
+import { ManifestEditor, type ManifestEditorController } from '@mellowforge/stack-weaver-react';
+import '@mellowforge/stack-weaver-core/stack-weaver.css';
 
 const START = 'apiVersion: v1\nkind: ConfigMap\nmetadata:\n  name: app\n';
 
@@ -135,7 +135,7 @@ The package also re-exports these core types: `ManifestEditorController`, `Manif
 ## Demo
 
 The site is the demo for the core, React and Angular. From the repository root:
-`pnpm build && pnpm --filter @stack-weaver/site dev`.
+`pnpm build && pnpm --filter stack-weaver-site dev`.
 
 ## License
 

@@ -1,5 +1,5 @@
-import type { CodeEditorAdapter } from '@stack-weaver/core';
-import type { SiteConfig } from '@stack-weaver/demo-kit';
+import type { CodeEditorAdapter } from '@mellowforge/stack-weaver-core';
+import type { SiteConfig } from 'stack-weaver-demo-kit';
 import { copyButton } from './footer.js';
 import { SNIPPETS, SNIPPET_LANG, highlightInto } from './snippets.js';
 import type { Framework } from './snippets.js';

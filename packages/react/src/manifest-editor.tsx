@@ -1,6 +1,6 @@
 import { useImperativeHandle, useLayoutEffect, useRef } from 'react';
 import type { ComponentPropsWithoutRef, JSX, Ref } from 'react';
-import { createManifestEditor } from '@stack-weaver/core';
+import { createManifestEditor } from '@mellowforge/stack-weaver-core';
 import type {
   ChangeOrigin,
   CodeEditorAdapter,
@@ -17,7 +17,7 @@ import type {
   VariableDecl,
   VariablesOption,
   WidgetRegistry,
-} from '@stack-weaver/core';
+} from '@mellowforge/stack-weaver-core';
 
 /**
  * Props of {@link ManifestEditor}. Other props (`className`, `style`, `aria-*`, `data-*`, ...) go to the host `div`.
@@ -132,7 +132,7 @@ function settable(p: ManifestEditorProps): Settable {
 }
 
 /**
- * The `@stack-weaver/core` manifest editor as a React component. It renders an empty `div` and the core builds the
+ * The `@mellowforge/stack-weaver-core` manifest editor as a React component. It renders an empty `div` and the core builds the
  * editor inside it after the commit, so it is safe for server rendering and under `<StrictMode>`.
  */
 export function ManifestEditor(props: ManifestEditorProps): JSX.Element {

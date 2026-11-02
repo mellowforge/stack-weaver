@@ -1,17 +1,17 @@
 {
-  "name": "@stack-weaver/react",
+  "name": "@mellowforge/stack-weaver-react",
   "version": "0.0.0",
-  "description": "React bindings for @stack-weaver/core: a visual and code editor for Kubernetes and docker-compose YAML.",
+  "description": "React bindings for @mellowforge/stack-weaver-core: a visual and code editor for Kubernetes and docker-compose YAML.",
   "license": "MIT",
   "author": "Konstantin Penzin",
-  "homepage": "https://constantine-24.github.io/stack-weaver/",
+  "homepage": "https://mellowforge.github.io/stack-weaver/",
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/Constantine-24/stack-weaver.git",
+    "url": "git+https://github.com/mellowforge/stack-weaver.git",
     "directory": "packages/react"
   },
   "bugs": {
-    "url": "https://github.com/Constantine-24/stack-weaver/issues"
+    "url": "https://github.com/mellowforge/stack-weaver/issues"
   },
   "keywords": [
     "kubernetes",
@@ -43,13 +43,13 @@
     "test:smoke": "pnpm build && node scripts/smoke.mjs"
   },
   "peerDependencies": {
-    "@stack-weaver/core": "workspace:0.x",
+    "@mellowforge/stack-weaver-core": "workspace:0.x",
     "react": "^19.0.0",
     "react-dom": "^19.0.0"
   },
   "devDependencies": {
-    "@stack-weaver/core": "workspace:*",
-    "@stack-weaver/demo-kit": "workspace:*",
+    "@mellowforge/stack-weaver-core": "workspace:*",
+    "stack-weaver-demo-kit": "workspace:*",
     "@testing-library/dom": "^10.4.2",
     "@testing-library/react": "^16.3.3",
     "@types/react": "^19.3.0",

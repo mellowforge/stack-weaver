@@ -62,5 +62,5 @@ jobs:
 
       - name: Build the demo site
         run: |
-          pnpm --filter @stack-weaver/site build:site
-          pnpm --filter @stack-weaver/site check
+          pnpm --filter stack-weaver-site build:site
+          pnpm --filter stack-weaver-site check

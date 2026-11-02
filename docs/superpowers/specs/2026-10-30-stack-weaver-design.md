@@ -4,6 +4,10 @@
 > "kube-composer" is dropped because an existing open-source "Kube Composer" (a visual Kubernetes YAML
 > generator) already uses it. The local folder is still `kube-composer/`; renaming it is the builder's call.
 >
+> **Scope [user, 2026-11-02]:** the packages are published as `@mellowforge/stack-weaver-{core,react,angular}`
+> from `github.com/mellowforge/stack-weaver`, like `@mellowforge/items-grid-*`. Earlier plans and notes still say
+> `@stack-weaver/*`. The CSS prefix (`sw-`, `--sw-*`) and the Angular selector `sw-manifest-editor` are unchanged.
+>
 > **What approving this means:** approving the *design*, nothing else. The next steps after approval are:
 > 1. `git init` the empty `kube-composer/` folder;
 > 2. copy this spec into it and commit it;

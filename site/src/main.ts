@@ -1,6 +1,6 @@
-import '@stack-weaver/core/stack-weaver.css';
+import '@mellowforge/stack-weaver-core/stack-weaver.css';
 import './styles.css';
-import { docsLinks, readTheme, applyPageTheme } from '@stack-weaver/demo-kit';
+import { docsLinks, readTheme, applyPageTheme } from 'stack-weaver-demo-kit';
 import { site } from './config.js';
 import { copyButton, mountFooter } from './footer.js';
 import { mountFrameworks } from './frameworks.js';
@@ -17,7 +17,7 @@ applyPageTheme(document, readTheme());
 const page = new AbortController();
 byId('theme-slot').append(createThemeSwitch(page.signal));
 
-const INSTALL = 'pnpm add @stack-weaver/core';
+const INSTALL = 'pnpm add @mellowforge/stack-weaver-core';
 const hero = byId('demo');
 const title = document.createElement('h1');
 title.id = 'hero-title';

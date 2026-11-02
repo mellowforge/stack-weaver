@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { createManifestEditor, parseText, type ChangeOrigin } from '@stack-weaver/core';
+import { createManifestEditor, parseText, type ChangeOrigin } from '@mellowforge/stack-weaver-core';
 import {
   EXAMPLES,
   MODES,
@@ -107,7 +107,7 @@ describe('status and site', () => {
   });
 
   it('siteConfig base and showNpm', () => {
-    expect(siteConfig({})).toEqual({ name: 'stack-weaver', base: '/', repoUrl: 'https://github.com/Constantine-24/stack-weaver', showNpm: false });
+    expect(siteConfig({})).toEqual({ name: 'stack-weaver', base: '/', repoUrl: 'https://github.com/mellowforge/stack-weaver', showNpm: false });
     expect(siteConfig({ GITHUB_REPOSITORY: 'me/sw', SHOW_NPM: '1' })).toMatchObject({ base: '/sw/', showNpm: true });
   });
 

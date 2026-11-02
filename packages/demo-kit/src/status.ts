@@ -1,4 +1,4 @@
-import type { ChangeOrigin } from '@stack-weaver/core';
+import type { ChangeOrigin } from '@mellowforge/stack-weaver-core';
 
 /** The one-line status the demos show under the editor. */
 export function statusLine(s: { problems: number; activeFormat: string | undefined; origin?: ChangeOrigin }): string {

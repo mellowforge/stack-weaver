@@ -18,4 +18,4 @@ export type {
   WidgetDefinition,
   CodeEditorAdapter,
   SyncCodeEditorAdapter,
-} from '@stack-weaver/core';
+} from '@mellowforge/stack-weaver-core';

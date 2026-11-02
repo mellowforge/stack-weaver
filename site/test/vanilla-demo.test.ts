@@ -1,7 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { MockInstance } from 'vitest';
-import { EXAMPLES, textareaAdapter } from '@stack-weaver/demo-kit';
-import type { TextareaAdapter } from '@stack-weaver/demo-kit';
+import { EXAMPLES, textareaAdapter } from 'stack-weaver-demo-kit';
+import type { TextareaAdapter } from 'stack-weaver-demo-kit';
 import { mountVanillaDemo } from '../src/vanilla-demo.js';
 import type { VanillaDemo } from '../src/vanilla-demo.js';
 

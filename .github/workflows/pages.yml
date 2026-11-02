@@ -16,6 +16,8 @@ concurrency:
 
 jobs:
   build:
+    # Only the canonical repository publishes; forks would fail without Pages enabled.
+    if: github.repository == 'mellowforge/stack-weaver'
     runs-on: ubuntu-latest
     timeout-minutes: 20
     steps:
@@ -33,12 +35,12 @@ jobs:
       - run: pnpm -r test
       # GITHUB_REPOSITORY is set by Actions, so the site gets the /<repo>/ base path
       # (the same steps as the root `pnpm build:site`, without building the packages twice)
-      - run: pnpm --filter @stack-weaver/site build:site
+      - run: pnpm --filter stack-weaver-site build:site
         env:
           # The npm links show once the repository variable SHOW_NPM is set to 1 (after the first publish);
           # unset, it is empty and the site hides them
           SHOW_NPM: ${{ vars.SHOW_NPM }}
-      - run: pnpm --filter @stack-weaver/site check
+      - run: pnpm --filter stack-weaver-site check
       - uses: actions/upload-pages-artifact@v5
         with:
           path: site/dist

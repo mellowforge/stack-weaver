@@ -1,6 +1,6 @@
 name: Release
 
-# Changesets release flow for @stack-weaver/core, @stack-weaver/angular and @stack-weaver/react.
+# Changesets release flow for @mellowforge/stack-weaver-core, @mellowforge/stack-weaver-angular and @mellowforge/stack-weaver-react.
 #
 # On every push to main: if changesets are pending, open or update the "Version Packages" PR
 # (versions + CHANGELOGs). When that PR is merged, the same job publishes every package whose
@@ -8,7 +8,7 @@ name: Release
 #
 # Auth: npm trusted publishing (OIDC) — no npm token is stored anywhere. Each package's trusted
 # publisher on npmjs.com (package → Settings → Trusted Publisher) must name GitHub owner
-# "Constantine-24", repository "stack-weaver", workflow file "release.yml", no environment, and
+# "mellowforge", repository "stack-weaver", workflow file "release.yml", no environment, and
 # allow direct publishing. changesets/action skips writing an .npmrc when OIDC is available, and
 # pnpm performs the OIDC exchange itself. Trusted publishers can only be added to packages that
 # already exist, so the very first version of each package is published by hand — see
@@ -27,6 +27,8 @@ permissions:
 
 jobs:
   release:
+    # Forks never open Version PRs or attempt to publish.
+    if: github.repository == 'mellowforge/stack-weaver'
     runs-on: ubuntu-latest
     timeout-minutes: 30
     steps:

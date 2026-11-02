@@ -1,6 +1,6 @@
-# @stack-weaver/angular
+# @mellowforge/stack-weaver-angular
 
-Angular bindings for [`@stack-weaver/core`](https://www.npmjs.com/package/@stack-weaver/core), a schema-driven visual
+Angular bindings for [`@mellowforge/stack-weaver-core`](https://www.npmjs.com/package/@mellowforge/stack-weaver-core), a schema-driven visual
 and code editor for Kubernetes and docker-compose YAML. `<sw-manifest-editor>` wraps the core's
 `createManifestEditor`: the same editor, with inputs and outputs in place of options and setters.
 
@@ -9,11 +9,11 @@ flows through signals.
 
 ## Install
 
-`@stack-weaver/core` is a peer dependency, so install both:
+`@mellowforge/stack-weaver-core` is a peer dependency, so install both:
 
 ```sh
-pnpm add @stack-weaver/angular @stack-weaver/core
-# or: npm install @stack-weaver/angular @stack-weaver/core
+pnpm add @mellowforge/stack-weaver-angular @mellowforge/stack-weaver-core
+# or: npm install @mellowforge/stack-weaver-angular @mellowforge/stack-weaver-core
 ```
 
 The default code pane is CodeMirror 6, loaded on first use. Its packages are peer dependencies of the core, so install
@@ -32,7 +32,7 @@ CodeMirror packages. The packages are ESM-only.
 Import the editor stylesheet once, in your global `styles.css`:
 
 ```css
-@import '@stack-weaver/core/stack-weaver.css';
+@import '@mellowforge/stack-weaver-core/stack-weaver.css';
 ```
 
 This package ships no CSS of its own. `<sw-manifest-editor>` is a block element: give it a height and the editor
@@ -42,7 +42,7 @@ fills it.
 
 ```ts
 import { Component, signal, viewChild } from '@angular/core';
-import { SwManifestEditor } from '@stack-weaver/angular';
+import { SwManifestEditor } from '@mellowforge/stack-weaver-angular';
 
 const START = 'apiVersion: v1\nkind: ConfigMap\nmetadata:\n  name: app\n';
 

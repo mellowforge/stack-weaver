@@ -3,9 +3,9 @@ import type { ReactNode, RefObject } from 'react';
 import { act, cleanup, fireEvent, render, waitFor } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { MockInstance } from 'vitest';
-import type { CodeEditorAdapter, Problem, VariableDecl, VariablesOption } from '@stack-weaver/core';
-import { EXAMPLES, textareaAdapter } from '@stack-weaver/demo-kit';
-import type { TextareaAdapter } from '@stack-weaver/demo-kit';
+import type { CodeEditorAdapter, Problem, VariableDecl, VariablesOption } from '@mellowforge/stack-weaver-core';
+import { EXAMPLES, textareaAdapter } from 'stack-weaver-demo-kit';
+import type { TextareaAdapter } from 'stack-weaver-demo-kit';
 import { ManifestEditor } from '../src/index.js';
 import type { ManifestEditorController, ManifestEditorProps } from '../src/index.js';
 

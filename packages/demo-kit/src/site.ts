@@ -5,7 +5,7 @@ export interface SiteConfig {
   showNpm: boolean;
 }
 
-const DEFAULT_REPO_URL = 'https://github.com/Constantine-24/stack-weaver';
+const DEFAULT_REPO_URL = 'https://github.com/mellowforge/stack-weaver';
 
 /**
  * Base path is `/<repo>/` whenever GITHUB_REPOSITORY is `<owner>/<repo>`, else `/`.

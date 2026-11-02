@@ -1,7 +1,7 @@
 import { ComponentFixture, TestBed } from '@angular/core/testing';
 import type { MockInstance } from 'vitest';
-import { EXAMPLES, textareaAdapter } from '@stack-weaver/demo-kit';
-import type { TextareaAdapter } from '@stack-weaver/demo-kit';
+import { EXAMPLES, textareaAdapter } from 'stack-weaver-demo-kit';
+import type { TextareaAdapter } from 'stack-weaver-demo-kit';
 import { AppComponent } from './app.component';
 
 let errors: MockInstance<typeof console.error>;

@@ -1,17 +1,17 @@
 {
-  "name": "@stack-weaver/core",
+  "name": "@mellowforge/stack-weaver-core",
   "version": "0.0.0",
   "description": "Framework-agnostic, schema-driven visual and code editor core for Kubernetes and docker-compose YAML.",
   "license": "MIT",
   "author": "Konstantin Penzin",
-  "homepage": "https://constantine-24.github.io/stack-weaver/",
+  "homepage": "https://mellowforge.github.io/stack-weaver/",
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/Constantine-24/stack-weaver.git",
+    "url": "git+https://github.com/mellowforge/stack-weaver.git",
     "directory": "packages/core"
   },
   "bugs": {
-    "url": "https://github.com/Constantine-24/stack-weaver/issues"
+    "url": "https://github.com/mellowforge/stack-weaver/issues"
   },
   "keywords": [
     "kubernetes",

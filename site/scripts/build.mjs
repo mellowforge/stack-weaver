@@ -3,7 +3,7 @@ import { spawnSync } from 'node:child_process';
 import { cpSync, existsSync, rmSync, writeFileSync } from 'node:fs';
 import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { siteConfig } from '@stack-weaver/demo-kit';
+import { siteConfig } from 'stack-weaver-demo-kit';
 
 const root = resolve(dirname(fileURLToPath(import.meta.url)), '..');
 const dist = join(root, 'dist');
@@ -30,7 +30,7 @@ if (!existsSync(join(dist, 'react/index.html'))) {
   process.exit(1);
 }
 
-run('pnpm', ['--filter', '@stack-weaver/angular-workspace', 'exec', 'ng', 'build', 'site-demo', '--base-href', `${base}angular/`]);
+run('pnpm', ['--filter', 'stack-weaver-angular-workspace', 'exec', 'ng', 'build', 'site-demo', '--base-href', `${base}angular/`]);
 if (!existsSync(join(angularDist, 'browser/index.html'))) {
   console.error(`build failed: ${angularDist}/browser/index.html missing`);
   process.exit(1);

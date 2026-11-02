@@ -1,5 +1,5 @@
 import { defineConfig } from 'vitest/config';
-import { siteConfig } from '@stack-weaver/demo-kit';
+import { siteConfig } from 'stack-weaver-demo-kit';
 
 export default defineConfig({
   define: { __SITE__: JSON.stringify(siteConfig({})) },

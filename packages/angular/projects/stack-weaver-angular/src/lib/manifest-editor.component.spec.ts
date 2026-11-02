@@ -14,9 +14,9 @@ import type {
   VariableDecl,
   VariablesOption,
   WidgetRegistry,
-} from '@stack-weaver/core';
-import { EXAMPLES, textareaAdapter } from '@stack-weaver/demo-kit';
-import type { TextareaAdapter } from '@stack-weaver/demo-kit';
+} from '@mellowforge/stack-weaver-core';
+import { EXAMPLES, textareaAdapter } from 'stack-weaver-demo-kit';
+import type { TextareaAdapter } from 'stack-weaver-demo-kit';
 import { SwManifestEditor } from './manifest-editor.component';
 
 const COMPOSE = EXAMPLES.find((e) => e.id === 'compose')!.value;

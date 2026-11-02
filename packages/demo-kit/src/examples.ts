@@ -1,4 +1,4 @@
-import type { EditorMode, VariableDecl, VariablesOption } from '@stack-weaver/core';
+import type { EditorMode, VariableDecl, VariablesOption } from '@mellowforge/stack-weaver-core';
 
 /** One sample document the demos offer. */
 export interface DemoExample {

@@ -1,11 +1,11 @@
-# @stack-weaver/core
+# @mellowforge/stack-weaver-core
 
 Framework-agnostic core of stack-weaver, a schema-driven editor for Kubernetes and docker-compose YAML.
 
 ## Install
 
 ```sh
-pnpm add @stack-weaver/core
+pnpm add @mellowforge/stack-weaver-core
 ```
 
 The package is ESM-only (`"type": "module"`): use `import`, not `require`.
@@ -16,9 +16,9 @@ The main entry has no schemas. Import a format from its subpath and register it,
 formats you use are bundled (each Kubernetes kind's schema is a lazy chunk on top of that):
 
 ```ts
-import { detectFormat, parseText, registerFormat, validateText } from '@stack-weaver/core';
-import { kubernetesFormat } from '@stack-weaver/core/formats/kubernetes';
-import { composeFormat } from '@stack-weaver/core/formats/compose';
+import { detectFormat, parseText, registerFormat, validateText } from '@mellowforge/stack-weaver-core';
+import { kubernetesFormat } from '@mellowforge/stack-weaver-core/formats/kubernetes';
+import { composeFormat } from '@mellowforge/stack-weaver-core/formats/compose';
 
 registerFormat(kubernetesFormat);
 registerFormat(composeFormat);
@@ -71,8 +71,8 @@ use. The editor does not read it: give it your formats through the `formats` opt
 either pane shows up in the other, and undo and redo span both. Import the stylesheet once:
 
 ```ts
-import '@stack-weaver/core/stack-weaver.css';
-import { createManifestEditor } from '@stack-weaver/core';
+import '@mellowforge/stack-weaver-core/stack-weaver.css';
+import { createManifestEditor } from '@mellowforge/stack-weaver-core';
 
 const editor = createManifestEditor(document.getElementById('editor')!, {
   format: 'auto', // 'kubernetes' | 'compose' | 'auto'
@@ -267,7 +267,7 @@ createManifestEditor(el, {
 
 ### The code editor
 
-The code pane is a `CodeEditorAdapter`. The CodeMirror 6 adapter lives at `@stack-weaver/core/editors/codemirror`.
+The code pane is a `CodeEditorAdapter`. The CodeMirror 6 adapter lives at `@mellowforge/stack-weaver-core/editors/codemirror`.
 Its packages are peer dependencies, so install them next to the core:
 
 ```sh
@@ -276,7 +276,7 @@ pnpm add @codemirror/autocomplete @codemirror/commands @codemirror/lang-yaml @co
 ```
 
 ```ts
-import { codemirrorAdapter } from '@stack-weaver/core/editors/codemirror';
+import { codemirrorAdapter } from '@mellowforge/stack-weaver-core/editors/codemirror';
 
 createManifestEditor(el, { codeEditor: codemirrorAdapter({ extensions: [/* your CodeMirror extensions */] }) });
 ```
@@ -370,7 +370,7 @@ schema's shape. The built-in names are `string`, `number`, `integer`, `boolean`,
 `widgets` option:
 
 ```ts
-import type { WidgetFactory } from '@stack-weaver/core';
+import type { WidgetFactory } from '@mellowforge/stack-weaver-core';
 
 const approvedImage: WidgetFactory = (ctx) => {
   const select = document.createElement('select');
@@ -427,7 +427,7 @@ resource" catalog from a guide (default: the format's own); the editor's picker 
 
 ## Development
 
-Run the playground with `pnpm --filter @stack-weaver/core dev`. It serves `examples/playground.html`, which
+Run the playground with `pnpm --filter @mellowforge/stack-weaver-core dev`. It serves `examples/playground.html`, which
 imports from `src` directly, so it needs no build (a `predev` step runs the generators for the version file and
 schemas, like `pretest`).
 

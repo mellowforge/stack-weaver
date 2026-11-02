@@ -40,7 +40,7 @@ const PACKAGES = [
     // Packs from publishConfig.directory (the ng-packagr output), which pnpm resolves itself.
     dir: 'packages/angular/projects/stack-weaver-angular',
     attw: ['--profile', 'esm-only'],
-    required: ['fesm2022/stack-weaver-angular.mjs', 'types/stack-weaver-angular.d.ts'],
+    required: ['fesm2022/mellowforge-stack-weaver-angular.mjs', 'types/mellowforge-stack-weaver-angular.d.ts'],
   },
 ];
 const ALWAYS = ['package.json', 'README.md', 'LICENSE'];

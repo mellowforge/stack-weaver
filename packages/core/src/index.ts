@@ -1,4 +1,4 @@
-/** The version of `@stack-weaver/core`, generated from its package.json by `scripts/gen-version.mjs`. */
+/** The version of `@mellowforge/stack-weaver-core`, generated from its package.json by `scripts/gen-version.mjs`. */
 export { VERSION } from './version.js';
 
 // Document model
@@ -75,7 +75,7 @@ export type { Severity, Problem, ProblemCode, ProblemSource } from './validation
 export { defaultMessages } from './validation/messages.js';
 export type { SchemaMessages, MessageFn } from './validation/messages.js';
 
-// Code editor adapter interface (the CodeMirror implementation lives in "@stack-weaver/core/editors/codemirror")
+// Code editor adapter interface (the CodeMirror implementation lives in "@mellowforge/stack-weaver-core/editors/codemirror")
 export type {
   CodeDiagnostic,
   CodeDiagnosticAction,

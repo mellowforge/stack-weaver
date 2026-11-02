@@ -1,5 +1,5 @@
 {
-  "name": "@stack-weaver/angular-workspace",
+  "name": "stack-weaver-angular-workspace",
   "version": "0.0.0",
   "private": true,
   "packageManager": "pnpm@12.11.2",
@@ -30,8 +30,8 @@
     "@codemirror/state": "^6.7.6",
     "@codemirror/view": "^6.43.15",
     "@lezer/highlight": "^1.2.5",
-    "@stack-weaver/core": "workspace:*",
-    "@stack-weaver/demo-kit": "workspace:*",
+    "@mellowforge/stack-weaver-core": "workspace:*",
+    "stack-weaver-demo-kit": "workspace:*",
     "happy-dom": "^21.0.4",
     "ng-packagr": "^22.2.0",
     "typescript": "~6.0.2",

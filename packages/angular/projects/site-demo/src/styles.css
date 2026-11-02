@@ -1,6 +1,6 @@
-@import '@stack-weaver/core/stack-weaver.css';
-@import '@stack-weaver/demo-kit/theme.css';
-@import '@stack-weaver/demo-kit/controls.css';
+@import '@mellowforge/stack-weaver-core/stack-weaver.css';
+@import 'stack-weaver-demo-kit/theme.css';
+@import 'stack-weaver-demo-kit/controls.css';
 
 /* The rules below match site/src/shared.css (the Vanilla and React pages use the same ones). */
 *,

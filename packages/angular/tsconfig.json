@@ -5,7 +5,7 @@
   "compilerOptions": {
     "noImplicitOverride": true,
     "paths": {
-      "@stack-weaver/angular": [
+      "@mellowforge/stack-weaver-angular": [
         "./dist/stack-weaver-angular"
       ]
     },

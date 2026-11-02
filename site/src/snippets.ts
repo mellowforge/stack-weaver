@@ -3,8 +3,8 @@ export type Lang = 'html' | 'ts' | 'tsx';
 
 /** Short quickstarts. Each uses the same API as its demo. */
 export const SNIPPETS: Record<Framework, string> = {
-  vanilla: `import { createManifestEditor } from '@stack-weaver/core';
-import '@stack-weaver/core/stack-weaver.css';
+  vanilla: `import { createManifestEditor } from '@mellowforge/stack-weaver-core';
+import '@mellowforge/stack-weaver-core/stack-weaver.css';
 
 // Needs a bundler such as Vite. CodeMirror is a peer dependency, loaded on demand.
 const editor = createManifestEditor(document.getElementById('editor'), {
@@ -17,8 +17,8 @@ const editor = createManifestEditor(document.getElementById('editor'), {
 
 editor.update({ readOnly: true });`,
   react: `import { useState } from 'react';
-import { ManifestEditor } from '@stack-weaver/react';
-import '@stack-weaver/core/stack-weaver.css';
+import { ManifestEditor } from '@mellowforge/stack-weaver-react';
+import '@mellowforge/stack-weaver-core/stack-weaver.css';
 
 export function Editor() {
   const [value, setValue] = useState('services:\\n  web:\\n    image: nginx:1.27\\n');
@@ -32,8 +32,8 @@ export function Editor() {
     />
   );
 }`,
-  angular: `// imports: SwManifestEditor from '@stack-weaver/angular'
-// Add '@stack-weaver/core/stack-weaver.css' to the styles of your app.
+  angular: `// imports: SwManifestEditor from '@mellowforge/stack-weaver-angular'
+// Add '@mellowforge/stack-weaver-core/stack-weaver.css' to the styles of your app.
 <sw-manifest-editor
   [(value)]="manifest"
   format="auto"

@@ -1,8 +1,8 @@
 import { ChangeDetectionStrategy, Component, DestroyRef, ElementRef, inject, input, signal, viewChild, viewChildren } from '@angular/core';
-import { SwManifestEditor } from '@stack-weaver/angular';
-import type { ChangeOrigin, CodeEditorAdapter } from '@stack-weaver/core';
-import { EXAMPLES, THEMES, THEME_KEY, applyPageTheme, readTheme, statusLine, writeTheme } from '@stack-weaver/demo-kit';
-import type { SiteTheme } from '@stack-weaver/demo-kit';
+import { SwManifestEditor } from '@mellowforge/stack-weaver-angular';
+import type { ChangeOrigin, CodeEditorAdapter } from '@mellowforge/stack-weaver-core';
+import { EXAMPLES, THEMES, THEME_KEY, applyPageTheme, readTheme, statusLine, writeTheme } from 'stack-weaver-demo-kit';
+import type { SiteTheme } from 'stack-weaver-demo-kit';
 
 let instance = 0;
 

@@ -1,4 +1,4 @@
-import type { CodeDiagnostic, CodeEditorInit, CodeEditorInstance, SyncCodeEditorAdapter, TextChange, TextRange } from '@stack-weaver/core';
+import type { CodeDiagnostic, CodeEditorInit, CodeEditorInstance, SyncCodeEditorAdapter, TextChange, TextRange } from '@mellowforge/stack-weaver-core';
 
 /** A mounted textarea editor, with the extras the demos and tests read. */
 export interface TextareaInstance extends CodeEditorInstance {

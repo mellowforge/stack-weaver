@@ -1,1 +1,1 @@
-# @stack-weaver/angular
+# @mellowforge/stack-weaver-angular

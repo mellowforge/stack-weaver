@@ -1,6 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { MockInstance } from 'vitest';
-import { THEMES, THEME_KEY, textareaAdapter } from '@stack-weaver/demo-kit';
+import { THEMES, THEME_KEY, textareaAdapter } from 'stack-weaver-demo-kit';
 import { createThemeSwitch } from '../src/theme-switch.js';
 import { mountVanillaDemo } from '../src/vanilla-demo.js';
 import type { VanillaDemo } from '../src/vanilla-demo.js';

@@ -1,7 +1,7 @@
-import { createManifestEditor } from '@stack-weaver/core';
-import type { ChangeOrigin, CodeEditorAdapter, ManifestEditorController } from '@stack-weaver/core';
-import { EXAMPLES, readTheme, statusLine } from '@stack-weaver/demo-kit';
-import type { DemoExample, SiteTheme } from '@stack-weaver/demo-kit';
+import { createManifestEditor } from '@mellowforge/stack-weaver-core';
+import type { ChangeOrigin, CodeEditorAdapter, ManifestEditorController } from '@mellowforge/stack-weaver-core';
+import { EXAMPLES, readTheme, statusLine } from 'stack-weaver-demo-kit';
+import type { DemoExample, SiteTheme } from 'stack-weaver-demo-kit';
 import { createToolbar } from './toolbar.js';
 import { watchTheme } from './theme-switch.js';
 

@@ -15,18 +15,18 @@ A schema-driven visual and code editor for Kubernetes and docker-compose YAML, f
 
 | Package | Description |
 | --- | --- |
-| [`@stack-weaver/core`](packages/core) | The framework-agnostic editor: document model, Kubernetes and compose formats, visual and code panes |
-| [`@stack-weaver/react`](packages/react) | `<ManifestEditor>` for React 19 |
-| [`@stack-weaver/angular`](packages/angular/projects/stack-weaver-angular) | `<sw-manifest-editor>` for Angular 22 |
+| [`@mellowforge/stack-weaver-core`](packages/core) | The framework-agnostic editor: document model, Kubernetes and compose formats, visual and code panes |
+| [`@mellowforge/stack-weaver-react`](packages/react) | `<ManifestEditor>` for React 19 |
+| [`@mellowforge/stack-weaver-angular`](packages/angular/projects/stack-weaver-angular) | `<sw-manifest-editor>` for Angular 22 |
 
 ## Installation
 
-The wrappers have `@stack-weaver/core` as a peer dependency. Install the one you need:
+The wrappers have `@mellowforge/stack-weaver-core` as a peer dependency. Install the one you need:
 
 ```sh
-pnpm add @stack-weaver/core                                    # vanilla JS / TS
-pnpm add @stack-weaver/react @stack-weaver/core react react-dom   # React
-pnpm add @stack-weaver/angular @stack-weaver/core              # Angular
+pnpm add @mellowforge/stack-weaver-core                                    # vanilla JS / TS
+pnpm add @mellowforge/stack-weaver-react @mellowforge/stack-weaver-core react react-dom   # React
+pnpm add @mellowforge/stack-weaver-angular @mellowforge/stack-weaver-core              # Angular
 ```
 
 The default code pane is CodeMirror 6, loaded on first use. Its packages are peer dependencies of the core, so install them too (or pass your own `CodeEditorAdapter` and skip them):
@@ -36,15 +36,15 @@ pnpm add @codemirror/autocomplete @codemirror/commands @codemirror/lang-yaml @co
   @codemirror/lint @codemirror/state @codemirror/view @lezer/highlight
 ```
 
-All packages are ESM-only. Import the stylesheet once: `@stack-weaver/core/stack-weaver.css`. The wrappers ship no CSS of their own.
+All packages are ESM-only. Import the stylesheet once: `@mellowforge/stack-weaver-core/stack-weaver.css`. The wrappers ship no CSS of their own.
 
 ## Quick start
 
 ### React
 
 ```tsx
-import { ManifestEditor } from '@stack-weaver/react';
-import '@stack-weaver/core/stack-weaver.css';
+import { ManifestEditor } from '@mellowforge/stack-weaver-react';
+import '@mellowforge/stack-weaver-core/stack-weaver.css';
 
 export function Editor({ text, setText }: { text: string; setText: (text: string) => void }) {
   return <ManifestEditor style={{ height: 480 }} value={text} onChange={setText} format="auto" />;
@@ -55,7 +55,7 @@ export function Editor({ text, setText }: { text: string; setText: (text: string
 
 ```ts
 import { Component, signal } from '@angular/core';
-import { SwManifestEditor } from '@stack-weaver/angular';
+import { SwManifestEditor } from '@mellowforge/stack-weaver-angular';
 
 @Component({
   selector: 'app-editor',
@@ -67,13 +67,13 @@ export class Editor {
 }
 ```
 
-Add `@import '@stack-weaver/core/stack-weaver.css';` to your global `styles.css`.
+Add `@import '@mellowforge/stack-weaver-core/stack-weaver.css';` to your global `styles.css`.
 
 ### Vanilla JS / TS
 
 ```ts
-import { createManifestEditor } from '@stack-weaver/core';
-import '@stack-weaver/core/stack-weaver.css';
+import { createManifestEditor } from '@mellowforge/stack-weaver-core';
+import '@mellowforge/stack-weaver-core/stack-weaver.css';
 
 const editor = createManifestEditor(document.getElementById('editor')!, {
   format: 'auto',
@@ -88,19 +88,19 @@ editor.destroy();
 
 ## Documentation
 
-- [`@stack-weaver/core`](packages/core/README.md): options, controller, formats, variables, rules, theming and messages
-- [`@stack-weaver/react`](packages/react/README.md): props, rules and the ref
-- [`@stack-weaver/angular`](packages/angular/projects/stack-weaver-angular/README.md): inputs, outputs and rules
-- [Demo site](https://constantine-24.github.io/stack-weaver/): the same editor in Vanilla JS, React and Angular
+- [`@mellowforge/stack-weaver-core`](packages/core/README.md): options, controller, formats, variables, rules, theming and messages
+- [`@mellowforge/stack-weaver-react`](packages/react/README.md): props, rules and the ref
+- [`@mellowforge/stack-weaver-angular`](packages/angular/projects/stack-weaver-angular/README.md): inputs, outputs and rules
+- [Demo site](https://mellowforge.github.io/stack-weaver/): the same editor in Vanilla JS, React and Angular
 - [Design spec](docs/superpowers/specs/2026-10-30-stack-weaver-design.md)
 
 ## Compatibility
 
 | Package | Runtime |
 | --- | --- |
-| `@stack-weaver/core` | Any evergreen browser (ES2022) |
-| `@stack-weaver/react` | React 19. Safe under `<StrictMode>` and server rendering. |
-| `@stack-weaver/angular` | Angular 22, standalone. Works with zone.js and zoneless. |
+| `@mellowforge/stack-weaver-core` | Any evergreen browser (ES2022) |
+| `@mellowforge/stack-weaver-react` | React 19. Safe under `<StrictMode>` and server rendering. |
+| `@mellowforge/stack-weaver-angular` | Angular 22, standalone. Works with zone.js and zoneless. |
 
 ## Limitations
 

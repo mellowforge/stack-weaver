@@ -1,8 +1,8 @@
-import { docsLinks } from '@stack-weaver/demo-kit';
-import type { SiteConfig } from '@stack-weaver/demo-kit';
+import { docsLinks } from 'stack-weaver-demo-kit';
+import type { SiteConfig } from 'stack-weaver-demo-kit';
 
 /** The published packages, for the npm links. */
-export const PACKAGES = ['@stack-weaver/core', '@stack-weaver/react', '@stack-weaver/angular'] as const;
+export const PACKAGES = ['@mellowforge/stack-weaver-core', '@mellowforge/stack-weaver-react', '@mellowforge/stack-weaver-angular'] as const;
 
 /** The copy shortcut for this platform: Cmd+C on Apple devices, Ctrl+C elsewhere. */
 export function copyShortcut(): string {

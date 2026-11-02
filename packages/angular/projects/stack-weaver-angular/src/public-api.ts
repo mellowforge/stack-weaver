@@ -1,5 +1,5 @@
 /*
- * Public API Surface of @stack-weaver/angular
+ * Public API Surface of @mellowforge/stack-weaver-angular
  */
 
 export { SwManifestEditor } from './lib/manifest-editor.component';
@@ -21,4 +21,4 @@ export type {
   WidgetDefinition,
   CodeEditorAdapter,
   SyncCodeEditorAdapter,
-} from '@stack-weaver/core';
+} from '@mellowforge/stack-weaver-core';

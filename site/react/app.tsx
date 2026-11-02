@@ -1,10 +1,10 @@
 import { useEffect, useId, useRef, useState } from 'react';
 import type { KeyboardEvent } from 'react';
-import { ManifestEditor } from '@stack-weaver/react';
-import type { ChangeOrigin, ManifestEditorController } from '@stack-weaver/react';
-import type { CodeEditorAdapter } from '@stack-weaver/core';
-import { EXAMPLES, THEMES, applyPageTheme, readTheme, statusLine } from '@stack-weaver/demo-kit';
-import type { SiteTheme } from '@stack-weaver/demo-kit';
+import { ManifestEditor } from '@mellowforge/stack-weaver-react';
+import type { ChangeOrigin, ManifestEditorController } from '@mellowforge/stack-weaver-react';
+import type { CodeEditorAdapter } from '@mellowforge/stack-weaver-core';
+import { EXAMPLES, THEMES, applyPageTheme, readTheme, statusLine } from 'stack-weaver-demo-kit';
+import type { SiteTheme } from 'stack-weaver-demo-kit';
 import { setSiteTheme, watchTheme } from '../src/theme-switch.js';
 
 /** The theme radio group: the same classes and ARIA as the Vanilla `createThemeSwitch`. */

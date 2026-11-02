@@ -1,8 +1,8 @@
 import { Component, Injector, NgZone, afterEveryRender, provideZoneChangeDetection, signal, viewChild } from '@angular/core';
 import { ComponentFixture, ComponentFixtureAutoDetect, TestBed } from '@angular/core/testing';
 import type { MockInstance } from 'vitest';
-import { textareaAdapter } from '@stack-weaver/demo-kit';
-import type { TextareaAdapter } from '@stack-weaver/demo-kit';
+import { textareaAdapter } from 'stack-weaver-demo-kit';
+import type { TextareaAdapter } from 'stack-weaver-demo-kit';
 import { SwManifestEditor } from './manifest-editor.component';
 
 let errors: MockInstance<typeof console.error>;

@@ -14,7 +14,7 @@ import {
   output,
   untracked,
 } from '@angular/core';
-import { createManifestEditor } from '@stack-weaver/core';
+import { createManifestEditor } from '@mellowforge/stack-weaver-core';
 import type {
   ChangeOrigin,
   CodeEditorAdapter,
@@ -31,7 +31,7 @@ import type {
   VariableDecl,
   VariablesOption,
   WidgetRegistry,
-} from '@stack-weaver/core';
+} from '@mellowforge/stack-weaver-core';
 
 /** The init-only inputs, and the variables store kind: a change to any of them recreates the editor. */
 interface InitOnly {
@@ -72,7 +72,7 @@ const sameInit = (a: InitOnly, b: InitOnly): boolean =>
   (Object.keys(a) as (keyof InitOnly)[]).every((k) => a[k] === b[k]);
 
 /**
- * The `@stack-weaver/core` manifest editor as an Angular component. The host element is the editor's container;
+ * The `@mellowforge/stack-weaver-core` manifest editor as an Angular component. The host element is the editor's container;
  * the core builds the editor inside it after the first render, so it is safe for server rendering.
  *
  * Settable inputs (`value`, `mode`, `format`, `readOnly`, `theme`, and `variables.value` with the `external` store)

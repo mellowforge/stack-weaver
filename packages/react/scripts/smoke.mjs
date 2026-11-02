@@ -7,14 +7,14 @@ if (!existsSync(new URL('../dist/index.js', import.meta.url))) {
   process.exit(1);
 }
 
-const mod = await import('@stack-weaver/react');
+const mod = await import('@mellowforge/stack-weaver-react');
 assert.equal(typeof mod.ManifestEditor, 'function', 'ManifestEditor should be a function');
 
 const pkg = JSON.parse(readFileSync(new URL('../package.json', import.meta.url), 'utf8'));
-assert.equal(pkg.name, '@stack-weaver/react');
+assert.equal(pkg.name, '@mellowforge/stack-weaver-react');
 assert.deepEqual(
   pkg.peerDependencies,
-  { '@stack-weaver/core': 'workspace:0.x', react: '^19.0.0', 'react-dom': '^19.0.0' },
+  { '@mellowforge/stack-weaver-core': 'workspace:0.x', react: '^19.0.0', 'react-dom': '^19.0.0' },
   'peerDependencies should be exactly core, react and react-dom',
 );
 assert.equal(pkg.dependencies, undefined, 'there should be no runtime dependencies');

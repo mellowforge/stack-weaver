@@ -7,13 +7,13 @@ const fail = (msg) => {
   process.exit(1);
 };
 
-const mod = await import(new URL('fesm2022/stack-weaver-angular.mjs', dist).href);
+const mod = await import(new URL('fesm2022/mellowforge-stack-weaver-angular.mjs', dist).href);
 if (!('SwManifestEditor' in mod)) fail('missing export SwManifestEditor');
 
 if (!existsSync(new URL('LICENSE', dist))) fail('dist/stack-weaver-angular/LICENSE is missing');
 
 const pkg = JSON.parse(readFileSync(new URL('package.json', dist), 'utf8'));
-if (pkg.name !== '@stack-weaver/angular') fail(`unexpected package name ${pkg.name}`);
+if (pkg.name !== '@mellowforge/stack-weaver-angular') fail(`unexpected package name ${pkg.name}`);
 const source = JSON.parse(readFileSync(new URL('../projects/stack-weaver-angular/package.json', import.meta.url), 'utf8'));
 // The source ranges (`workspace:0.x` for the core); pnpm publish rewrites that one to 0.x
 const expected = source.peerDependencies;

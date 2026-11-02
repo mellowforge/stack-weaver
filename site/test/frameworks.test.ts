@@ -1,6 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { MockInstance } from 'vitest';
-import { siteConfig, textareaAdapter } from '@stack-weaver/demo-kit';
+import { siteConfig, textareaAdapter } from 'stack-weaver-demo-kit';
 import { mountFrameworks } from '../src/frameworks.js';
 import { SNIPPETS, highlightInto, tokenize } from '../src/snippets.js';
 
@@ -118,7 +118,7 @@ describe('framework tabs', () => {
   });
 
   it('puts the base in the iframe URL', () => {
-    mount(siteConfig({ GITHUB_REPOSITORY: 'Constantine-24/stack-weaver' }));
+    mount(siteConfig({ GITHUB_REPOSITORY: 'mellowforge/stack-weaver' }));
     click(tab('React'));
     click(tab('Angular'));
     expect(iframes().map((f) => [f.getAttribute('src'), f.title])).toEqual([

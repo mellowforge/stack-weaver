@@ -28,7 +28,7 @@ function entryGraph(entry: string): { files: string[]; violations: string[] } {
   return { files, violations: files.filter((f) => !existsSync(f) || FORBIDDEN.some((p) => f.includes(p))) };
 }
 
-describe('@stack-weaver/core', () => {
+describe('@mellowforge/stack-weaver-core', () => {
   it("exports VERSION equal to package.json's version", () => {
     const pkg = JSON.parse(readFileSync(new URL('../package.json', import.meta.url), 'utf8')) as { version: string };
     expect(VERSION).toBe(pkg.version);

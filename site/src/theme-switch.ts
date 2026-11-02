@@ -1,5 +1,5 @@
-import { THEMES, THEME_KEY, applyPageTheme, readTheme, writeTheme } from '@stack-weaver/demo-kit';
-import type { SiteTheme } from '@stack-weaver/demo-kit';
+import { THEMES, THEME_KEY, applyPageTheme, readTheme, writeTheme } from 'stack-weaver-demo-kit';
+import type { SiteTheme } from 'stack-weaver-demo-kit';
 
 const listeners = new Set<(theme: SiteTheme) => void>();
 

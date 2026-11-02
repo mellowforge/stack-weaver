@@ -2,6 +2,8 @@
 
 These are decisions and deferred work from the Plan 1 execution and its milestone review, which used the pr-review-toolkit panel. Later plans must pick them up.
 
+> **Package names (2026-11-02):** `@stack-weaver/{core,react,angular}` below now means `@mellowforge/stack-weaver-{core,react,angular}`. The private workspace packages are `stack-weaver-demo-kit`, `stack-weaver-site` and `stack-weaver-angular-workspace`.
+
 ## Plan 1 follow-ups: status after Plan 2
 The editor UI (Plan 2) took most of the "API hardening" list. Done means shipped and tested in Plan 2.
 

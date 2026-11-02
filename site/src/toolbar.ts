@@ -1,4 +1,4 @@
-import { EXAMPLES } from '@stack-weaver/demo-kit';
+import { EXAMPLES } from 'stack-weaver-demo-kit';
 import { createThemeSwitch } from './theme-switch.js';
 
 /** The demo toolbar: the example picker, the read-only box, Undo and Redo, and the theme switch. */
