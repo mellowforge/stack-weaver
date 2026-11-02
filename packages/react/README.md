@@ -90,6 +90,9 @@ export function Editor() {
   `{ canUndo: false, canRedo: false }`. It also starts with no problems and no active format: if the old editor had
   them, `onProblemsChange` is called with `[]` and `onFormatChange` with `undefined`, and the new editor then reports
   its own, so `onFormatChange` reports the format again once it resolves.
+- **A recreation that throws** (for example a host format or widget that throws while the editor is built) reaches
+  the nearest React error boundary, which unmounts the editor. Wrap `<ManifestEditor>` in an error boundary if your
+  init-only options can fail.
 - **`ref` is the controller.** It receives the live `ManifestEditorController` (`getValue`, `undo`, `redo`, `reset`,
   `applyFix`, `ready`, ...) and `null` after unmount. A recreated editor is a new controller, so do not keep
   `ref.current` across renders.

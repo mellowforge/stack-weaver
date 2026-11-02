@@ -92,6 +92,9 @@ export class Editor {
   `{ canUndo: false, canRedo: false }`. It also starts with no problems and no active format: if the old editor had
   them, `problemsChange` emits `[]` and `activeFormatChange` emits `undefined`, and the new editor then reports its
   own, so `activeFormatChange` emits the format again once it resolves.
+- **A recreation that throws** (for example a host format or widget that throws while the editor is built) is
+  logged, and the component is left with no editor: `controller()` returns `undefined`. The next input change tries
+  to create it again.
 - **`controller()` is the controller.** Read it through `viewChild`: it returns the live `ManifestEditorController`
   (`getValue`, `undo`, `redo`, `reset`, `applyFix`, `ready`, ...), and `undefined` until after the first render and
   after destroy. A recreated editor is a new controller, so call `controller()` each time rather than keeping the result.
