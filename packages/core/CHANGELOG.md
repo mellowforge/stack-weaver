@@ -1,5 +1,11 @@
 # @mellowforge/stack-weaver-core
 
+## 0.1.1
+
+### Patch Changes
+
+- 550c1df: Field descriptions in the visual pane wrap long URLs instead of running past the section. When applying a format throws, the editor now logs "applying the format threw" instead of blaming the format detection. The React and Angular READMEs say what happens when recreating the editor throws.
+
 ## 0.1.0
 
 ### Minor Changes

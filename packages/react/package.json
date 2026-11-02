@@ -1,6 +1,6 @@
 {
   "name": "@mellowforge/stack-weaver-react",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "description": "React bindings for @mellowforge/stack-weaver-core: a visual and code editor for Kubernetes and docker-compose YAML.",
   "license": "MIT",
   "author": "Konstantin Penzin",
