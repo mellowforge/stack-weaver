@@ -538,6 +538,8 @@
   margin: 0;
   color: var(--sw-muted);
   font-size: 12px;
+  /* Schema descriptions end in long URLs: wrap them instead of running past the section. */
+  overflow-wrap: anywhere;
 }
 
 .sw-row-value {
