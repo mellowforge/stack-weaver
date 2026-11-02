@@ -1,6 +1,6 @@
 {
   "name": "@mellowforge/stack-weaver-angular",
-  "version": "0.0.0",
+  "version": "0.1.0",
   "description": "Angular bindings for @mellowforge/stack-weaver-core: a visual and code editor for Kubernetes and docker-compose YAML.",
   "license": "MIT",
   "author": "Konstantin Penzin",
