@@ -35,7 +35,7 @@
     "happy-dom": "^21.0.4",
     "ng-packagr": "^22.2.0",
     "typescript": "~6.0.2",
-    "vitest": "^5.0.5",
+    "vitest": "^5.1.0",
     "zone.js": "~0.16.3"
   }
 }
